@@ -6,7 +6,7 @@
 
 <p align="center">Interactive soliton simulations in the browser, powered by the Soliton Physics engine compiled to WebAssembly.</p>
 
-Live at [soliton-physics.github.io/playground](https://soliton-physics.github.io/playground/).
+Live at [soliton-playground.vercel.app](https://soliton-playground.vercel.app/).
 
 ## Scenarios
 
@@ -20,25 +20,24 @@ Open a scenario directly with `?preset=<id>`. Add `&embed` for a compact view su
 
 ## Development
 
-The playground consumes the WebAssembly package built from the sibling [`soliton`](https://github.com/soliton-physics/soliton) repository,
-so clone both side by side:
-
-```
-soliton-physics/
-  soliton/
-  playground/
-```
-
 ```sh
-# build the engine
-cd soliton/crates/soliton-wasm
-wasm-pack build --release --target web --scope soliton-physics
-
-# run the playground
-cd ../../../playground
 pnpm install
 pnpm dev
 ```
+
+The compiled engine lives in `engine/`, vendored from the sibling [`soliton`](https://github.com/soliton-physics/soliton)
+repository so that Vercel can build this repo without a Rust toolchain. After changing the engine, clone both repos side by side
+and run:
+
+```sh
+pnpm sync-engine
+```
+
+which rebuilds the WebAssembly package with `wasm-pack` and copies it into `engine/`.
+
+## Deployment
+
+Deployed on Vercel from `main`. Set `VITE_DOCS_URL` in the project settings if the docs live somewhere other than the default in `.env`.
 
 ## Stack
 

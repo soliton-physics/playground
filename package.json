@@ -3,16 +3,21 @@
   "private": true,
   "type": "module",
   "version": "0.1.0",
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-engine": "sh scripts/sync-engine.sh"
   },
   "dependencies": {
-    "@soliton-physics/soliton-wasm": "link:../soliton/crates/soliton-wasm/pkg"
+    "@soliton-physics/soliton-wasm": "link:./engine"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
+    "typescript": "^5.9.3",
     "vite": "^8.3.5"
   }
 }

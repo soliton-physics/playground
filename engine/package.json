@@ -1,0 +1,24 @@
+{
+  "name": "@soliton-physics/soliton-wasm",
+  "type": "module",
+  "collaborators": [
+    "Soliton Physics contributors"
+  ],
+  "description": "WebAssembly bindings for the Soliton Physics engine",
+  "version": "0.1.0",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/soliton-physics/soliton"
+  },
+  "files": [
+    "soliton_wasm_bg.wasm",
+    "soliton_wasm.js",
+    "soliton_wasm.d.ts"
+  ],
+  "main": "soliton_wasm.js",
+  "types": "soliton_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
