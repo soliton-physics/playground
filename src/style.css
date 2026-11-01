@@ -147,26 +147,57 @@ button:hover {
   margin: 0;
 }
 
-body.embed .header,
-body.embed .description,
-body.embed .links {
-  display: none;
-}
 
-body.embed .app {
-  grid-template-columns: minmax(0, 1fr) 270px;
-  padding: 8px;
-  gap: 8px;
-  min-height: 100vh;
-}
 
 @media (max-width: 760px) {
-  .app,
-  body.embed .app {
+  .app {
     grid-template-columns: 1fr;
   }
 }
 
+/* Embed mode: the plot fills the frame, controls sit in a slim bar below it. */
 body.embed .app {
-  grid-template-rows: 1fr;
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100vh;
+  padding: 6px;
+  gap: 6px;
+}
+
+body.embed .header,
+body.embed .description,
+body.embed .readout,
+body.embed .field:has(#preset) {
+  display: none;
+}
+
+body.embed .stage {
+  min-height: 0;
+}
+
+body.embed .panel {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+}
+
+body.embed .buttons {
+  flex: none;
+}
+
+body.embed .buttons button {
+  padding: 5px 12px;
+}
+
+body.embed .field {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+body.embed .field input {
+  flex: 1;
+  margin: 0;
 }
