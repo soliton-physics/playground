@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Interactive soliton simulations running the Soliton Physics engine in WebAssembly." />
+    <title>Soliton Playground</title>
+    <link rel="icon" href="./favicon.svg" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <a class="brand" href="https://github.com/soliton-physics">
+          <img src="./favicon.svg" alt="" width="28" height="28" />
+          <span>Soliton Playground</span>
+        </a>
+        <nav class="links">
+          <a href="https://soliton-physics.github.io/docs/">Docs</a>
+          <a href="https://github.com/soliton-physics/soliton">Engine</a>
+        </nav>
+      </header>
+
+      <section class="stage">
+        <canvas id="plot"></canvas>
+      </section>
+
+      <section class="panel">
+        <label class="field">
+          <span>Scenario</span>
+          <select id="preset"></select>
+        </label>
+        <p id="description" class="description"></p>
+        <div class="buttons">
+          <button id="toggle" type="button">Pause</button>
+          <button id="reset" type="button">Reset</button>
+        </div>
+        <label class="field">
+          <span>Speed <output id="speed-value"></output> steps per frame</span>
+          <input id="speed" type="range" min="1" max="200" value="20" />
+        </label>
+        <dl id="readout" class="readout"></dl>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
