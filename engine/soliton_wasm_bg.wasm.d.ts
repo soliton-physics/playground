@@ -1,7 +1,29 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_mechanicsworld_free: (a: number, b: number) => void;
 export const __wbg_wavesimulation_free: (a: number, b: number) => void;
+export const mechanics_catalogue: () => [number, number, number];
+export const mechanicsworld_bodies: (a: number) => [number, number, number];
+export const mechanicsworld_dt: (a: number) => number;
+export const mechanicsworld_energy: (a: number) => [number, number, number];
+export const mechanicsworld_events: (a: number) => [number, number, number];
+export const mechanicsworld_exact: (a: number) => [number, number, number];
+export const mechanicsworld_focus: (a: number) => number;
+export const mechanicsworld_forces: (a: number, b: number) => [number, number, number];
+export const mechanicsworld_from_scene: (a: number, b: number, c: number) => [number, number, number];
+export const mechanicsworld_new: (a: number, b: number, c: any, d: number) => [number, number, number];
+export const mechanicsworld_scene_json: (a: number) => [number, number];
+export const mechanicsworld_series: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const mechanicsworld_series_energy: (a: number, b: number, c: number) => [number, number, number];
+export const mechanicsworld_series_force: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const mechanicsworld_series_time: (a: number) => any;
+export const mechanicsworld_sketches: (a: number) => [number, number, number];
+export const mechanicsworld_state: (a: number) => any;
+export const mechanicsworld_step: (a: number, b: number) => void;
+export const mechanicsworld_time: (a: number) => number;
+export const mechanicsworld_title: (a: number) => [number, number];
+export const mechanicsworld_view: (a: number) => [number, number, number];
 export const wavesimulation_add_kdv_soliton: (a: number, b: number, c: number) => void;
 export const wavesimulation_add_nls_soliton: (a: number, b: number, c: number, d: number) => void;
 export const wavesimulation_clear: (a: number) => void;

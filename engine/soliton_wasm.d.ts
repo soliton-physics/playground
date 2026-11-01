@@ -2,6 +2,67 @@
 /* eslint-disable */
 
 /**
+ * A running mechanics scenario, built from the catalogue with chosen parameters.
+ */
+export class MechanicsWorld {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Static description of every body: label, kind, mass, shape.
+     */
+    bodies(): any;
+    dt(): number;
+    energy(): any;
+    /**
+     * Events since the previous call.
+     */
+    events(): any;
+    exact(): any;
+    focus(): number;
+    /**
+     * The free-body diagram of one body at the current state.
+     */
+    forces(body: number): any;
+    /**
+     * Builds a world from scene JSON (design 004).
+     */
+    static from_scene(json: string, record_every: number): MechanicsWorld;
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     */
+    constructor(id: string, params: any, record_every: number);
+    /**
+     * The scene this world was built from, as JSON.
+     */
+    scene_json(): string;
+    /**
+     * A recorded quantity of one body: `x`, `y`, `vx`, `vy`, `speed`, `ax`, `ay`, `angle`, `omega`.
+     */
+    series(body: number, quantity: string): Float64Array;
+    /**
+     * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
+     */
+    series_energy(quantity: string): Float64Array;
+    /**
+     * The recorded net force with `label` on one body, as `[fx, fy]` pairs flattened.
+     */
+    series_force(body: number, label: string): Float64Array;
+    series_time(): Float64Array;
+    /**
+     * Ropes, pulleys, rods, springs and pivots at the current state.
+     */
+    sketches(): any;
+    /**
+     * `[x, y, angle, vx, vy, omega, ax, ay]` per body, flattened.
+     */
+    state(): Float64Array;
+    step(steps: number): void;
+    time(): number;
+    title(): string;
+    view(): any;
+}
+
+/**
  * A running simulation of one of the supported wave equations.
  */
 export class WaveSimulation {
@@ -33,11 +94,38 @@ export class WaveSimulation {
     time(): number;
 }
 
+/**
+ * The scenario catalogue with parameter schemas, for building the picker and the sliders.
+ */
+export function mechanics_catalogue(): any;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_mechanicsworld_free: (a: number, b: number) => void;
     readonly __wbg_wavesimulation_free: (a: number, b: number) => void;
+    readonly mechanics_catalogue: () => [number, number, number];
+    readonly mechanicsworld_bodies: (a: number) => [number, number, number];
+    readonly mechanicsworld_dt: (a: number) => number;
+    readonly mechanicsworld_energy: (a: number) => [number, number, number];
+    readonly mechanicsworld_events: (a: number) => [number, number, number];
+    readonly mechanicsworld_exact: (a: number) => [number, number, number];
+    readonly mechanicsworld_focus: (a: number) => number;
+    readonly mechanicsworld_forces: (a: number, b: number) => [number, number, number];
+    readonly mechanicsworld_from_scene: (a: number, b: number, c: number) => [number, number, number];
+    readonly mechanicsworld_new: (a: number, b: number, c: any, d: number) => [number, number, number];
+    readonly mechanicsworld_scene_json: (a: number) => [number, number];
+    readonly mechanicsworld_series: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly mechanicsworld_series_energy: (a: number, b: number, c: number) => [number, number, number];
+    readonly mechanicsworld_series_force: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly mechanicsworld_series_time: (a: number) => any;
+    readonly mechanicsworld_sketches: (a: number) => [number, number, number];
+    readonly mechanicsworld_state: (a: number) => any;
+    readonly mechanicsworld_step: (a: number, b: number) => void;
+    readonly mechanicsworld_time: (a: number) => number;
+    readonly mechanicsworld_title: (a: number) => [number, number];
+    readonly mechanicsworld_view: (a: number) => [number, number, number];
     readonly wavesimulation_add_kdv_soliton: (a: number, b: number, c: number) => void;
     readonly wavesimulation_add_nls_soliton: (a: number, b: number, c: number, d: number) => void;
     readonly wavesimulation_clear: (a: number) => void;
