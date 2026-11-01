@@ -1,4 +1,4 @@
-import type { WaveSimulation } from './engine';
+import type { WaveSimulation } from '../engine';
 
 export type Model = 'kdv' | 'nls';
 

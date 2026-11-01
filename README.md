@@ -4,19 +4,25 @@
 
 <h1 align="center">playground</h1>
 
-<p align="center">Interactive soliton simulations in the browser, powered by the Soliton Physics engine compiled to WebAssembly.</p>
+<p align="center">Interactive physics in the browser, powered by the Soliton Physics engine compiled to WebAssembly.</p>
 
 Live at [soliton-playground.vercel.app](https://soliton-playground.vercel.app/).
 
-## Scenarios
+## Two modes
 
-- KdV: a single soliton, a two-soliton collision, and a smooth bump breaking into a soliton train
-- NLS: a moving bright soliton, a two-soliton collision, and the Satsuma–Yajima breather
+**Mechanics** (`?mode=mechanics&scenario=<id>`): the NCERT class 11 scenario catalogue in chapter order, from free
+fall to the simple pendulum. Sliders are generated from each scenario's parameter schema. The view shows the bodies,
+ropes and springs, the velocity and acceleration vectors, and the free-body diagram of the selected body drawn from the
+engine's own force breakdown. Panels show the textbook answers beside the live readout, the energy ledger, position and
+velocity graphs, and the event log (a rope going slack, a block starting to slide). Click a body to select it; drag to
+pan and scroll to zoom.
 
-Every scenario shows the live conserved quantities and their drift, so you can see the solver's accuracy as it runs.
+**Waves** (`?mode=waves&preset=<id>`): KdV and NLS solitons, collisions, a bump breaking into a soliton train, and the
+Satsuma–Yajima breather, with live conserved quantities and their drift.
 
-Open a scenario directly with `?preset=<id>`. Add `&embed` for a compact view suitable for iframes, which is how the
-[docs](https://github.com/soliton-physics/docs) embed live simulations.
+Add `&embed` to either for a compact view suitable for iframes, which is how the
+[docs](https://github.com/soliton-physics/docs) embed live simulations. The theme follows the system and can be toggled
+in the header.
 
 ## Development
 
@@ -41,7 +47,7 @@ Deployed on Vercel from `main`. Set `VITE_DOCS_URL` in the project settings if t
 
 ## Stack
 
-Vite, TypeScript, Canvas 2D for one-dimensional fields. WebGPU rendering arrives with the two-dimensional solvers.
+Vite, TypeScript, Canvas 2D, no framework. Nothing physical is computed in the browser code: forces, energies and events all come from the engine.
 
 ## License
 

@@ -1,4 +1,4 @@
-import init, { WaveSimulation } from '@soliton-physics/soliton-wasm';
+import init, { MechanicsWorld, WaveSimulation, mechanics_catalogue } from '@soliton-physics/soliton-wasm';
 
 let ready: Promise<void> | undefined;
 
@@ -7,4 +7,4 @@ export function loadEngine(): Promise<void> {
   return ready;
 }
 
-export { WaveSimulation };
+export { MechanicsWorld, WaveSimulation, mechanics_catalogue };
