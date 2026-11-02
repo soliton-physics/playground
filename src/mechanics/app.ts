@@ -1,6 +1,7 @@
 import { MechanicsWorld, mechanics_catalogue } from '../engine';
 import { el, formatNumber, query as q } from '../ui';
 import { Graph } from './graph';
+import { ScenarioPicker } from './picker';
 import { SceneView, forceColor, type SceneOptions } from './scene';
 import type { BodyInfo, EnergyInfo, EventInfo, ExactInfo, ForceInfo, ScenarioSpec, SketchInfo, View } from './types';
 import { STATE_STRIDE } from './types';
@@ -107,7 +108,7 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
   const catalogue = mechanics_catalogue() as ScenarioSpec[];
   main.innerHTML = `
     <aside class="sidebar">
-      <label class="field"><span>Scenario</span><select id="scenario"></select></label>
+      <div class="field"><span>Scenario</span><div id="scenario-picker"></div></div>
       <p id="description" class="description"></p>
       <div id="params" class="params"></div>
       <button id="defaults" type="button" class="subtle">Reset parameters</button>
@@ -166,7 +167,7 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
     </aside>`;
 
   const ui = {
-    scenario: q<HTMLSelectElement>(main, '#scenario'),
+    pickerMount: q<HTMLDivElement>(main, '#scenario-picker'),
     description: q<HTMLParagraphElement>(main, '#description'),
     params: q<HTMLDivElement>(main, '#params'),
     defaults: q<HTMLButtonElement>(main, '#defaults'),
@@ -194,16 +195,11 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
     events: q<HTMLOListElement>(main, '#events'),
   };
 
-  const chapters = new Map<string, ScenarioSpec[]>();
-  for (const spec of catalogue) {
-    const key = `Class ${spec.syllabus.class} · ${spec.syllabus.chapter}`;
-    chapters.set(key, [...(chapters.get(key) ?? []), spec]);
-  }
-  for (const [chapter, specs] of chapters) {
-    const group = el('optgroup', { label: chapter });
-    for (const spec of specs) group.append(new Option(spec.title, spec.id));
-    ui.scenario.append(group);
-  }
+  const picker = new ScenarioPicker(
+    catalogue.map((spec) => ({ id: spec.id, title: spec.title, group: `Class ${spec.syllabus.class} · ${spec.syllabus.chapter}` })),
+    (id) => startScenario(catalogue.find((s) => s.id === id)!, true),
+  );
+  ui.pickerMount.replaceWith(picker.root);
 
   const view = new SceneView(ui.canvas);
   const graphs = {
@@ -217,7 +213,7 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
   let rebuildTimer: number | undefined;
 
   function currentSpec(): ScenarioSpec {
-    return catalogue.find((s) => s.id === ui.scenario.value) ?? catalogue[0]!;
+    return catalogue.find((s) => s.id === picker.value) ?? catalogue[0]!;
   }
 
   function buildParamControls(spec: ScenarioSpec): void {
@@ -252,7 +248,7 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
     session.running = wasRunning;
     session.speed = speed;
     if (source.kind === 'scenario') {
-      ui.scenario.value = source.spec.id;
+      picker.value = source.spec.id;
       ui.description.textContent = source.spec.description;
       if (resetParams) buildParamControls(source.spec);
       if (!embedded) history.replaceState(null, '', `?mode=mechanics&scenario=${source.spec.id}`);
@@ -305,7 +301,6 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
     ui.file.value = '';
   });
 
-  ui.scenario.addEventListener('change', () => startScenario(currentSpec(), true));
   ui.defaults.addEventListener('click', () => startScenario(currentSpec(), true));
   ui.reset.addEventListener('click', restart);
   ui.toggle.addEventListener('click', () => {
