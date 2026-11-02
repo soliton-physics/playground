@@ -27,7 +27,7 @@ export class Graph {
     const w = this.width - margin.left - margin.right;
     const h = this.height - margin.top - margin.bottom;
     const n = time.length;
-    if (n < 2) return;
+    if (n < 1) return;
     let min = Infinity;
     let max = -Infinity;
     for (const s of series) for (let i = 0; i < n; i++) {
@@ -46,7 +46,7 @@ export class Graph {
     min -= pad;
     max += pad;
     const t0 = time[0]!;
-    const t1 = time[n - 1]!;
+    const t1 = Math.max(time[n - 1]!, t0 + 1);
     const toX = (t: number) => margin.left + ((t - t0) / Math.max(t1 - t0, 1e-9)) * w;
     const toY = (v: number) => margin.top + ((max - v) / (max - min)) * h;
 
@@ -76,6 +76,10 @@ export class Graph {
       ctx.strokeStyle = s.color;
       ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(toX(time[n - 1]!), toY(s.values[n - 1]!), 2.5, 0, 2 * Math.PI);
+      ctx.fillStyle = s.color;
+      ctx.fill();
     }
 
     ctx.textAlign = 'left';
