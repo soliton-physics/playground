@@ -8,7 +8,7 @@ importers:
 
   .:
     dependencies:
-      '@soliton-physics/soliton-wasm':
+      '@soliton-physics/engine':
         specifier: link:./engine
         version: link:engine
     devDependencies:

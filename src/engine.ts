@@ -1,4 +1,4 @@
-import init, { MechanicsWorld, WaveSimulation, mechanics_catalogue } from '@soliton-physics/soliton-wasm';
+import init, { MechanicsWorld, WaveSimulation, mechanics_catalogue } from '@soliton-physics/engine';
 
 let ready: Promise<void> | undefined;
 

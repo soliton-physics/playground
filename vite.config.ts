@@ -2,5 +2,5 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: { target: 'esnext' },
-  optimizeDeps: { exclude: ['@soliton-physics/soliton-wasm'] },
+  optimizeDeps: { exclude: ['@soliton-physics/engine'] },
 });

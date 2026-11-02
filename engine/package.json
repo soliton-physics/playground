@@ -1,5 +1,5 @@
 {
-  "name": "@soliton-physics/soliton-wasm",
+  "name": "@soliton-physics/engine",
   "type": "module",
   "collaborators": [
     "Soliton Physics contributors"

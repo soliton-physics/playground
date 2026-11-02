@@ -14,7 +14,7 @@
     "sync-engine": "sh scripts/sync-engine.sh"
   },
   "dependencies": {
-    "@soliton-physics/soliton-wasm": "link:./engine"
+    "@soliton-physics/engine": "link:./engine"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
