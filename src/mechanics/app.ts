@@ -129,7 +129,7 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
     </aside>
     <section class="stage-column">
       <div class="toolbar">
-        <button id="toggle" type="button">Pause</button>
+        <button id="toggle" type="button" title="Space">Play</button>
         <button id="step" type="button">Step</button>
         <button id="reset" type="button">Restart</button>
         <label class="inline"><span>Speed</span><input id="speed" type="range" min="-2" max="1.5" step="0.1" value="0" /><output id="speed-value">×1.0</output></label>
@@ -226,15 +226,20 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
           paramValues[p.name] = Number(input.value);
           output.textContent = `${formatNumber(Number(input.value), 2)} ${p.unit}`;
           clearTimeout(rebuildTimer);
-          rebuildTimer = window.setTimeout(() => startScenario(spec, false), 120);
+          rebuildTimer = window.setTimeout(() => startScenario(spec, false, session?.running ?? false), 120);
         });
         return el('label', { class: 'field' }, [el('span', {}, [el('b', { text: p.label }), output]), input]);
       }),
     );
   }
 
-  function start(source: Source, resetParams: boolean): void {
-    const wasRunning = session?.running ?? true;
+  function setRunning(running: boolean): void {
+    if (!session) return;
+    session.running = running;
+    ui.toggle.textContent = running ? 'Pause' : 'Play';
+  }
+
+  function start(source: Source, resetParams: boolean, running: boolean): void {
     const speed = session?.speed ?? 1;
     try {
       const next = new Session(source);
@@ -245,8 +250,8 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
       ui.sceneError.textContent = String(error instanceof Error ? error.message : error);
       return;
     }
-    session.running = wasRunning;
     session.speed = speed;
+    setRunning(running);
     if (source.kind === 'scenario') {
       picker.value = source.spec.id;
       ui.description.textContent = source.spec.description;
@@ -256,7 +261,6 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
       ui.description.textContent = `Loaded scene: ${session.title}`;
       ui.params.replaceChildren(el('p', { class: 'muted', text: 'Parameters live in the JSON for a loaded scene.' }));
     }
-    ui.toggle.textContent = session.running ? 'Pause' : 'Play';
     ui.exact.replaceChildren(
       ...session.exact.map((e) => el('tr', {}, [el('td', { text: e.name }), el('td', { class: 'num', text: formatNumber(e.value) })])),
     );
@@ -269,14 +273,14 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
     view.clearTrail();
   }
 
-  function startScenario(spec: ScenarioSpec, resetParams: boolean): void {
+  function startScenario(spec: ScenarioSpec, resetParams: boolean, running = false): void {
     if (resetParams) paramValues = {};
-    start({ kind: 'scenario', spec, params: paramValues }, resetParams);
+    start({ kind: 'scenario', spec, params: paramValues }, resetParams, running);
   }
 
   function restart(): void {
     if (!session) return;
-    start(session.source, false);
+    start(session.source, false, session.running);
   }
 
   ui.exportButton.addEventListener('click', () => {
@@ -297,22 +301,24 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
     } catch {
       /* the engine reports the parse error */
     }
-    start({ kind: 'scene', json, dt }, false);
+    start({ kind: 'scene', json, dt }, false, false);
     ui.file.value = '';
   });
 
   ui.defaults.addEventListener('click', () => startScenario(currentSpec(), true));
   ui.reset.addEventListener('click', restart);
-  ui.toggle.addEventListener('click', () => {
-    if (!session) return;
-    session.running = !session.running;
-    ui.toggle.textContent = session.running ? 'Pause' : 'Play';
-  });
+  ui.toggle.addEventListener('click', () => setRunning(!session?.running));
   ui.step.addEventListener('click', () => {
     if (!session) return;
-    session.running = false;
-    ui.toggle.textContent = 'Play';
+    setRunning(false);
     session.stepOnce();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('input:not([type=range]), select, textarea, [contenteditable], .picker')) return;
+    e.preventDefault();
+    setRunning(!session?.running);
   });
   ui.speed.addEventListener('input', () => {
     const speed = 10 ** Number(ui.speed.value);
