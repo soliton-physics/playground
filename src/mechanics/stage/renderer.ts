@@ -97,7 +97,7 @@ export class Renderer implements Painter {
   draw(frame: Frame, follow = true): void {
     const { ctx } = this;
     const { bodies, state } = frame;
-    if (follow) this.camera.follow(footprints(bodies, state));
+    if (follow) this.camera.follow([...footprints(bodies, state), ...anchors(frame.sketches)]);
     this.labels = [];
     ctx.fillStyle = cssVar('--canvas-bg');
     ctx.fillRect(0, 0, this.width, this.height);
@@ -491,6 +491,17 @@ export function footprints(bodies: BodyInfo[], state: Float64Array): Box[] {
       shape.kind === 'circle' ? shape.radius : shape.kind === 'polygon' ? Math.max(...shape.vertices.map(([x, y]) => Math.hypot(x, y))) : 0;
     out.push({ x: state[i * STATE_STRIDE]!, y: state[i * STATE_STRIDE + 1]!, radius: Math.max(radius, 0.1) });
   });
+  return out;
+}
+
+/** What the moving bodies hang from or are tied to: a pendulum's pivot belongs in the frame as much as its bob. */
+function anchors(sketches: SketchInfo[]): Box[] {
+  const out: Box[] = [];
+  for (const sketch of sketches) {
+    if (sketch.kind === 'pivot') out.push({ x: sketch.point[0], y: sketch.point[1], radius: 0.1 });
+    else if (sketch.kind === 'circle') out.push({ x: sketch.center[0], y: sketch.center[1], radius: sketch.radius });
+    else for (const [x, y] of sketch.points) out.push({ x, y, radius: 0.1 });
+  }
   return out;
 }
 
