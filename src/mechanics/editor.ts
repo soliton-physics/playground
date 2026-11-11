@@ -377,20 +377,20 @@ export class Editor {
       rows.push(kinds);
     }
     if (!isStatic) {
-      rows.push(slider({ label: 'Mass', min: 0.1, max: 20, step: 0.1, value: spec.mass ?? 1, format: (v) => `${formatNumber(v)} kg`, onInput: (v) => set('mass', (b) => (b.mass = v)) }).root);
+      rows.push(slider({ label: 'Mass', min: 0.1, max: 20, step: 0.1, hardMin: 0.001, hardMax: 1e6, value: spec.mass ?? 1, format: (v) => `${formatNumber(v)} kg`, onInput: (v) => set('mass', (b) => (b.mass = v)) }).root);
     }
     if ('circle' in spec.shape) {
-      rows.push(slider({ label: 'Radius', min: 0.05, max: 1.5, step: 0.05, value: spec.shape.circle, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('size', (b) => (b.shape = { circle: v })) }).root);
+      rows.push(slider({ label: 'Radius', min: 0.05, max: 1.5, step: 0.05, hardMin: 0.01, hardMax: 1000, value: spec.shape.circle, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('size', (b) => (b.shape = { circle: v })) }).root);
     } else if ('rectangle' in spec.shape) {
       const [w, h] = spec.shape.rectangle;
       rows.push(
-        slider({ label: 'Width', min: 0.1, max: 8, step: 0.1, value: w, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('width', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [v, b.shape.rectangle[1]] })) }).root,
-        slider({ label: 'Height', min: 0.1, max: 4, step: 0.1, value: h, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('height', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [b.shape.rectangle[0], v] })) }).root,
-        slider({ label: 'Tilt', min: -90, max: 90, step: 1, value: Math.round(((spec.angle ?? 0) * 180) / Math.PI), format: (v) => `${v}°`, onInput: (v) => set('tilt', (b) => (b.angle = (v * Math.PI) / 180)) }).root,
+        slider({ label: 'Width', min: 0.1, max: 8, step: 0.1, hardMin: 0.01, hardMax: 10000, value: w, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('width', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [v, b.shape.rectangle[1]] })) }).root,
+        slider({ label: 'Height', min: 0.1, max: 4, step: 0.1, hardMin: 0.01, hardMax: 10000, value: h, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('height', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [b.shape.rectangle[0], v] })) }).root,
+        slider({ label: 'Tilt', min: -90, max: 90, step: 1, hardMin: -180, hardMax: 180, value: Number((((spec.angle ?? 0) * 180) / Math.PI).toFixed(3)), format: (v) => `${formatNumber(v)}°`, onInput: (v) => set('tilt', (b) => (b.angle = (v * Math.PI) / 180)) }).root,
       );
     }
     rows.push(
-      slider({ label: 'Friction μ', min: 0, max: 1, step: 0.05, value: spec.friction?.[0] ?? 0, format: (v) => formatNumber(v, 2), onInput: (v) => set('friction', (b) => (b.friction = [v, round(0.8 * v, 0.01)])) }).root,
+      slider({ label: 'Friction μ', min: 0, max: 1, step: 0.05, hardMax: 10, value: spec.friction?.[0] ?? 0, format: (v) => formatNumber(v, 2), onInput: (v) => set('friction', (b) => (b.friction = [v, round(0.8 * v, 0.01)])) }).root,
     );
     if (!isStatic) {
       rows.push(slider({ label: 'Bounce e', min: 0, max: 1, step: 0.05, value: spec.restitution ?? 1, format: (v) => formatNumber(v, 2), onInput: (v) => set('bounce', (b) => (b.restitution = v)) }).root);

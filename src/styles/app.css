@@ -321,11 +321,29 @@ main.mode {
   font-size: 0.9rem;
 }
 
-.slider-head output {
+.slider-value {
+  width: 8.5em;
+  min-width: 0;
+  padding: 1px 5px;
+  margin: -2px -5px -2px 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
   font-weight: 550;
-  white-space: nowrap;
+  text-align: right;
+  cursor: text;
+}
+
+.slider-value:hover {
+  border-color: var(--border-strong);
+}
+
+.slider-value:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 input[type='range'] {
