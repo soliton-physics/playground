@@ -23,15 +23,26 @@ export function query<T extends Element>(root: ParentNode, selector: string): T 
   return node;
 }
 
+/** Three significant figures, the way a textbook writes a measured quantity. */
 export function formatNumber(value: number, digits = 3): string {
   if (!Number.isFinite(value)) return '–';
   const magnitude = Math.abs(value);
-  if (magnitude !== 0 && (magnitude < 1e-3 || magnitude >= 1e5)) return value.toExponential(2);
-  return value.toFixed(digits);
+  if (magnitude < 5e-10) return '0';
+  if (magnitude < 1e-3 || magnitude >= 1e6) return value.toExponential(2).replace('e+', 'e').replace(/^-/, '−');
+  const decimals = Math.max(0, digits - 1 - Math.floor(Math.log10(magnitude)));
+  return value.toFixed(Math.min(decimals, 4)).replace('-0', '−0').replace(/^-/, '−');
+}
+
+export function formatQuantity(value: number, unit: string, digits = 3): string {
+  return unit ? `${formatNumber(value, digits)} ${unit}` : formatNumber(value, digits);
+}
+
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 export function currentTheme(): 'light' | 'dark' {
-  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
 
 export function toggleTheme(): void {
@@ -42,9 +53,18 @@ export function toggleTheme(): void {
   } catch {
     /* storage unavailable */
   }
+  themeCache.clear();
+  window.dispatchEvent(new Event('themechange'));
 }
+
+const themeCache = new Map<string, string>();
 
 /** Reads a CSS custom property from the document, for canvases that must match the theme. */
 export function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  let value = themeCache.get(name);
+  if (value === undefined) {
+    value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    themeCache.set(name, value);
+  }
+  return value;
 }

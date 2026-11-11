@@ -1,415 +1,578 @@
-import { MechanicsWorld, mechanics_catalogue } from '../engine';
-import { el, formatNumber, query as q } from '../ui';
-import { Graph } from './graph';
-import { ScenarioPicker } from './picker';
-import { SceneView, forceColor, type SceneOptions } from './scene';
-import type { BodyInfo, EnergyInfo, EventInfo, ExactInfo, ForceInfo, ScenarioSpec, SketchInfo, View } from './types';
-import { STATE_STRIDE } from './types';
+import { closePopover, popover, slider, toast } from '../controls';
+import { mechanics_catalogue } from '../engine';
+import { icon, type IconName } from '../icons';
+import type { Shell } from '../shell';
+import { clamp, el, formatNumber } from '../ui';
+import { Answers } from './answers';
+import { Dock, type ViewOptions } from './dock';
+import { Editor, TOOL_KEYS, emptySandbox } from './editor';
+import { openGallery, type GalleryChoice } from './gallery';
+import { HANDLES, type Handle } from './handles';
+import { Inspector } from './inspector';
+import { Session, type Source } from './session';
+import { downloadScene, loadSandbox, saveSandbox, sceneFromUrl, shareLink } from './share';
+import { Renderer, VELOCITY_SCALE, aggregateForces, type Frame, type Painter } from './stage/renderer';
+import { STATE_STRIDE, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
 
-/** Sums same-labelled forces, as a textbook free-body diagram shows one normal force even for two contact points. */
-export function aggregateForces(forces: ForceInfo[]): ForceInfo[] {
-  const byLabel = new Map<string, ForceInfo & { weight: number }>();
-  for (const f of forces) {
-    const magnitude = Math.hypot(f.force[0], f.force[1]) + 1e-12;
-    const current = byLabel.get(f.label);
-    if (!current) {
-      byLabel.set(f.label, { ...f, force: [...f.force], point: [f.point[0] * magnitude, f.point[1] * magnitude], weight: magnitude });
-    } else {
-      current.force[0] += f.force[0];
-      current.force[1] += f.force[1];
-      current.torque += f.torque;
-      current.point[0] += f.point[0] * magnitude;
-      current.point[1] += f.point[1] * magnitude;
-      current.weight += magnitude;
-    }
-  }
-  return [...byLabel.values()].map(({ weight, ...f }) => ({ ...f, point: [f.point[0] / weight, f.point[1] / weight] }));
-}
+const GRAVITIES: [string, number][] = [
+  ['Earth  9.8 m/s²', 9.8],
+  ['Mars  3.7 m/s²', 3.7],
+  ['Moon  1.6 m/s²', 1.6],
+  ['No gravity', 0],
+];
 
-const MAX_STEPS_PER_FRAME = 4000;
+/** How close, in pixels, a press must be to a knob to take it. */
+const KNOB_REACH = 16;
 
-export type Source =
-  | { kind: 'scenario'; spec: ScenarioSpec; params: Record<string, number> }
-  | { kind: 'scene'; json: string; dt: number };
+type Drag =
+  | { kind: 'pan'; x: number; y: number }
+  | { kind: 'press'; body: number; x: number; y: number; at: Vec }
+  | { kind: 'grab' }
+  | { kind: 'move'; body: number; origin: Vec; at: Vec }
+  | { kind: 'velocity'; body: number }
+  | { kind: 'handle'; handle: Handle };
 
-class Session {
-  readonly world: MechanicsWorld;
-  readonly bodies: BodyInfo[];
-  readonly view: View;
-  readonly exact: ExactInfo[];
-  readonly events: EventInfo[] = [];
-  readonly title: string;
-  focus: number;
-  running = true;
-  speed = 1;
-  private accumulator = 0;
-
-  constructor(readonly source: Source) {
-    const dt = source.kind === 'scenario' ? source.spec.dt : source.dt;
-    const recordEvery = Math.max(1, Math.round(0.005 / dt));
-    this.world =
-      source.kind === 'scenario'
-        ? new MechanicsWorld(source.spec.id, source.params, recordEvery)
-        : MechanicsWorld.from_scene(source.json, recordEvery);
-    this.title = this.world.title();
-    this.bodies = this.world.bodies() as BodyInfo[];
-    this.view = this.world.view() as View;
-    this.exact = this.world.exact() as ExactInfo[];
-    this.focus = this.world.focus();
-    this.drainEvents();
-  }
-
-  advance(seconds: number): void {
-    if (!this.running) return;
-    this.accumulator += seconds * this.speed;
-    const steps = Math.min(MAX_STEPS_PER_FRAME, Math.floor(this.accumulator / this.world.dt()));
-    if (steps > 0) {
-      this.world.step(steps);
-      this.accumulator -= steps * this.world.dt();
-      this.drainEvents();
-    }
-  }
-
-  stepOnce(): void {
-    this.world.step(Math.max(1, Math.round(0.01 / this.world.dt())));
-    this.drainEvents();
-  }
-
-  private drainEvents(): void {
-    this.events.push(...(this.world.events() as EventInfo[]));
-  }
-
-  describe(event: EventInfo): string {
-    const name = (i: number) => this.bodies[i]?.label ?? `body ${i}`;
-    switch (event.kind) {
-      case 'contact_begin':
-        return `${name(event.bodies[0]!)} touches ${name(event.bodies[1]!)}`;
-      case 'contact_end':
-        return `${name(event.bodies[0]!)} leaves ${name(event.bodies[1]!)}`;
-      case 'friction_slip':
-        return `${name(event.bodies[1]!)} starts sliding on ${name(event.bodies[0]!)}`;
-      case 'friction_stick':
-        return `${name(event.bodies[1]!)} stops sliding on ${name(event.bodies[0]!)}`;
-      case 'rope_slack':
-        return 'the string goes slack';
-      case 'rope_taut':
-        return 'the string becomes taut';
-      default:
-        return event.kind;
-    }
-  }
-
-  dispose(): void {
-    this.world.free();
-  }
-}
-
-export function mountMechanics(main: HTMLElement, params: URLSearchParams, embedded: boolean): void {
+export async function mountMechanics(main: HTMLElement, query: URLSearchParams, embedded: boolean, shell: Shell): Promise<void> {
   const catalogue = mechanics_catalogue() as ScenarioSpec[];
-  main.innerHTML = `
-    <aside class="sidebar">
-      <div class="field"><span>Scenario</span><div id="scenario-picker"></div></div>
-      <p id="description" class="description"></p>
-      <div id="params" class="params"></div>
-      <button id="defaults" type="button" class="subtle">Reset parameters</button>
-      <section class="card">
-        <h3>Textbook answers</h3>
-        <table id="exact" class="table"></table>
-      </section>
-      <section class="card">
-        <h3>Scene as JSON</h3>
-        <p class="description">Every scenario is a JSON scene. Download it, edit it, load it back, or open it in a notebook.</p>
-        <div class="buttons">
-          <button id="export" type="button" class="subtle">Download</button>
-          <button id="load" type="button" class="subtle">Load file</button>
-        </div>
-        <input id="file" type="file" accept="application/json,.json" hidden />
-        <p id="scene-error" class="error"></p>
-      </section>
-    </aside>
-    <section class="stage-column">
-      <div class="toolbar">
-        <button id="toggle" type="button" title="Space">Play</button>
-        <button id="step" type="button">Step</button>
-        <button id="reset" type="button">Restart</button>
-        <label class="inline"><span>Speed</span><input id="speed" type="range" min="-2" max="1.5" step="0.1" value="0" /><output id="speed-value">×1.0</output></label>
-        <label class="check"><input id="show-forces" type="checkbox" checked />Forces</label>
-        <label class="check"><input id="show-velocity" type="checkbox" checked />Velocity</label>
-        <label class="check"><input id="show-acceleration" type="checkbox" />Acceleration</label>
-        <label class="check"><input id="show-trail" type="checkbox" checked />Trail</label>
-        <button id="fit" type="button" class="subtle">Fit view</button>
-      </div>
-      <div class="stage"><canvas id="scene"></canvas></div>
-      <div class="graphs">
-        <canvas id="graph-position"></canvas>
-        <canvas id="graph-velocity"></canvas>
-        <canvas id="graph-energy"></canvas>
-      </div>
-    </section>
-    <aside class="inspector">
-      <section class="card">
-        <h3>Selected body <select id="focus"></select></h3>
-        <dl id="readout" class="readout"></dl>
-      </section>
-      <section class="card">
-        <h3>Free-body diagram</h3>
-        <table id="forces" class="table"></table>
-      </section>
-      <section class="card">
-        <h3>Energy</h3>
-        <div id="energy-bar" class="energy-bar"></div>
-        <dl id="energy" class="readout"></dl>
-      </section>
-      <section class="card">
-        <h3>Events</h3>
-        <ol id="events" class="events"></ol>
-      </section>
-    </aside>`;
+  const canvas = el('canvas', { class: 'stage-canvas' });
+  const description = el('p');
+  const actions = el('div', { class: 'info-actions' });
+  const info = el('section', { class: 'info glass overlay' }, [description, actions]);
+  const hint = el('div', { class: 'hint glass overlay', hidden: true });
+  const banner = el('p', { class: 'banner glass overlay', hidden: true });
+  const properties = el('div', { class: 'glass overlay', hidden: true, style: 'left:64px;top:50%;transform:translateY(-50%)' });
+  main.append(canvas);
 
-  const ui = {
-    pickerMount: q<HTMLDivElement>(main, '#scenario-picker'),
-    description: q<HTMLParagraphElement>(main, '#description'),
-    params: q<HTMLDivElement>(main, '#params'),
-    defaults: q<HTMLButtonElement>(main, '#defaults'),
-    exact: q<HTMLTableElement>(main, '#exact'),
-    exportButton: q<HTMLButtonElement>(main, '#export'),
-    loadButton: q<HTMLButtonElement>(main, '#load'),
-    file: q<HTMLInputElement>(main, '#file'),
-    sceneError: q<HTMLParagraphElement>(main, '#scene-error'),
-    toggle: q<HTMLButtonElement>(main, '#toggle'),
-    step: q<HTMLButtonElement>(main, '#step'),
-    reset: q<HTMLButtonElement>(main, '#reset'),
-    speed: q<HTMLInputElement>(main, '#speed'),
-    speedValue: q<HTMLOutputElement>(main, '#speed-value'),
-    showForces: q<HTMLInputElement>(main, '#show-forces'),
-    showVelocity: q<HTMLInputElement>(main, '#show-velocity'),
-    showAcceleration: q<HTMLInputElement>(main, '#show-acceleration'),
-    showTrail: q<HTMLInputElement>(main, '#show-trail'),
-    fit: q<HTMLButtonElement>(main, '#fit'),
-    canvas: q<HTMLCanvasElement>(main, '#scene'),
-    focus: q<HTMLSelectElement>(main, '#focus'),
-    readout: q<HTMLDListElement>(main, '#readout'),
-    forces: q<HTMLTableElement>(main, '#forces'),
-    energyBar: q<HTMLDivElement>(main, '#energy-bar'),
-    energy: q<HTMLDListElement>(main, '#energy'),
-    events: q<HTMLOListElement>(main, '#events'),
-  };
+  const renderer = new Renderer(canvas);
+  const view: ViewOptions = { forces: true, velocity: true, acceleration: false, trail: true };
+  let session!: Session;
+  let sandbox = false;
+  let spec: ScenarioSpec = catalogue[0]!;
+  let values: Record<string, number> = {};
+  let drag: Drag | undefined;
+  let pointer: Vec | undefined;
+  let propertiesKey = '';
+  let pendingRebuild = false;
 
-  const picker = new ScenarioPicker(
-    catalogue.map((spec) => ({ id: spec.id, title: spec.title, group: `Class ${spec.syllabus.class} · ${spec.syllabus.chapter}` })),
-    (id) => startScenario(catalogue.find((s) => s.id === id)!, true),
+  const editor = new Editor(
+    () => rebuildSandbox(),
+    (text) => showHint(text),
   );
-  ui.pickerMount.replaceWith(picker.root);
+  const answers = new Answers();
+  const inspector = new Inspector((body) => focusOn(body));
+  const dock = new Dock(view, {
+    toggle: () => setRunning(!session.running),
+    step: () => {
+      setRunning(false);
+      session.stepOnce();
+    },
+    restart: () => restart(),
+    seekStart: () => setRunning(false),
+    seek: (time) => {
+      session.seek(time);
+      renderer.clearTrail();
+      banner.hidden = true;
+    },
+    fit: () => fit(),
+    speed: (value) => (session.speed = value),
+  });
+  main.append(info, hint, banner, answers.root, editor.rail, properties, inspector.root, dock.root);
 
-  const view = new SceneView(ui.canvas);
-  const graphs = {
-    position: new Graph(q<HTMLCanvasElement>(main, '#graph-position'), 'Position', 'm'),
-    velocity: new Graph(q<HTMLCanvasElement>(main, '#graph-velocity'), 'Velocity', 'm/s'),
-    energy: new Graph(q<HTMLCanvasElement>(main, '#graph-energy'), 'Energy', 'J'),
-  };
+  // ---------------------------------------------------------------- loading worlds
 
-  let session: Session | undefined;
-  let paramValues: Record<string, number> = {};
-  let rebuildTimer: number | undefined;
-
-  function currentSpec(): ScenarioSpec {
-    return catalogue.find((s) => s.id === picker.value) ?? catalogue[0]!;
+  function insets(): void {
+    const wide = main.clientWidth >= 1180;
+    const phone = main.clientWidth <= 700;
+    renderer.camera.insets = embedded
+      ? { left: 8, right: 8, top: 8, bottom: 52 }
+      : {
+          left: sandbox ? 64 : wide ? 344 : 16,
+          right: inspector.collapsed || phone ? 16 : inspector.root.offsetWidth + 24,
+          top: wide || sandbox ? 16 : info.offsetHeight + 24,
+          bottom: 84,
+        };
+    renderer.axis = { left: sandbox && !phone ? 70 : 8, clearTop: embedded ? 0 : info.offsetTop + info.offsetHeight };
   }
 
-  function buildParamControls(spec: ScenarioSpec): void {
-    ui.params.replaceChildren(
-      ...spec.params.map((p) => {
-        const value = paramValues[p.name] ?? p.default;
-        const output = el('output', { text: `${formatNumber(value, 2)} ${p.unit}` });
-        const input = el('input', { type: 'range', min: p.min, max: p.max, step: p.step, value }) as HTMLInputElement;
-        input.addEventListener('input', () => {
-          paramValues[p.name] = Number(input.value);
-          output.textContent = `${formatNumber(Number(input.value), 2)} ${p.unit}`;
-          clearTimeout(rebuildTimer);
-          rebuildTimer = window.setTimeout(() => startScenario(spec, false, session?.running ?? false), 120);
-        });
-        return el('label', { class: 'field' }, [el('span', {}, [el('b', { text: p.label }), output]), input]);
-      }),
-    );
+  /** The scene's suggested view, widened if the things in it reach further sideways than its height implies. */
+  function framing(): View {
+    const view = session.view;
+    if (view.half_width) return view;
+    const state = session.world.state();
+    let reach = 0;
+    session.bodies.forEach((body, i) => {
+      const shape = body.shape;
+      if (shape.kind === 'halfplane') return;
+      const [x, y, angle] = [state[i * STATE_STRIDE]!, state[i * STATE_STRIDE + 1]!, state[i * STATE_STRIDE + 2]!];
+      const points: Vec[] =
+        shape.kind === 'circle'
+          ? [[x - shape.radius, y], [x + shape.radius, y]]
+          : shape.vertices.map(([vx, vy]) => [x + vx * Math.cos(angle) - vy * Math.sin(angle), y + vx * Math.sin(angle) + vy * Math.cos(angle)]);
+      for (const [px, py] of points) {
+        if (Math.abs(py - view.center[1]) > view.half_height + 0.5) continue;
+        reach = Math.max(reach, Math.min(Math.abs(px - view.center[0]), 4 * view.half_height));
+      }
+    });
+    return reach > 0 ? { ...view, half_width: reach + 0.3 } : view;
   }
 
-  function setRunning(running: boolean): void {
-    if (!session) return;
-    session.running = running;
-    ui.toggle.textContent = running ? 'Pause' : 'Play';
+  function fit(): void {
+    insets();
+    renderer.camera.fit(framing());
   }
 
-  function start(source: Source, resetParams: boolean, running: boolean): void {
-    const speed = session?.speed ?? 1;
+  /** Replaces the world. Returns false, leaving the old one running, if the engine refuses the scene. */
+  function load(source: Source, keepCamera: boolean): boolean {
+    let next: Session;
     try {
-      const next = new Session(source);
-      session?.dispose();
-      session = next;
-      ui.sceneError.textContent = '';
+      next = new Session(source);
     } catch (error) {
-      ui.sceneError.textContent = String(error instanceof Error ? error.message : error);
+      toast(String(error instanceof Error ? error.message : error), 'error');
+      return false;
+    }
+    const previous = session as Session | undefined;
+    next.speed = previous?.speed ?? 1;
+    if (keepCamera && previous && next.bodies[previous.focus]?.kind !== 'static' && previous.focus < next.bodies.length) next.focus = previous.focus;
+    previous?.dispose();
+    session = next;
+    banner.hidden = true;
+    renderer.clearTrail();
+    inspector.reset(session);
+    answers.reset(session);
+    if (!keepCamera) fit();
+    return true;
+  }
+
+  function scenarioUrl(): string {
+    const url = new URLSearchParams({ mode: 'mechanics', scenario: spec.id });
+    for (const p of spec.params) if (values[p.name] !== undefined && values[p.name] !== p.default) url.set(p.name, String(values[p.name]));
+    return `?${url}`;
+  }
+
+  function startScenario(next: ScenarioSpec, resetValues: boolean, keepCamera = false): void {
+    if (resetValues) values = {};
+    const entering = sandbox || next !== spec || resetValues;
+    spec = next;
+    sandbox = false;
+    if (!load({ kind: 'scenario', spec, params: { ...values } }, keepCamera)) return;
+    if (!embedded) history.replaceState(null, '', scenarioUrl());
+    if (entering) present();
+  }
+
+  function openSandbox(json: string): void {
+    const before = editor.json;
+    editor.load(json);
+    sandbox = true;
+    if (!load({ kind: 'scene', json: editor.json }, false)) {
+      editor.load(before);
+      sandbox = false;
       return;
     }
-    session.speed = speed;
-    setRunning(running);
-    if (source.kind === 'scenario') {
-      picker.value = source.spec.id;
-      ui.description.textContent = source.spec.description;
-      if (resetParams) buildParamControls(source.spec);
-      if (!embedded) history.replaceState(null, '', `?mode=mechanics&scenario=${source.spec.id}`);
-    } else {
-      ui.description.textContent = `Loaded scene: ${session.title}`;
-      ui.params.replaceChildren(el('p', { class: 'muted', text: 'Parameters live in the JSON for a loaded scene.' }));
-    }
-    ui.exact.replaceChildren(
-      ...session.exact.map((e) => el('tr', {}, [el('td', { text: e.name }), el('td', { class: 'num', text: formatNumber(e.value) })])),
-    );
-    ui.focus.replaceChildren(
-      ...session.bodies.map((b, i) => new Option(b.label, String(i), false, i === session!.focus)).filter((_, i) => session!.bodies[i]!.kind !== 'static'),
-    );
-    ui.focus.value = String(session.focus);
-    ui.events.replaceChildren();
-    view.camera.fit(session.view);
-    view.clearTrail();
+    if (!embedded) history.replaceState(null, '', '?mode=mechanics&sandbox');
+    saveSandbox(editor.json);
+    present();
   }
 
-  function startScenario(spec: ScenarioSpec, resetParams: boolean, running = false): void {
-    if (resetParams) paramValues = {};
-    start({ kind: 'scenario', spec, params: paramValues }, resetParams, running);
+  /** The editor changed the scene: build it, and undo the change if the engine will not have it. */
+  function rebuildSandbox(): void {
+    if (!load({ kind: 'scene', json: editor.json }, true)) {
+      editor.undo();
+      return;
+    }
+    if (editor.selected !== undefined && session.bodies[editor.selected]?.kind !== 'static') session.focus = editor.selected;
+    inspector.setFocus(session.focus);
+    saveSandbox(editor.json);
+    shell.setTitle('Sandbox', editor.scene.title);
   }
 
   function restart(): void {
-    if (!session) return;
-    start(session.source, false, session.running);
+    const running = session.running;
+    if (sandbox) load({ kind: 'scene', json: editor.json }, true);
+    else startScenario(spec, false, true);
+    setRunning(running);
   }
 
-  ui.exportButton.addEventListener('click', () => {
-    if (!session) return;
-    const blob = new Blob([session.world.scene_json()], { type: 'application/json' });
-    const link = el('a', { href: URL.createObjectURL(blob), download: `${session.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json` });
-    link.click();
-    URL.revokeObjectURL(link.href);
-  });
-  ui.loadButton.addEventListener('click', () => ui.file.click());
-  ui.file.addEventListener('change', async () => {
-    const file = ui.file.files?.[0];
-    if (!file) return;
-    const json = await file.text();
-    let dt = 1e-3;
-    try {
-      dt = Number(JSON.parse(json)?.world?.dt) || dt;
-    } catch {
-      /* the engine reports the parse error */
-    }
-    start({ kind: 'scene', json, dt }, false, false);
-    ui.file.value = '';
-  });
-
-  ui.defaults.addEventListener('click', () => startScenario(currentSpec(), true));
-  ui.reset.addEventListener('click', restart);
-  ui.toggle.addEventListener('click', () => setRunning(!session?.running));
-  ui.step.addEventListener('click', () => {
-    if (!session) return;
+  /** Before changing a world that has been running: take it as it stands now, so the edit applies to what is on screen. */
+  function editable(): void {
     setRunning(false);
-    session.stepOnce();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-    const target = e.target as HTMLElement;
-    if (target.closest('input:not([type=range]), select, textarea, [contenteditable], .picker')) return;
-    e.preventDefault();
-    setRunning(!session?.running);
-  });
-  ui.speed.addEventListener('input', () => {
-    const speed = 10 ** Number(ui.speed.value);
-    if (session) session.speed = speed;
-    ui.speedValue.value = `×${speed.toFixed(speed < 1 ? 2 : 1)}`;
-  });
-  ui.fit.addEventListener('click', () => session && view.camera.fit(session.view));
-  ui.focus.addEventListener('change', () => {
-    if (!session) return;
-    session.focus = Number(ui.focus.value);
-    view.clearTrail();
-  });
-  view.onSelect = (body) => {
-    if (!session) return;
-    session.focus = body;
-    ui.focus.value = String(body);
-    view.clearTrail();
-  };
-
-  function renderPanels(s: Session, forces: ForceInfo[], state: Float64Array): void {
-    const i = s.focus * STATE_STRIDE;
-    const rows: [string, string][] = [
-      ['time', `${s.world.time().toFixed(3)} s`],
-      ['position', `(${formatNumber(state[i]!, 2)}, ${formatNumber(state[i + 1]!, 2)}) m`],
-      ['velocity', `(${formatNumber(state[i + 3]!, 2)}, ${formatNumber(state[i + 4]!, 2)}) m/s`],
-      ['speed', `${formatNumber(Math.hypot(state[i + 3]!, state[i + 4]!), 3)} m/s`],
-      ['acceleration', `${formatNumber(Math.hypot(state[i + 6]!, state[i + 7]!), 3)} m/s²`],
-    ];
-    if (s.bodies[s.focus]!.kind === 'rigid') {
-      rows.push(['angle', `${formatNumber((state[i + 2]! * 180) / Math.PI, 1)}°`], ['angular velocity', `${formatNumber(state[i + 5]!, 3)} rad/s`]);
-    }
-    ui.readout.replaceChildren(...rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })]));
-
-    const net = forces.reduce<[number, number]>((acc, f) => [acc[0] + f.force[0], acc[1] + f.force[1]], [0, 0]);
-    ui.forces.replaceChildren(
-      ...forces.map((f) =>
-        el('tr', {}, [
-          el('td', {}, [el('span', { class: 'swatch', style: `background:${forceColor(f.label)}` }), f.label]),
-          el('td', { class: 'num', text: `${formatNumber(Math.hypot(f.force[0], f.force[1]), 2)} N` }),
-          el('td', { class: 'num muted', text: `(${formatNumber(f.force[0], 1)}, ${formatNumber(f.force[1], 1)})` }),
-        ]),
-      ),
-      el('tr', { class: 'total' }, [el('td', { text: 'net' }), el('td', { class: 'num', text: `${formatNumber(Math.hypot(net[0], net[1]), 2)} N` }), el('td', { class: 'num muted', text: `(${formatNumber(net[0], 1)}, ${formatNumber(net[1], 1)})` })]),
-    );
-
-    const e = s.world.energy() as EnergyInfo;
-    const parts = [
-      ['kinetic', e.kinetic, '#0ea5e9'],
-      ['potential', e.potential, '#f59e0b'],
-      ['dissipated', e.dissipated, '#ef4444'],
-    ] as const;
-    const total = Math.max(1e-9, ...parts.map(([, v]) => Math.abs(v)), Math.abs(e.conserved));
-    const datum = Math.min(0, e.potential);
-    ui.energyBar.replaceChildren(
-      ...parts.map(([name, value, color]) =>
-        el('div', { class: 'energy-segment', style: `width:${Math.max(0, ((value - (name === 'potential' ? datum : 0)) / (total - datum)) * 100)}%;background:${color}`, title: name }),
-      ),
-    );
-    ui.energy.replaceChildren(
-      ...[
-        ['kinetic', e.kinetic],
-        ['potential', e.potential],
-        ['dissipated', e.dissipated],
-        ['external work', e.external_work],
-        ['conserved total', e.conserved],
-      ].flatMap(([k, v]) => [el('dt', { text: String(k) }), el('dd', { text: `${formatNumber(Number(v), 3)} J` })]),
-    );
-
-    const recent = s.events.slice(-12).reverse();
-    ui.events.replaceChildren(
-      ...recent.map((ev) => el('li', {}, [el('span', { class: 'muted', text: `t = ${ev.time.toFixed(3)} s` }), ` ${s.describe(ev)}`])),
-    );
+    if (session.steps === 0) return;
+    editor.adopt(session.world.scene_json_now());
+    load({ kind: 'scene', json: editor.json }, true);
+    toast('Editing from this moment. Undo goes back to where you started.');
   }
 
-  function renderGraphs(s: Session): void {
-    const t = s.world.series_time();
-    const b = s.focus;
-    graphs.position.draw(t, [
-      { label: 'x', color: '#0ea5e9', values: s.world.series(b, 'x') },
-      { label: 'y', color: '#a855f7', values: s.world.series(b, 'y') },
-    ]);
-    graphs.velocity.draw(t, [
-      { label: 'vx', color: '#0ea5e9', values: s.world.series(b, 'vx') },
-      { label: 'vy', color: '#a855f7', values: s.world.series(b, 'vy') },
-    ]);
-    graphs.energy.draw(t, [
-      { label: 'kinetic', color: '#0ea5e9', values: s.world.series_energy('kinetic') },
-      { label: 'potential', color: '#f59e0b', values: s.world.series_energy('potential') },
-      { label: 'dissipated', color: '#ef4444', values: s.world.series_energy('dissipated') },
-      { label: 'total', color: '#64748b', values: s.world.series_energy('conserved') },
-    ]);
+  // ---------------------------------------------------------------- chrome
+
+  function action(name: IconName, label: string, onClick: (button: HTMLButtonElement) => void): HTMLButtonElement {
+    const button = el('button', { type: 'button', class: 'text-button outlined' }, [icon(name, 16), label]);
+    button.addEventListener('click', () => onClick(button));
+    return button;
+  }
+
+  /** Sets up the title, the info card and the tool rail for the scenario or sandbox now loaded. */
+  function present(): void {
+    closePopover();
+    editor.rail.hidden = !sandbox;
+    properties.hidden = true;
+    propertiesKey = '';
+    hint.hidden = true;
+    if (sandbox) {
+      editor.setTool('select');
+      shell.setTitle('Sandbox', editor.scene.title);
+      description.textContent = 'Your own world. Pick a tool on the left and click to add things, press play, then grab anything and throw it.';
+      actions.replaceChildren(
+        action('sliders', 'Gravity', (button) => openGravity(button)),
+        action('download', 'Save', () => downloadScene(editor.json, editor.scene.title)),
+        action('upload', 'Open', () => file.click()),
+        action('erase', 'Clear', () => {
+          openSandbox(JSON.stringify(emptySandbox()));
+          toast('Cleared. Undo is gone too, but your last link still works.');
+        }),
+      );
+    } else {
+      shell.setTitle(`Class ${spec.syllabus.class} · ${spec.syllabus.chapter}`, spec.title);
+      description.textContent = spec.description;
+      actions.replaceChildren(
+        action('sliders', 'Parameters', (button) => openParameters(button)),
+        action('remix', 'Remix', () => {
+          openSandbox(session.world.scene_json());
+          toast('This is now your copy. Move things, add things, break it.');
+        }),
+      );
+    }
+    insets();
+  }
+
+  function openParameters(anchor: HTMLElement): void {
+    const panel = el('div', { class: 'params' }, [el('h4', { text: 'Parameters' })]);
+    for (const p of spec.params) {
+      panel.append(
+        slider({
+          label: p.label,
+          min: p.min,
+          max: p.max,
+          step: p.step,
+          value: values[p.name] ?? p.default,
+          format: (v) => `${formatNumber(v)}${p.unit ? ` ${p.unit}` : ''}`,
+          onInput: (v) => {
+            values[p.name] = v;
+            scheduleRebuild();
+          },
+        }).root,
+      );
+    }
+    const reset = el('button', { type: 'button', class: 'text-button outlined', text: 'Back to the textbook values' });
+    reset.addEventListener('click', () => {
+      closePopover();
+      startScenario(spec, true);
+    });
+    panel.append(reset);
+    popover(anchor, panel, 'below');
+  }
+
+  function openGravity(anchor: HTMLElement): void {
+    const menu = el('div', { class: 'menu' });
+    const current = -editor.scene.world.gravity[1];
+    for (const [label, g] of GRAVITIES) {
+      const row = el('button', { type: 'button', text: label });
+      if (Math.abs(current - g) < 1e-9) row.setAttribute('aria-current', 'true');
+      row.addEventListener('click', () => {
+        closePopover();
+        editable();
+        editor.adopt(editor.json);
+        editor.scene.world.gravity = [0, -g];
+        rebuildSandbox();
+      });
+      menu.append(row);
+    }
+    popover(anchor, menu, 'below');
+  }
+
+  /** Parameter changes arrive faster than frames; build one world per frame at most. */
+  function scheduleRebuild(): void {
+    if (pendingRebuild) return;
+    pendingRebuild = true;
+    requestAnimationFrame(() => {
+      pendingRebuild = false;
+      startScenario(spec, false, drag?.kind === 'handle');
+    });
+  }
+
+  function showHint(text: string): void {
+    hint.textContent = text;
+    hint.hidden = !sandbox || embedded || !text;
+  }
+
+  function setRunning(running: boolean): void {
+    session.running = running;
+    if (running) banner.hidden = true;
+    hint.hidden = running || !sandbox || embedded || !hint.textContent;
+  }
+
+  /** Pauses where the problem ends and says why, so the graphs stop exactly where the textbook question does. */
+  function showFinish(): void {
+    const finish = session.lastFinish();
+    if (!finish) return;
+    setRunning(false);
+    const at = `t = ${finish.time.toFixed(2)} s`;
+    banner.textContent =
+      finish.time === 0
+        ? 'Nothing moves: the forces balance from the start. Change something, or grab a body.'
+        : finish.reason.startsWith('everything came to rest')
+          ? `Everything has been at rest since ${at}.`
+          : `The problem ends at ${at}: ${finish.reason}. Press play to carry on past it.`;
+    banner.hidden = false;
+  }
+
+  function focusOn(body: number): void {
+    if (session.bodies[body]?.kind === 'static') return;
+    session.focus = body;
+    inspector.setFocus(body);
+    renderer.clearTrail();
+  }
+
+  function refreshProperties(): void {
+    const index = sandbox && !session.running ? editor.selected : undefined;
+    const body = index === undefined ? undefined : editor.scene.bodies[index];
+    const key = body ? `${index}|${body.id}|${body.kind}|${Object.keys(body.shape)[0]}` : '';
+    if (key === propertiesKey) return;
+    propertiesKey = key;
+    const panel = key ? editor.properties() : undefined;
+    properties.hidden = !panel;
+    if (panel) properties.replaceChildren(panel);
+  }
+
+  // ---------------------------------------------------------------- the pointer
+
+  const local = (e: PointerEvent | WheelEvent): [number, number] => {
+    const rect = canvas.getBoundingClientRect();
+    return [e.clientX - rect.left, e.clientY - rect.top];
+  };
+  const worldAt = (e: PointerEvent): Vec => renderer.camera.toWorld(...local(e));
+  const pixels = (a: Vec, e: PointerEvent): number => {
+    const [sx, sy] = renderer.camera.toScreen(a[0], a[1]);
+    const [px, py] = local(e);
+    return Math.hypot(sx - px, sy - py);
+  };
+  const bodyAt = (at: Vec) => session.world.body_at(at[0], at[1], 14 / renderer.camera.scale);
+
+  /** The scenario's knobs, shown before the run starts. */
+  function handles(): Handle[] {
+    return sandbox || embedded || session.steps > 0 || session.running ? [] : (HANDLES[spec.id] ?? []);
+  }
+
+  function current(): Record<string, number> {
+    return Object.fromEntries(spec.params.map((p) => [p.name, values[p.name] ?? p.default]));
+  }
+
+  function snap(p: Param, value: number): number {
+    return Number((Math.round(clamp(value, p.min, p.max) / p.step) * p.step).toFixed(6));
+  }
+
+  const touches = new Map<number, [number, number]>();
+
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    touches.set(e.pointerId, local(e));
+    if (touches.size > 1) {
+      if (drag?.kind === 'grab') session.release();
+      drag = undefined;
+      return;
+    }
+    const at = worldAt(e);
+    if (sandbox && editor.tool !== 'select') {
+      editable();
+      editor.press({ at, body: bodyAt(at) });
+      return;
+    }
+    const knob = handles().find((h) => pixels(h.position(current()), e) < KNOB_REACH);
+    if (knob) {
+      drag = { kind: 'handle', handle: knob };
+      return;
+    }
+    const tip = sandbox && !session.running ? editor.velocityTip() : undefined;
+    if (tip && editor.selected !== undefined && pixels(tip, e) < KNOB_REACH) {
+      drag = { kind: 'velocity', body: editor.selected };
+      return;
+    }
+    const body = bodyAt(at);
+    if (body === undefined) {
+      if (sandbox) editor.selected = undefined;
+      drag = { kind: 'pan', x: e.clientX, y: e.clientY };
+      return;
+    }
+    focusOn(body);
+    if (sandbox) editor.selected = body;
+    if (session.running) {
+      session.grab(body, at[0], at[1]);
+      drag = { kind: 'grab' };
+    } else {
+      drag = { kind: 'press', body, x: e.clientX, y: e.clientY, at };
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    const at = worldAt(e);
+    pointer = at;
+    if (touches.has(e.pointerId) && touches.size === 2) {
+      const before = [...touches.values()];
+      touches.set(e.pointerId, local(e));
+      const after = [...touches.values()];
+      const span = (p: [number, number][]) => Math.hypot(p[0]![0] - p[1]![0], p[0]![1] - p[1]![1]);
+      const mid = (p: [number, number][]): [number, number] => [(p[0]![0] + p[1]![0]) / 2, (p[0]![1] + p[1]![1]) / 2];
+      const [m0, m1] = [mid(before), mid(after)];
+      renderer.camera.zoomAt(m1[0], m1[1], span(after) / Math.max(span(before), 1));
+      renderer.camera.pan(m1[0] - m0[0], m1[1] - m0[1]);
+      return;
+    }
+    if (!drag) {
+      canvas.classList.toggle('over-body', bodyAt(at) !== undefined || handles().some((h) => pixels(h.position(current()), e) < KNOB_REACH));
+      canvas.classList.toggle('placing', sandbox && editor.tool !== 'select');
+      return;
+    }
+    switch (drag.kind) {
+      case 'pan':
+        renderer.camera.pan(e.clientX - drag.x, e.clientY - drag.y);
+        drag.x = e.clientX;
+        drag.y = e.clientY;
+        break;
+      case 'press':
+        if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) break;
+        if (sandbox) {
+          editable();
+          drag = { kind: 'move', body: drag.body, origin: editor.scene.bodies[drag.body]?.position ?? [0, 0], at: drag.at };
+        } else {
+          // Pulling on a body is the most direct way to play: the run starts and the hand takes hold.
+          setRunning(true);
+          session.grab(drag.body, drag.at[0], drag.at[1]);
+          session.dragTo(at[0], at[1]);
+          drag = { kind: 'grab' };
+        }
+        break;
+      case 'grab':
+        session.dragTo(at[0], at[1]);
+        break;
+      case 'move':
+        editor.moveTo(drag.body, drag.origin, at[0] - drag.at[0], at[1] - drag.at[1]);
+        break;
+      case 'velocity': {
+        const [x, y] = editor.scene.bodies[drag.body]?.position ?? [0, 0];
+        editor.setVelocity(drag.body, (at[0] - x) / VELOCITY_SCALE, (at[1] - y) / VELOCITY_SCALE);
+        break;
+      }
+      case 'handle': {
+        const wanted = drag.handle.drag(at, current());
+        for (const p of spec.params) if (wanted[p.name] !== undefined) values[p.name] = snap(p, wanted[p.name]!);
+        scheduleRebuild();
+        break;
+      }
+    }
+    canvas.classList.toggle('holding', drag.kind !== 'pan');
+  });
+
+  const lift = (e: PointerEvent) => {
+    touches.delete(e.pointerId);
+    if (drag?.kind === 'grab') session.release();
+    if (drag?.kind === 'handle') requestAnimationFrame(() => requestAnimationFrame(fit));
+    drag = undefined;
+    canvas.classList.remove('holding');
+  };
+  canvas.addEventListener('pointerup', lift);
+  canvas.addEventListener('pointercancel', lift);
+  canvas.addEventListener('pointerleave', () => (pointer = undefined));
+  canvas.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      renderer.camera.zoomAt(...local(e), Math.exp(-e.deltaY * 0.0015));
+    },
+    { passive: false },
+  );
+
+  // ---------------------------------------------------------------- keyboard, files, sharing
+
+  function choose(choice: GalleryChoice): void {
+    if (choice.scenario) startScenario(catalogue.find((s) => s.id === choice.scenario) ?? spec, true);
+    else if (choice.sandbox === 'saved') openSandbox(loadSandbox() ?? JSON.stringify(emptySandbox()));
+    else openSandbox(JSON.stringify(emptySandbox()));
+  }
+  const gallery = () => openGallery(catalogue, sandbox ? undefined : spec.id, loadSandbox(), choose);
+  shell.onTitle(gallery);
+  shell.onShare(async () => {
+    const link = sandbox ? await shareLink(editor.json) : new URL(scenarioUrl(), location.href).toString();
+    try {
+      await navigator.clipboard.writeText(link);
+      toast('Link copied. Anyone who opens it gets exactly this.');
+    } catch {
+      prompt('Copy this link', link);
+    }
+  });
+
+  const file = el('input', { type: 'file', accept: 'application/json,.json', hidden: true });
+  main.append(file);
+  file.addEventListener('change', async () => {
+    const chosen = file.files?.[0];
+    if (chosen) openSandbox(await chosen.text());
+    file.value = '';
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('input:not([type=range]), select, textarea, [contenteditable], .gallery')) return;
+    const command = e.ctrlKey || e.metaKey;
+    if (command && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      gallery();
+    } else if (command && e.key.toLowerCase() === 'z' && sandbox) {
+      e.preventDefault();
+      setRunning(false);
+      e.shiftKey ? editor.redo() : editor.undo();
+    } else if (command || e.altKey) {
+      return;
+    } else if (e.code === 'Space') {
+      if (e.repeat) return;
+      e.preventDefault();
+      setRunning(!session.running);
+    } else if (e.key === 'ArrowRight') {
+      setRunning(false);
+      session.stepOnce();
+    } else if (e.key === 'r' || e.key === 'R') {
+      restart();
+    } else if (e.key === 'f' || e.key === 'F') {
+      fit();
+    } else if (e.key === '/') {
+      e.preventDefault();
+      gallery();
+    } else if (sandbox && (e.key === 'Delete' || e.key === 'Backspace') && editor.selected !== undefined) {
+      editable();
+      editor.remove(editor.selected);
+    } else if (sandbox && e.key === 'Escape') {
+      editor.setTool('select');
+    } else if (sandbox && TOOL_KEYS[e.key.toLowerCase()]) {
+      editor.setTool(TOOL_KEYS[e.key.toLowerCase()]!);
+    }
+  });
+
+  // Until the user has moved the camera or the run has started, a resize reframes the scene.
+  new ResizeObserver(() =>
+    requestAnimationFrame(() => {
+      insets();
+      if (session.steps === 0 && renderer.camera.following) renderer.camera.fit(framing());
+    }),
+  ).observe(main);
+
+  // ---------------------------------------------------------------- the frame loop
+
+  function overlay(painter: Painter): void {
+    const p = current();
+    for (const handle of handles()) {
+      const at = handle.position(p);
+      const tail = handle.tail?.(p);
+      if (tail) painter.dashed([tail, at], handle.color);
+      painter.knob(at[0], at[1], handle.color, drag?.kind === 'handle' && drag.handle === handle);
+      if (drag?.kind === 'handle' && drag.handle === handle) painter.label(handle.label(p), at[0], at[1] + 22 / painter.camera.scale, handle.color);
+    }
+    if (sandbox && !session.running) editor.overlay(painter, pointer);
   }
 
   let last = performance.now();
@@ -417,28 +580,49 @@ export function mountMechanics(main: HTMLElement, params: URLSearchParams, embed
   function loop(now: number): void {
     const elapsed = Math.min(0.1, (now - last) / 1000);
     last = now;
-    if (session) {
-      session.advance(elapsed);
-      const state = session.world.state();
-      const forces = aggregateForces(session.world.forces(session.focus) as ForceInfo[]);
-      const options: SceneOptions = {
-        showForces: ui.showForces.checked,
-        showVelocity: ui.showVelocity.checked,
-        showAcceleration: ui.showAcceleration.checked,
-        showTrail: ui.showTrail.checked,
-        focus: session.focus,
-      };
-      view.draw(session.bodies, state, session.world.sketches() as SketchInfo[], forces, options, session.world.time());
-      if (now - lastPanels > 120) {
-        lastPanels = now;
-        renderPanels(session, forces, state);
-        renderGraphs(session);
-      }
+    if (session.advance(elapsed)) showFinish();
+    const state = session.world.state();
+    const forces = aggregateForces(session.world.forces(session.focus) as ForceInfo[]);
+    const frame: Frame = {
+      bodies: session.bodies,
+      state,
+      sketches: session.world.sketches() as SketchInfo[],
+      forces,
+      time: session.time,
+      focus: session.bodies[session.focus]?.kind === 'static' ? -1 : session.focus,
+      showForces: view.forces,
+      showVelocity: view.velocity,
+      showAcceleration: view.acceleration,
+      showTrail: view.trail,
+      grab: session.grabbed(),
+      selected: sandbox && !session.running ? editor.selected : undefined,
+      overlay,
+    };
+    renderer.draw(frame, session.running && drag?.kind !== 'grab');
+    dock.update(session);
+    if (now - lastPanels > 120) {
+      lastPanels = now;
+      inspector.update(session, forces, state);
+      answers.update(session, forces, state);
+      refreshProperties();
     }
     requestAnimationFrame(loop);
   }
 
-  const initial = catalogue.find((s) => s.id === params.get('scenario')) ?? catalogue[0]!;
-  startScenario(initial, true);
+  // ---------------------------------------------------------------- first world
+
+  const shared = query.has('sandbox') ? ((await sceneFromUrl()) ?? loadSandbox() ?? JSON.stringify(emptySandbox() satisfies SceneFile)) : undefined;
+  if (shared) openSandbox(shared);
+  if (!shared || !(session as Session | undefined)) {
+    const initial = catalogue.find((s) => s.id === query.get('scenario')) ?? catalogue[0]!;
+    for (const p of initial.params) {
+      const given = query.get(p.name);
+      if (given !== null && Number.isFinite(Number(given))) values[p.name] = snap(p, Number(given));
+    }
+    const given = { ...values };
+    startScenario(initial, false);
+    values = given;
+    present();
+  }
   requestAnimationFrame(loop);
 }

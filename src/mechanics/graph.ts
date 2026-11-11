@@ -18,12 +18,13 @@ export class Graph {
     this.resize();
   }
 
-  draw(time: Float64Array, series: GraphSeries[]): void {
+  /** `span` fixes the time axis up front so the curve draws in place instead of being refitted every frame. */
+  draw(time: Float64Array, series: GraphSeries[], span = 0): void {
     const ctx = this.context;
-    const theme = { bg: cssVar('--canvas-bg'), grid: cssVar('--canvas-grid'), text: cssVar('--canvas-text'), axis: cssVar('--canvas-axis') };
-    ctx.fillStyle = theme.bg;
-    ctx.fillRect(0, 0, this.width, this.height);
-    const margin = { left: 44, right: 10, top: 36, bottom: 20 };
+    const theme = { grid: cssVar('--border'), text: cssVar('--muted'), axis: cssVar('--border-strong') };
+    if (this.width === 0) this.resize();
+    ctx.clearRect(0, 0, this.width, this.height);
+    const margin = { left: 40, right: 8, top: 34, bottom: 20 };
     const w = this.width - margin.left - margin.right;
     const h = this.height - margin.top - margin.bottom;
     const n = time.length;
@@ -46,7 +47,7 @@ export class Graph {
     min -= pad;
     max += pad;
     const t0 = time[0]!;
-    const t1 = Math.max(time[n - 1]!, t0 + 1);
+    const t1 = Math.max(time[n - 1]!, t0 + 1, span);
     const toX = (t: number) => margin.left + ((t - t0) / Math.max(t1 - t0, 1e-9)) * w;
     const toY = (v: number) => margin.top + ((max - v) / (max - min)) * h;
 
