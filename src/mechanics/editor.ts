@@ -29,7 +29,7 @@ const HINTS: Record<Tool, string> = {
   rod: 'Click a body, then another body or an empty point.',
   spring: 'Click a body, then another body or an empty point.',
   pin: 'Click a point on a body to pin it there.',
-  erase: 'Click a body to remove it and everything tied to it.',
+  erase: 'Click a body, rope, rod, spring or pin to remove it.',
 };
 
 export function emptySandbox(): SceneFile {
@@ -45,8 +45,17 @@ export function emptySandbox(): SceneFile {
 /** What a pointer press landed on. */
 export interface Hit {
   at: Vec;
-  /** Index of the dynamic body under the pointer, if any. */
+  /** Index of the body under the pointer, if any. */
   body?: number;
+  /** How near, in metres, counts as on a rope, rod or spring. */
+  reach?: number;
+}
+
+function distanceToSegment(p: Vec, a: Vec, b: Vec): number {
+  const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+  const length2 = dx * dx + dy * dy;
+  const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length2));
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
 }
 
 const round = (value: number, step = 0.05) => Math.round(value / step) * step;
@@ -172,6 +181,7 @@ export class Editor {
         return this.add({ id: this.uniqueId('platform'), kind: 'static', shape: { rectangle: [3, 0.3] }, position: [x, y], friction: [0.6, 0.5] });
       case 'erase':
         if (hit.body !== undefined) this.remove(hit.body);
+        else if (!this.removeLinkAt(hit.at, hit.reach ?? 0.15)) this.hint('Click a body, a rope, a rod, a spring or a pin to remove it.');
         return true;
       case 'pin': {
         if (hit.body === undefined) {
@@ -245,6 +255,56 @@ export class Editor {
     if (this.scene.focus === id) delete this.scene.focus;
     this.selected = undefined;
     this.changed();
+  }
+
+  private bodyPoint(id: string, local: Vec = [0, 0]): Vec | undefined {
+    const spec = this.scene.bodies.find((b) => b.id === id);
+    if (!spec) return undefined;
+    const [x, y] = spec.position ?? [0, 0];
+    const angle = spec.angle ?? 0;
+    return [x + local[0] * Math.cos(angle) - local[1] * Math.sin(angle), y + local[0] * Math.sin(angle) + local[1] * Math.cos(angle)];
+  }
+
+  private anchorPoint(anchor: AnchorSpec): Vec | undefined {
+    return 'fixed' in anchor ? anchor.fixed : this.bodyPoint(anchor.body.id, anchor.body.local);
+  }
+
+  /** The points a rope, rod, pin or spring runs through, and how fat it is where it wraps a pulley. */
+  private linkPath(link: ConstraintSpec | { spring: { a: AnchorSpec; b: AnchorSpec } }): { points: Vec[]; discs: { center: Vec; radius: number }[] } {
+    const points: (Vec | undefined)[] = [];
+    const discs: { center: Vec; radius: number }[] = [];
+    if ('rope' in link) {
+      for (const node of link.rope.nodes) {
+        if ('attach' in node) points.push(this.bodyPoint(node.attach.body, node.attach.local));
+        else if ('peg' in node) points.push(node.peg);
+        else if ('pulley' in node) {
+          points.push(node.pulley.center);
+          discs.push({ center: node.pulley.center, radius: node.pulley.radius });
+        } else points.push(this.bodyPoint(node.wheel.body));
+      }
+    } else if ('rod' in link) points.push(this.anchorPoint(link.rod.a), this.anchorPoint(link.rod.b));
+    else if ('pin' in link) points.push(this.anchorPoint(link.pin.a), this.anchorPoint(link.pin.b));
+    else if ('spring' in link) points.push(this.anchorPoint(link.spring.a), this.anchorPoint(link.spring.b));
+    return { points: points.filter((p): p is Vec => p !== undefined), discs };
+  }
+
+  private touches(link: Parameters<Editor['linkPath']>[0], at: Vec, reach: number): boolean {
+    const { points, discs } = this.linkPath(link);
+    if (discs.some((d) => Math.hypot(at[0] - d.center[0], at[1] - d.center[1]) <= d.radius + reach)) return true;
+    if (points.length === 1) return Math.hypot(at[0] - points[0]![0], at[1] - points[0]![1]) <= reach;
+    return points.some((p, i) => i > 0 && distanceToSegment(at, points[i - 1]!, p) <= reach);
+  }
+
+  /** Removes the rope, rod, pin or spring under a point. Returns false when there is none. */
+  removeLinkAt(at: Vec, reach: number): boolean {
+    const constraint = (this.scene.constraints ?? []).findIndex((c) => this.touches(c, at, reach));
+    const spring = constraint >= 0 ? -1 : (this.scene.forces ?? []).findIndex((f) => 'spring' in f && this.touches(f, at, reach));
+    if (constraint < 0 && spring < 0) return false;
+    this.checkpoint('');
+    if (constraint >= 0) this.scene.constraints!.splice(constraint, 1);
+    else this.scene.forces!.splice(spring, 1);
+    this.changed();
+    return true;
   }
 
   /** Moves a body by a world displacement from where the drag began. */

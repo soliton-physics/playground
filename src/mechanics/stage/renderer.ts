@@ -103,7 +103,7 @@ export class Renderer implements Painter {
     ctx.fillRect(0, 0, this.width, this.height);
     this.drawGrid();
 
-    bodies.forEach((body, i) => body.kind === 'static' && this.drawBody(body, state, i, false));
+    bodies.forEach((body, i) => body.kind === 'static' && this.drawBody(body, state, i, false, i === frame.selected));
     for (const sketch of frame.sketches) this.drawSketch(sketch);
 
     if (frame.showTrail && frame.focus >= 0 && bodies[frame.focus]) {
@@ -375,12 +375,24 @@ export class Renderer implements Painter {
       ctx.shadowBlur = 0;
     }
     if (selected) {
+      // A ring round a ball; for a box or a platform, a dashed outline just outside its own edges.
       ctx.save();
       ctx.setLineDash([4, 4]);
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = cssVar('--text');
       ctx.beginPath();
-      ctx.arc(sx, sy, ringRadius + 7, 0, Math.PI * 2);
+      if (shape.kind === 'circle') {
+        ctx.arc(sx, sy, ringRadius + 7, 0, Math.PI * 2);
+      } else {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        shape.vertices.forEach(([vx, vy], k) => {
+          const grow = 1 + 7 / Math.max(Math.hypot(vx, vy) * this.camera.scale, 1);
+          const [px, py] = this.camera.toScreen(x + (vx * cos - vy * sin) * grow, y + (vx * sin + vy * cos) * grow);
+          k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+      }
       ctx.stroke();
       ctx.restore();
     }

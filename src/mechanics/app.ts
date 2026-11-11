@@ -213,6 +213,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   function present(): void {
     closePopover();
     editor.rail.hidden = !sandbox;
+    // A remixed scene is no longer the textbook's problem, so its answers no longer apply.
+    answers.root.hidden = sandbox;
     properties.hidden = true;
     propertiesKey = '';
     hint.hidden = true;
@@ -354,7 +356,33 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     const [px, py] = local(e);
     return Math.hypot(sx - px, sy - py);
   };
-  const bodyAt = (at: Vec) => session.world.body_at(at[0], at[1], 14 / renderer.camera.scale);
+  const reach = () => 12 / renderer.camera.scale;
+  const movingAt = (at: Vec) => session.world.body_at(at[0], at[1], 14 / renderer.camera.scale);
+
+  /** The fixed body under a point: platforms, inclines and walls, but not the endless ground. */
+  function fixedAt(at: Vec): number | undefined {
+    const state = session.world.state();
+    for (let i = session.bodies.length - 1; i >= 0; i--) {
+      const body = session.bodies[i]!;
+      if (body.kind !== 'static' || body.shape.kind === 'halfplane') continue;
+      const angle = state[i * STATE_STRIDE + 2]!;
+      const [dx, dy] = [at[0] - state[i * STATE_STRIDE]!, at[1] - state[i * STATE_STRIDE + 1]!];
+      const [lx, ly] = [dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle)];
+      const shape = body.shape;
+      const inside =
+        shape.kind === 'circle'
+          ? Math.hypot(lx, ly) <= shape.radius
+          : shape.vertices.every(([x, y], k) => {
+              const [nx, ny] = shape.vertices[(k + 1) % shape.vertices.length]!;
+              return (nx - x) * (ly - y) - (ny - y) * (lx - x) >= 0;
+            });
+      if (inside) return i;
+    }
+    return undefined;
+  }
+
+  /** What a press lands on. In the sandbox, paused, fixed bodies can be picked too, so they can be moved and removed. */
+  const bodyAt = (at: Vec) => movingAt(at) ?? (sandbox && !session.running ? fixedAt(at) : undefined);
 
   /** The scenario's knobs, shown before the run starts. */
   function handles(): Handle[] {
@@ -382,7 +410,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     const at = worldAt(e);
     if (sandbox && editor.tool !== 'select') {
       editable();
-      editor.press({ at, body: bodyAt(at) });
+      editor.press({ at, body: bodyAt(at), reach: reach() });
       return;
     }
     const knob = handles().find((h) => pixels(h.position(current()), e) < KNOB_REACH);
@@ -623,6 +651,20 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     startScenario(initial, false);
     values = given;
     present();
+  }
+  if (import.meta.env.DEV) {
+    // For driving the page from a test script: where a body is on screen.
+    Object.assign(window, {
+      solitonDebug: {
+        screenOf: (label: string) => {
+          const i = session.bodies.findIndex((b) => b.label === label);
+          const state = session.world.state();
+          const rect = canvas.getBoundingClientRect();
+          const [x, y] = renderer.camera.toScreen(state[i * STATE_STRIDE]!, state[i * STATE_STRIDE + 1]!);
+          return [rect.left + x, rect.top + y];
+        },
+      },
+    });
   }
   requestAnimationFrame(loop);
 }
