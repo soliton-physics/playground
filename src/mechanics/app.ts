@@ -253,6 +253,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
           label: p.label,
           min: p.min,
           max: p.max,
+          hardMin: limits(p).min,
+          hardMax: limits(p).max,
           step: p.step,
           value: values[p.name] ?? p.default,
           format: (v) => `${formatNumber(v)}${p.unit ? ` ${p.unit}` : ''}`,
@@ -399,6 +401,18 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     return Object.fromEntries(spec.params.map((p) => [p.name, values[p.name] ?? p.default]));
   }
 
+  /**
+   * How far a scenario parameter may go. Masses, lengths, speeds and forces are quantities: the slider's range is
+   * a convenience and they may go a hundred times past it. Angles and coefficients keep their range, because
+   * past it the scene stops being the one described (an incline beyond vertical, a restitution above one).
+   */
+  function limits(p: Param): { min: number; max: number } {
+    if (!['kg', 'm', 'm/s', 'N', 'N/m'].includes(p.unit)) return { min: p.min, max: p.max };
+    const max = 100 * p.max;
+    return { min: p.min < 0 ? -max : p.min, max };
+  }
+
+  /** A value from a knob on the stage: inside the slider's range and on its steps. */
   function snap(p: Param, value: number): number {
     return Number((Math.round(clamp(value, p.min, p.max) / p.step) * p.step).toFixed(6));
   }
@@ -654,7 +668,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     const initial = catalogue.find((s) => s.id === query.get('scenario')) ?? catalogue[0]!;
     for (const p of initial.params) {
       const given = query.get(p.name);
-      if (given !== null && Number.isFinite(Number(given))) values[p.name] = snap(p, Number(given));
+      if (given !== null && Number.isFinite(Number(given))) values[p.name] = clamp(Number(given), limits(p).min, limits(p).max);
     }
     const given = { ...values };
     startScenario(initial, false);
