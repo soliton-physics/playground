@@ -29,7 +29,7 @@ const HINTS: Record<Tool, string> = {
   rod: 'Click a body, then another body or an empty point.',
   spring: 'Click a body, then another body or an empty point.',
   pin: 'Click a point on a body to pin it there.',
-  erase: 'Click a body, rope, rod, spring or pin to remove it.',
+  erase: 'Click a body, the ground, a rope, rod, spring, pin or track to remove it.',
 };
 
 export function emptySandbox(): SceneFile {
@@ -180,8 +180,10 @@ export class Editor {
       case 'platform':
         return this.add({ id: this.uniqueId('platform'), kind: 'static', shape: { rectangle: [3, 0.3] }, position: [x, y], friction: [0.6, 0.5] });
       case 'erase':
+        // A rope in front of a wall or over the ground is what the click was aimed at, not what is behind it.
+        if (hit.body !== undefined && this.scene.bodies[hit.body]?.kind === 'static' && this.removeLinkAt(hit.at, hit.reach ?? 0.15)) return true;
         if (hit.body !== undefined) this.remove(hit.body);
-        else if (!this.removeLinkAt(hit.at, hit.reach ?? 0.15)) this.hint('Click a body, a rope, a rod, a spring or a pin to remove it.');
+        else if (!this.removeLinkAt(hit.at, hit.reach ?? 0.15)) this.hint('Nothing there. Click a body, the ground, a rope, rod, spring, pin or track.');
         return true;
       case 'pin': {
         if (hit.body === undefined) {
@@ -285,7 +287,18 @@ export class Editor {
     } else if ('rod' in link) points.push(this.anchorPoint(link.rod.a), this.anchorPoint(link.rod.b));
     else if ('pin' in link) points.push(this.anchorPoint(link.pin.a), this.anchorPoint(link.pin.b));
     else if ('spring' in link) points.push(this.anchorPoint(link.spring.a), this.anchorPoint(link.spring.b));
+    else if ('slot' in link) points.push(...this.track(link.slot));
     return { points: points.filter((p): p is Vec => p !== undefined), discs };
+  }
+
+  /** The two ends of the stretch of a slot's line worth drawing: well past the body riding on it, both ways. */
+  private track(slot: { body: string; origin: Vec; direction: Vec }): Vec[] {
+    const length = Math.hypot(slot.direction[0], slot.direction[1]) || 1;
+    const [ux, uy] = [slot.direction[0] / length, slot.direction[1] / length];
+    const [bx, by] = this.bodyPoint(slot.body) ?? slot.origin;
+    const along = (bx - slot.origin[0]) * ux + (by - slot.origin[1]) * uy;
+    const at = (s: number): Vec => [slot.origin[0] + ux * s, slot.origin[1] + uy * s];
+    return [at(along - 4), at(along + 4)];
   }
 
   private touches(link: Parameters<Editor['linkPath']>[0], at: Vec, reach: number): boolean {
@@ -297,8 +310,11 @@ export class Editor {
 
   /** Removes the rope, rod, pin or spring under a point. Returns false when there is none. */
   removeLinkAt(at: Vec, reach: number): boolean {
-    const constraint = (this.scene.constraints ?? []).findIndex((c) => this.touches(c, at, reach));
-    const spring = constraint >= 0 ? -1 : (this.scene.forces ?? []).findIndex((f) => 'spring' in f && this.touches(f, at, reach));
+    // A track is a faint guide that often lies under the spring or rope along it, so it is the last thing a click means.
+    const constraints = this.scene.constraints ?? [];
+    const visible = constraints.findIndex((c) => !('slot' in c) && this.touches(c, at, reach));
+    const spring = visible >= 0 ? -1 : (this.scene.forces ?? []).findIndex((f) => 'spring' in f && this.touches(f, at, reach));
+    const constraint = visible >= 0 || spring >= 0 ? visible : constraints.findIndex((c) => this.touches(c, at, reach));
     if (constraint < 0 && spring < 0) return false;
     this.checkpoint('');
     if (constraint >= 0) this.scene.constraints!.splice(constraint, 1);
@@ -336,6 +352,13 @@ export class Editor {
 
   overlay(painter: Painter, pointer: Vec | undefined): void {
     if (this.pending && pointer) painter.dashed([this.pending.at, pointer], '#94a3b8');
+    // A slot keeps a body on a line and has nothing else to show for itself; drawn here so it can be seen and erased.
+    for (const constraint of this.scene.constraints ?? []) {
+      if (!('slot' in constraint)) continue;
+      const [a, b] = this.track(constraint.slot);
+      painter.dashed([a!, b!], '#94a3b8');
+      painter.label('track', a![0], a![1], '#94a3b8');
+    }
     const tip = this.velocityTip();
     const spec = this.selected === undefined ? undefined : this.scene.bodies[this.selected];
     if (tip && spec && this.tool === 'select') {
@@ -396,7 +419,7 @@ export class Editor {
       rows.push(slider({ label: 'Bounce e', min: 0, max: 1, step: 0.05, value: spec.restitution ?? 1, format: (v) => formatNumber(v, 2), onInput: (v) => set('bounce', (b) => (b.restitution = v)) }).root);
     }
     const head = el('div', { class: 'properties-head' }, [el('b', { text: spec.id })]);
-    if (!('halfplane' in spec.shape)) head.append(iconButton('erase', 'Delete (Del)', () => this.remove(index)));
+    head.append(iconButton('erase', 'Delete (Del)', () => this.remove(index)));
     return el('div', { class: 'properties' }, [head, ...rows]);
   }
 }

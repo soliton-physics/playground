@@ -359,12 +359,18 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   const reach = () => 12 / renderer.camera.scale;
   const movingAt = (at: Vec) => session.world.body_at(at[0], at[1], 14 / renderer.camera.scale);
 
-  /** The fixed body under a point: platforms, inclines and walls, but not the endless ground. */
+  /** The fixed body under a point: platforms, inclines and walls first, and failing those the ground itself. */
   function fixedAt(at: Vec): number | undefined {
     const state = session.world.state();
+    let ground: number | undefined;
     for (let i = session.bodies.length - 1; i >= 0; i--) {
       const body = session.bodies[i]!;
-      if (body.kind !== 'static' || body.shape.kind === 'halfplane') continue;
+      if (body.kind !== 'static') continue;
+      if (body.shape.kind === 'halfplane') {
+        const { normal, offset } = body.shape;
+        if (normal[0] * at[0] + normal[1] * at[1] <= offset) ground ??= i;
+        continue;
+      }
       const angle = state[i * STATE_STRIDE + 2]!;
       const [dx, dy] = [at[0] - state[i * STATE_STRIDE]!, at[1] - state[i * STATE_STRIDE + 1]!];
       const [lx, ly] = [dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle)];
@@ -378,7 +384,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
             });
       if (inside) return i;
     }
-    return undefined;
+    return ground;
   }
 
   /** What a press lands on. In the sandbox, paused, fixed bodies can be picked too, so they can be moved and removed. */
@@ -466,7 +472,10 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
         break;
       case 'press':
         if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) break;
-        if (sandbox) {
+        if (sandbox && session.bodies[drag.body]?.shape.kind === 'halfplane') {
+          // The ground has no place to be dragged to; a drag that starts on it moves the view.
+          drag = { kind: 'pan', x: e.clientX, y: e.clientY };
+        } else if (sandbox) {
           editable();
           drag = { kind: 'move', body: drag.body, origin: editor.scene.bodies[drag.body]?.position ?? [0, 0], at: drag.at };
         } else {
