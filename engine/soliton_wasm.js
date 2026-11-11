@@ -32,6 +32,24 @@ export class MechanicsWorld {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * The movable body under a world point, or the nearest one within `slop` metres.
+     * @param {number} x
+     * @param {number} y
+     * @param {number} slop
+     * @returns {number | undefined}
+     */
+    body_at(x, y, slop) {
+        const ret = wasm.mechanicsworld_body_at(this.__wbg_ptr, x, y, slop);
+        return ret === Number.MAX_SAFE_INTEGER ? undefined : ret;
+    }
+    /**
+     * @param {number} x
+     * @param {number} y
+     */
+    drag_to(x, y) {
+        wasm.mechanicsworld_drag_to(this.__wbg_ptr, x, y);
+    }
+    /**
      * @returns {number}
      */
     dt() {
@@ -64,6 +82,17 @@ export class MechanicsWorld {
      */
     exact() {
         const ret = wasm.mechanicsworld_exact(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `{ time, reason }` once the problem has ended, otherwise `null`.
+     * @returns {any}
+     */
+    finished() {
+        const ret = wasm.mechanicsworld_finished(this.__wbg_ptr);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -105,6 +134,37 @@ export class MechanicsWorld {
         return MechanicsWorld.__wrap(ret[0]);
     }
     /**
+     * Takes hold of a body at a world point (design 008). From now until `release`, a spring pulls that point
+     * towards wherever `drag_to` last put the hand. Returns false for a body that cannot be moved.
+     * @param {number} body
+     * @param {number} x
+     * @param {number} y
+     * @returns {boolean}
+     */
+    grab(body, x, y) {
+        const ret = wasm.mechanicsworld_grab(this.__wbg_ptr, body, x, y);
+        return ret !== 0;
+    }
+    /**
+     * The held body and where the hand is, as `{ body, point: [x, y], target: [x, y] }`, or `null`.
+     * @returns {any}
+     */
+    grabbed() {
+        const ret = wasm.mechanicsworld_grabbed(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * The problem's time window, when the scene has one.
+     * @returns {number | undefined}
+     */
+    horizon() {
+        const ret = wasm.mechanicsworld_horizon(this.__wbg_ptr);
+        return ret[0] === 0 ? undefined : ret[1];
+    }
+    /**
      * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
      * @param {string} id
      * @param {any} params
@@ -122,6 +182,9 @@ export class MechanicsWorld {
         MechanicsWorldFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
+    release() {
+        wasm.mechanicsworld_release(this.__wbg_ptr);
+    }
     /**
      * The scene this world was built from, as JSON.
      * @returns {string}
@@ -136,6 +199,29 @@ export class MechanicsWorld {
             return getStringFromWasm0(ret[0], ret[1]);
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * The scene as it stands now, as JSON: current positions and velocities, lengths written out, times counted
+     * from this moment. Loading it carries on from here.
+     * @returns {string}
+     */
+    scene_json_now() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.mechanicsworld_scene_json_now(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -211,10 +297,15 @@ export class MechanicsWorld {
         return ret;
     }
     /**
+     * Steps, stopping early the moment the problem ends so a front end can pause exactly there.
+     * Returns true when this call reached the end; later calls carry on past it, and stop once more if
+     * everything then comes to rest.
      * @param {number} steps
+     * @returns {boolean}
      */
     step(steps) {
-        wasm.mechanicsworld_step(this.__wbg_ptr, steps);
+        const ret = wasm.mechanicsworld_step(this.__wbg_ptr, steps);
+        return ret !== 0;
     }
     /**
      * @returns {number}

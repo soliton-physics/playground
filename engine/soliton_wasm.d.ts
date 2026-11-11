@@ -11,6 +11,11 @@ export class MechanicsWorld {
      * Static description of every body: label, kind, mass, shape.
      */
     bodies(): any;
+    /**
+     * The movable body under a world point, or the nearest one within `slop` metres.
+     */
+    body_at(x: number, y: number, slop: number): number | undefined;
+    drag_to(x: number, y: number): void;
     dt(): number;
     energy(): any;
     /**
@@ -18,6 +23,10 @@ export class MechanicsWorld {
      */
     events(): any;
     exact(): any;
+    /**
+     * `{ time, reason }` once the problem has ended, otherwise `null`.
+     */
+    finished(): any;
     focus(): number;
     /**
      * The free-body diagram of one body at the current state.
@@ -28,13 +37,32 @@ export class MechanicsWorld {
      */
     static from_scene(json: string, record_every: number): MechanicsWorld;
     /**
+     * Takes hold of a body at a world point (design 008). From now until `release`, a spring pulls that point
+     * towards wherever `drag_to` last put the hand. Returns false for a body that cannot be moved.
+     */
+    grab(body: number, x: number, y: number): boolean;
+    /**
+     * The held body and where the hand is, as `{ body, point: [x, y], target: [x, y] }`, or `null`.
+     */
+    grabbed(): any;
+    /**
+     * The problem's time window, when the scene has one.
+     */
+    horizon(): number | undefined;
+    /**
      * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
      */
     constructor(id: string, params: any, record_every: number);
+    release(): void;
     /**
      * The scene this world was built from, as JSON.
      */
     scene_json(): string;
+    /**
+     * The scene as it stands now, as JSON: current positions and velocities, lengths written out, times counted
+     * from this moment. Loading it carries on from here.
+     */
+    scene_json_now(): string;
     /**
      * A recorded quantity of one body: `x`, `y`, `vx`, `vy`, `speed`, `ax`, `ay`, `angle`, `omega`.
      */
@@ -56,7 +84,12 @@ export class MechanicsWorld {
      * `[x, y, angle, vx, vy, omega, ax, ay]` per body, flattened.
      */
     state(): Float64Array;
-    step(steps: number): void;
+    /**
+     * Steps, stopping early the moment the problem ends so a front end can pause exactly there.
+     * Returns true when this call reached the end; later calls carry on past it, and stop once more if
+     * everything then comes to rest.
+     */
+    step(steps: number): boolean;
     time(): number;
     title(): string;
     view(): any;
@@ -107,22 +140,30 @@ export interface InitOutput {
     readonly __wbg_wavesimulation_free: (a: number, b: number) => void;
     readonly mechanics_catalogue: () => [number, number, number];
     readonly mechanicsworld_bodies: (a: number) => [number, number, number];
+    readonly mechanicsworld_body_at: (a: number, b: number, c: number, d: number) => number;
+    readonly mechanicsworld_drag_to: (a: number, b: number, c: number) => void;
     readonly mechanicsworld_dt: (a: number) => number;
     readonly mechanicsworld_energy: (a: number) => [number, number, number];
     readonly mechanicsworld_events: (a: number) => [number, number, number];
     readonly mechanicsworld_exact: (a: number) => [number, number, number];
+    readonly mechanicsworld_finished: (a: number) => [number, number, number];
     readonly mechanicsworld_focus: (a: number) => number;
     readonly mechanicsworld_forces: (a: number, b: number) => [number, number, number];
     readonly mechanicsworld_from_scene: (a: number, b: number, c: number) => [number, number, number];
+    readonly mechanicsworld_grab: (a: number, b: number, c: number, d: number) => number;
+    readonly mechanicsworld_grabbed: (a: number) => [number, number, number];
+    readonly mechanicsworld_horizon: (a: number) => [number, number];
     readonly mechanicsworld_new: (a: number, b: number, c: any, d: number) => [number, number, number];
+    readonly mechanicsworld_release: (a: number) => void;
     readonly mechanicsworld_scene_json: (a: number) => [number, number];
+    readonly mechanicsworld_scene_json_now: (a: number) => [number, number, number, number];
     readonly mechanicsworld_series: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly mechanicsworld_series_energy: (a: number, b: number, c: number) => [number, number, number];
     readonly mechanicsworld_series_force: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly mechanicsworld_series_time: (a: number) => any;
     readonly mechanicsworld_sketches: (a: number) => [number, number, number];
     readonly mechanicsworld_state: (a: number) => any;
-    readonly mechanicsworld_step: (a: number, b: number) => void;
+    readonly mechanicsworld_step: (a: number, b: number) => number;
     readonly mechanicsworld_time: (a: number) => number;
     readonly mechanicsworld_title: (a: number) => [number, number];
     readonly mechanicsworld_view: (a: number) => [number, number, number];
