@@ -82,3 +82,12 @@ export function formatLength(metres: number, step: number): string {
   if (step >= 1000) return `${+(metres / 1000).toFixed(0)} km`;
   return `${+metres.toFixed(2)} m`;
 }
+
+/** A size or distance in words: millimetres to thousands of kilometres, to two or three figures. */
+export function formatSize(metres: number): string {
+  const m = Math.abs(metres);
+  if (m >= 1000) return `${formatNumber(metres / 1000)} km`;
+  if (m >= 1) return `${formatNumber(metres)} m`;
+  if (m >= 0.01) return `${formatNumber(metres * 100)} cm`;
+  return `${formatNumber(metres * 1000)} mm`;
+}

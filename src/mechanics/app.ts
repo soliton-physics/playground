@@ -2,7 +2,7 @@ import { closePopover, popover, slider, toast } from '../controls';
 import { mechanics_catalogue } from '../engine';
 import { icon, type IconName } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, el, formatNumber, formatTime } from '../ui';
+import { clamp, el, formatNumber, formatSize, formatTime } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
 import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox } from './editor';
@@ -40,6 +40,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   const info = el('section', { class: 'info glass overlay' }, [description, actions]);
   const hint = el('div', { class: 'hint glass overlay', hidden: true });
   const banner = el('p', { class: 'banner glass overlay', hidden: true });
+  const scaleChip = el('p', { class: 'scale-chip glass overlay', title: 'The scale of the stage at this zoom' });
   const properties = el('div', { class: 'glass overlay', hidden: true, style: 'left:64px;top:50%;transform:translateY(-50%)' });
   main.append(canvas);
 
@@ -80,7 +81,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     fit: () => fit(),
     speed: (value) => (session.speed = value),
   });
-  main.append(info, hint, banner, answers.root, editor.rail, properties, inspector.root, dock.root);
+  main.append(info, hint, banner, scaleChip, answers.root, editor.rail, properties, inspector.root, dock.root);
 
   // ---------------------------------------------------------------- loading worlds
 
@@ -369,6 +370,25 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     session.focus = body;
     inspector.setFocus(body);
     renderer.clearTrail();
+  }
+
+  /**
+   * The chip that says what the stage is showing: how big a grid square is, and, when the selected body is too
+   * small to draw to scale, that what you see is a marker and not its size.
+   */
+  function refreshScale(): void {
+    const parts = [`1 square = ${formatSize(renderer.gridStep())}`];
+    const index = sandbox && !session.running && editor.selected !== undefined ? editor.selected : session.focus;
+    const body = session.bodies[index];
+    if (body && body.kind !== 'static' && renderer.drawnAsDot(body)) {
+      const shape = body.shape;
+      const across = shape.kind === 'circle' ? 2 * shape.radius : shape.kind === 'polygon' ? 2 * Math.max(...shape.vertices.map(([x, y]) => Math.hypot(x, y))) : 0;
+      parts.push(across > 0 ? `${body.label} is ${formatSize(across)} across: too small to see at this zoom, so it is drawn as a dot` : `${body.label} is a point mass, drawn as a dot`);
+    }
+    const key = parts.join('|');
+    if (scaleChip.dataset.key === key) return;
+    scaleChip.dataset.key = key;
+    scaleChip.replaceChildren(el('span', { text: parts[0]! }), ...(parts[1] ? [el('b', { text: parts[1] })] : []));
   }
 
   function refreshProperties(): void {
@@ -693,6 +713,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       inspector.update(session, forces, state);
       answers.update(session, forces, state);
       refreshProperties();
+      refreshScale();
     }
     requestAnimationFrame(loop);
   }

@@ -95,6 +95,17 @@ export class Renderer implements Painter {
     this.resize();
   }
 
+  /**
+   * How a body appears at the current zoom. A ball under five pixels in radius is drawn as a dot of that size so it
+   * can still be seen and picked, which means its drawn size no longer says anything about its real one.
+   */
+  drawnAsDot(body: BodyInfo): boolean {
+    const shape = body.shape;
+    if (shape.kind === 'circle') return shape.radius * this.camera.scale < 5;
+    if (shape.kind === 'polygon') return Math.max(...shape.vertices.map(([x, y]) => Math.hypot(x, y))) * this.camera.scale < 2.5;
+    return false;
+  }
+
   clearTrail(): void {
     this.trail = [];
   }
@@ -260,7 +271,8 @@ export class Renderer implements Painter {
 
   // ---- world ----
 
-  private gridStep(): number {
+  /** Metres between neighbouring grid lines at the current zoom. */
+  gridStep(): number {
     const { left, right } = this.camera.bounds;
     // The smallest of 1, 2, 5 times a power of ten that puts at most 26 lines across, at any scale.
     const raw = (right - left) / 26;
