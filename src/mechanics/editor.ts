@@ -42,6 +42,32 @@ export function emptySandbox(): SceneFile {
   };
 }
 
+/**
+ * A world to start playing with attraction: no ground and no downward gravity, a heavy sun and two planets already
+ * going round it. The sun is free to move, and starts with the small velocity that keeps the whole system in place.
+ */
+export function orbitSandbox(): SceneFile {
+  const [g, sun] = [1, 200];
+  const planets: { id: string; mass: number; radius: number; r: number }[] = [
+    { id: 'planet', mass: 1, radius: 0.16, r: 3 },
+    { id: 'outer planet', mass: 2, radius: 0.22, r: 5 },
+  ];
+  const speed = (r: number) => Math.sqrt((g * sun) / r);
+  const recoil = -planets.reduce((sum, p) => sum + p.mass * speed(p.r), 0) / sun;
+  return {
+    schema: 1,
+    title: 'Orbits sandbox',
+    world: { gravity: [0, 0], dt: 0.001 },
+    bodies: [
+      { id: 'sun', kind: 'rigid', shape: { circle: 0.5 }, mass: sun, velocity: [0, Number(recoil.toFixed(4))], restitution: 0.3 },
+      ...planets.map((p): BodySpec => ({ id: p.id, kind: 'rigid', shape: { circle: p.radius }, mass: p.mass, position: [p.r, 0], velocity: [0, Number(speed(p.r).toFixed(3))], restitution: 0.3 })),
+    ],
+    forces: [{ gravitation: { constant: g } }],
+    focus: 'planet',
+    view: { center: [0, 0], half_height: 6.5 },
+  };
+}
+
 /** What a pointer press landed on. */
 export interface Hit {
   at: Vec;
@@ -122,6 +148,26 @@ export class Editor {
     this.history.push(JSON.stringify(this.scene));
     if (this.history.length > 100) this.history.shift();
     this.future = [];
+  }
+
+  /** The strength of the attraction between bodies, Newton's G in this world's units; zero when there is none. */
+  get attraction(): number {
+    for (const force of this.scene.forces ?? []) if ('gravitation' in force) return force.gravitation.constant;
+    return 0;
+  }
+
+  set attraction(constant: number) {
+    this.checkpoint('attraction');
+    const others = (this.scene.forces ?? []).filter((f) => !('gravitation' in f));
+    this.scene.forces = constant > 0 ? [...others, { gravitation: { constant } }] : others;
+    this.changed();
+  }
+
+  /** Sets the uniform downward gravity. */
+  setGravity(g: number): void {
+    this.checkpoint('');
+    this.scene.world.gravity = [0, -g];
+    this.changed();
   }
 
   /** Replaces the scene with the world as it stands, before an edit made part-way through a run. */

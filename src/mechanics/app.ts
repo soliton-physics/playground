@@ -5,7 +5,7 @@ import type { Shell } from '../shell';
 import { clamp, el, formatNumber, formatTime } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
-import { Editor, TOOL_KEYS, emptySandbox } from './editor';
+import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox } from './editor';
 import { openGallery, type GalleryChoice } from './gallery';
 import { HANDLES, type Handle } from './handles';
 import { Inspector } from './inspector';
@@ -284,8 +284,9 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     popover(anchor, panel, 'below');
   }
 
+  /** Both kinds of gravity a sandbox can have: the uniform pull of a planet you stand on, and bodies pulling on each other. */
   function openGravity(anchor: HTMLElement): void {
-    const menu = el('div', { class: 'menu' });
+    const down = el('div', { class: 'menu', style: 'padding:0' });
     const current = -editor.scene.world.gravity[1];
     for (const [label, g] of GRAVITIES) {
       const row = el('button', { type: 'button', text: label });
@@ -293,13 +294,34 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       row.addEventListener('click', () => {
         closePopover();
         editable();
-        editor.adopt(editor.json);
-        editor.scene.world.gravity = [0, -g];
-        rebuildSandbox();
+        editor.setGravity(g);
       });
-      menu.append(row);
+      down.append(row);
     }
-    popover(anchor, menu, 'below');
+    const attraction = slider({
+      label: 'Strength G',
+      min: 0,
+      max: 5,
+      step: 0.1,
+      hardMax: 1e6,
+      value: editor.attraction,
+      format: (v) => (v > 0 ? formatNumber(v) : 'off'),
+      onInput: (v) => {
+        editable();
+        editor.attraction = v;
+      },
+    });
+    const panel = el('div', { class: 'params' }, [
+      el('h4', { text: 'Pulling down' }),
+      down,
+      el('h4', { text: 'Bodies pulling on each other' }),
+      attraction.root,
+      el('p', {
+        class: 'empty',
+        text: 'Newton\u2019s law between every pair of moving bodies. The real G is 6.67 \u00d7 10\u207b\u00b9\u00b9, far too weak to see between things this size, so here you choose it. Turn the downward pull off, make one body heavy, and give the others a sideways velocity.',
+      }),
+    ]);
+    popover(anchor, panel, 'below');
   }
 
   /** Parameter changes arrive faster than frames; build one world per frame at most. */
@@ -555,6 +577,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   function choose(choice: GalleryChoice): void {
     if (choice.scenario) startScenario(catalogue.find((s) => s.id === choice.scenario) ?? spec, true);
     else if (choice.sandbox === 'saved') openSandbox(loadSandbox() ?? JSON.stringify(emptySandbox()));
+    else if (choice.sandbox === 'orbits') openSandbox(JSON.stringify(orbitSandbox()));
     else openSandbox(JSON.stringify(emptySandbox()));
   }
   const gallery = () => openGallery(catalogue, sandbox ? undefined : spec.id, loadSandbox(), choose);

@@ -128,7 +128,8 @@ export type ForceSpec =
   | { spring: { a: AnchorSpec; b: AnchorSpec; stiffness: number; rest_length?: number } }
   | { linear_drag: { body: string; coefficient: number } }
   | { quadratic_drag: { body: string; coefficient: number } }
-  | { driving: { body: string; amplitude: Vec; angular_frequency: number; phase?: number } };
+  | { driving: { body: string; amplitude: Vec; angular_frequency: number; phase?: number } }
+  | { gravitation: { constant: number; fixed?: { at: Vec; mass: number }[] } };
 
 export interface SceneFile {
   schema: 1;
@@ -144,4 +145,5 @@ export interface SceneFile {
   answers?: ExactInfo[];
   view?: View;
   finish?: { when: Record<string, unknown>; hold?: number }[];
+  playback?: number;
 }

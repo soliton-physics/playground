@@ -1,13 +1,13 @@
 import { MechanicsWorld } from '../engine';
 import { icon } from '../icons';
 import { el } from '../ui';
-import { emptySandbox } from './editor';
+import { emptySandbox, orbitSandbox } from './editor';
 import { Renderer } from './stage/renderer';
 import type { BodyInfo, ScenarioSpec, SketchInfo, View } from './types';
 
 export interface GalleryChoice {
   scenario?: string;
-  sandbox?: 'new' | 'saved';
+  sandbox?: 'new' | 'saved' | 'orbits';
 }
 
 /** Draws a scenario, or a scene given as JSON, at rest into a card. */
@@ -76,6 +76,7 @@ export function openGallery(catalogue: ScenarioSpec[], current: string | undefin
     list.replaceChildren();
     if (words.length === 0) {
       const own = [card('Empty sandbox', 'Start from bare ground. Add balls, boxes, ropes and springs and see what happens.', { sandbox: 'new' }, (canvas) => thumbnail(canvas, { json: JSON.stringify(emptySandbox()) }))];
+      own.push(card('Orbits sandbox', 'No ground, no down: a sun and two planets pulling on each other. Add your own, change G, throw a comet in.', { sandbox: 'orbits' }, (canvas) => thumbnail(canvas, { json: JSON.stringify(orbitSandbox()) })));
       if (saved) own.push(card('Your sandbox', 'Carry on with the world you were building.', { sandbox: 'saved' }, (canvas) => thumbnail(canvas, { json: saved })));
       list.append(el('h4', { text: 'Build your own' }), el('div', { class: 'gallery-grid' }, own));
     }
