@@ -53,6 +53,10 @@ export class MechanicsWorld {
      * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
      */
     constructor(id: string, params: any, record_every: number);
+    /**
+     * Seconds of the simulation to show per second of watching; one unless the scene says otherwise.
+     */
+    playback(): number;
     release(): void;
     /**
      * The scene this world was built from, as JSON.
@@ -154,6 +158,7 @@ export interface InitOutput {
     readonly mechanicsworld_grabbed: (a: number) => [number, number, number];
     readonly mechanicsworld_horizon: (a: number) => [number, number];
     readonly mechanicsworld_new: (a: number, b: number, c: any, d: number) => [number, number, number];
+    readonly mechanicsworld_playback: (a: number) => number;
     readonly mechanicsworld_release: (a: number) => void;
     readonly mechanicsworld_scene_json: (a: number) => [number, number];
     readonly mechanicsworld_scene_json_now: (a: number) => [number, number, number, number];

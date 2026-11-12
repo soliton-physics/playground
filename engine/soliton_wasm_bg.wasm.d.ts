@@ -19,6 +19,7 @@ export const mechanicsworld_grab: (a: number, b: number, c: number, d: number) =
 export const mechanicsworld_grabbed: (a: number) => [number, number, number];
 export const mechanicsworld_horizon: (a: number) => [number, number];
 export const mechanicsworld_new: (a: number, b: number, c: any, d: number) => [number, number, number];
+export const mechanicsworld_playback: (a: number) => number;
 export const mechanicsworld_release: (a: number) => void;
 export const mechanicsworld_scene_json: (a: number) => [number, number];
 export const mechanicsworld_scene_json_now: (a: number) => [number, number, number, number];

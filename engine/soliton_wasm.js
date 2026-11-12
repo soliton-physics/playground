@@ -182,6 +182,14 @@ export class MechanicsWorld {
         MechanicsWorldFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
+    /**
+     * Seconds of the simulation to show per second of watching; one unless the scene says otherwise.
+     * @returns {number}
+     */
+    playback() {
+        const ret = wasm.mechanicsworld_playback(this.__wbg_ptr);
+        return ret;
+    }
     release() {
         wasm.mechanicsworld_release(this.__wbg_ptr);
     }
