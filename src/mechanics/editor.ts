@@ -2,7 +2,7 @@ import { iconButton, slider } from '../controls';
 import type { IconName } from '../icons';
 import { el, formatNumber } from '../ui';
 import { VELOCITY_COLOR, scales, type Painter } from './stage/renderer';
-import type { AnchorSpec, BodySpec, ConstraintSpec, RopeNodeSpec, SceneFile, Vec } from './types';
+import type { AnchorSpec, BodySpec, ConstraintSpec, ForceSpec, RopeNodeSpec, SceneFile, Vec } from './types';
 
 export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
 
@@ -24,7 +24,7 @@ const TOOLS: [Tool, IconName, string][] = [
 export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', g: 'polygon', p: 'platform', i: 'incline', w: 'wall', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
 
 const HINTS: Record<Tool, string> = {
-  select: 'Drag a body to move it. Drag its arrow to give it a velocity.',
+  select: 'Drag a body to move it, or its arrow to launch it. Click a rope or spring to edit it. Shift-click selects several.',
   ball: 'Click to drop a ball.',
   box: 'Click to place a box.',
   polygon: 'Click each corner in turn. Click the first corner again, or press Enter, to finish.',
@@ -103,6 +103,33 @@ function areaAndCentroid(points: Vec[]): { area: number; centroid: Vec } {
   return { area: Math.abs(twice) / 2, centroid: [cx / (3 * twice), cy / (3 * twice)] };
 }
 
+/** A rope, rod, spring, pin or track, by where it is in the scene. */
+export interface LinkRef {
+  kind: 'constraint' | 'force';
+  index: number;
+}
+
+/** The ids of every body a rope, rod, spring or pin is tied to. */
+function bodiesNamed(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(bodiesNamed);
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([key, v]) => ((key === 'body' || key === 'id') && typeof v === 'string' ? [v] : bodiesNamed(v)));
+}
+
+/** A copy of a link tied to the copies of its bodies, with its fixed points moved along with them. */
+function relinked(value: unknown, names: Map<string, string>, shift: Vec): unknown {
+  if (Array.isArray(value)) return value.map((v) => relinked(v, names, shift));
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, v]) => {
+      if ((key === 'body' || key === 'id') && typeof v === 'string') return [key, names.get(v) ?? v];
+      const point = Array.isArray(v) && v.length === 2 && typeof v[0] === 'number';
+      if (point && ['fixed', 'peg', 'center', 'origin'].includes(key)) return [key, [(v[0] as number) + shift[0], (v[1] as number) + shift[1]]];
+      return [key, relinked(v, names, shift)];
+    }),
+  );
+}
+
 /** What a pointer press landed on. */
 export interface Hit {
   at: Vec;
@@ -135,7 +162,11 @@ export class Editor {
   readonly rail: HTMLDivElement;
   scene: SceneFile = emptySandbox();
   tool: Tool = 'select';
-  selected: number | undefined;
+  /** The bodies selected, by index. One of them can be edited in the panel; several can be moved, copied or removed. */
+  selection: number[] = [];
+  /** The rope, rod, spring, pin or track selected instead of a body. */
+  pickedLink: LinkRef | undefined;
+  private clipboard: { bodies: BodySpec[]; constraints: ConstraintSpec[]; forces: ForceSpec[] } | undefined;
   private pending: { tool: Tool; anchor: AnchorSpec; at: Vec } | undefined;
   /** The corners clicked so far with the polygon tool. */
   private corners: Vec[] = [];
@@ -145,6 +176,43 @@ export class Editor {
   private future: string[] = [];
   private lastEdit = { key: '', time: 0 };
   private readonly buttons = new Map<Tool, HTMLButtonElement>();
+
+  /** The one selected body, when exactly one is. Setting it replaces the whole selection. */
+  get selected(): number | undefined {
+    return this.selection.length === 1 ? this.selection[0] : undefined;
+  }
+
+  set selected(index: number | undefined) {
+    this.selection = index === undefined ? [] : [index];
+    this.pickedLink = undefined;
+  }
+
+  /** Adds a body to the selection, or takes it out if it is there: what a shift-click does. */
+  toggle(index: number): void {
+    this.pickedLink = undefined;
+    this.selection = this.selection.includes(index) ? this.selection.filter((i) => i !== index) : [...this.selection, index];
+  }
+
+  /** Selects every body whose centre is inside a box, in addition to what is selected if `add`. */
+  selectWithin(a: Vec, b: Vec, add: boolean): void {
+    const [x0, x1] = [Math.min(a[0], b[0]), Math.max(a[0], b[0])];
+    const [y0, y1] = [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+    const inside = this.scene.bodies
+      .map((body, i) => ({ body, i }))
+      .filter(({ body }) => !('halfplane' in body.shape))
+      .filter(({ body }) => {
+        const [x, y] = body.position ?? [0, 0];
+        return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+      })
+      .map(({ i }) => i);
+    this.pickedLink = undefined;
+    this.selection = [...new Set([...(add ? this.selection : []), ...inside])];
+  }
+
+  selectAll(): void {
+    this.pickedLink = undefined;
+    this.selection = this.scene.bodies.map((_, i) => i).filter((i) => !('halfplane' in this.scene.bodies[i]!.shape));
+  }
 
   /**
    * `changed` rebuilds the world from `scene`; `hint` shows a line of guidance on the stage; `span` is how many
@@ -463,18 +531,118 @@ export class Editor {
   }
 
   remove(index: number): void {
-    const spec = this.scene.bodies[index];
-    if (!spec) return;
+    this.removeBodies([index]);
+  }
+
+  /** Removes bodies and everything tied to them, as one step for undo. */
+  removeBodies(indices: number[]): void {
+    const ids = indices.map((i) => this.scene.bodies[i]?.id).filter((id): id is string => id !== undefined);
+    if (ids.length === 0) return;
     this.checkpoint('');
-    const id = spec.id;
-    this.scene.bodies.splice(index, 1);
-    this.scene.constraints = this.scene.constraints?.filter((c) => !mentions(c, id));
-    this.scene.forces = this.scene.forces?.filter((f) => !mentions(f, id));
-    this.scene.finish = this.scene.finish?.filter((f) => !JSON.stringify(f.when).includes(`"${id}"`));
-    this.scene.ignore_collisions = this.scene.ignore_collisions?.filter((pair) => !pair.includes(id));
-    if (this.scene.focus === id) delete this.scene.focus;
+    this.scene.bodies = this.scene.bodies.filter((b) => !ids.includes(b.id));
+    for (const id of ids) {
+      this.scene.constraints = this.scene.constraints?.filter((c) => !mentions(c, id));
+      this.scene.forces = this.scene.forces?.filter((f) => !mentions(f, id));
+      this.scene.finish = this.scene.finish?.filter((f) => !JSON.stringify(f.when).includes(`"${id}"`));
+      this.scene.ignore_collisions = this.scene.ignore_collisions?.filter((pair) => !pair.includes(id));
+      if (this.scene.focus === id) delete this.scene.focus;
+    }
     this.selected = undefined;
     this.changed();
+  }
+
+  /** Removes whatever is selected: the bodies, or the link. Returns false when nothing is. */
+  removeSelection(): boolean {
+    if (this.pickedLink) {
+      const link = this.pickedLink;
+      this.pickedLink = undefined;
+      this.checkpoint('');
+      if (link.kind === 'constraint') this.scene.constraints?.splice(link.index, 1);
+      else this.scene.forces?.splice(link.index, 1);
+      this.changed();
+      return true;
+    }
+    if (this.selection.length === 0) return false;
+    this.removeBodies(this.selection);
+    return true;
+  }
+
+  // ---- copy, paste, duplicate
+
+  /** Remembers the selected bodies, and the ropes, rods, springs and pins that join only them. */
+  copy(): boolean {
+    const ids = new Set(this.selection.map((i) => this.scene.bodies[i]?.id).filter((id): id is string => id !== undefined));
+    if (ids.size === 0) return false;
+    const within = (link: unknown) => {
+      const named = bodiesNamed(link);
+      return named.length > 0 && named.every((id) => ids.has(id));
+    };
+    this.clipboard = structuredClone({
+      bodies: this.scene.bodies.filter((b) => ids.has(b.id)),
+      constraints: (this.scene.constraints ?? []).filter(within),
+      forces: (this.scene.forces ?? []).filter((f) => !('gravitation' in f) && within(f)),
+    });
+    return true;
+  }
+
+  /** Adds what was copied, a little up and to the right of where it was, under new names, and selects it. */
+  paste(): boolean {
+    const copied = this.clipboard;
+    if (!copied) return false;
+    this.checkpoint('');
+    const shift: Vec = [0.5 * this.unit, 0.5 * this.unit];
+    const grid = 0.01 * this.unit;
+    const names = new Map<string, string>();
+    const first = this.scene.bodies.length;
+    for (const original of copied.bodies) {
+      const body = structuredClone(original);
+      body.id = this.uniqueId(original.id.replace(/ \d+$/, ''));
+      names.set(original.id, body.id);
+      body.position = [round((body.position?.[0] ?? 0) + shift[0], grid), round((body.position?.[1] ?? 0) + shift[1], grid)];
+      this.scene.bodies.push(body);
+    }
+    const constraints = copied.constraints.map((c) => relinked(c, names, shift) as ConstraintSpec);
+    const forces = copied.forces.map((f) => relinked(f, names, shift) as ForceSpec);
+    this.constraints().push(...constraints);
+    (this.scene.forces ??= []).push(...forces);
+    // What was just pasted becomes what is on the clipboard, so a second paste lands beside the first.
+    this.clipboard = structuredClone({ bodies: this.scene.bodies.slice(first), constraints, forces });
+    this.pickedLink = undefined;
+    this.selection = this.scene.bodies.map((_, i) => i).slice(first);
+    this.changed();
+    return true;
+  }
+
+  duplicate(): boolean {
+    const kept = this.clipboard;
+    if (!this.copy()) return false;
+    const done = this.paste();
+    this.clipboard = kept;
+    return done;
+  }
+
+  /** Moves every selected body by a displacement from where each was when the drag began. */
+  moveSelection(origins: Map<number, Vec>, dx: number, dy: number): void {
+    this.checkpoint(`move ${[...origins.keys()].join(',')}`);
+    const grid = 0.01 * this.unit;
+    for (const [index, origin] of origins) {
+      const spec = this.scene.bodies[index];
+      if (spec && !('halfplane' in spec.shape)) spec.position = [round(origin[0] + dx, grid), round(origin[1] + dy, grid)];
+    }
+    this.changed();
+  }
+
+  // ---- links: ropes, rods, springs, pins and tracks
+
+  /** The rope, rod, spring, pin or track under a point. What is drawn boldly comes before a faint track. */
+  linkAt(at: Vec, reach: number): LinkRef | undefined {
+    const constraints = this.scene.constraints ?? [];
+    const visible = constraints.findIndex((c) => !('slot' in c) && this.touches(c, at, reach));
+    if (visible >= 0) return { kind: 'constraint', index: visible };
+    const spring = (this.scene.forces ?? []).findIndex((f) => 'spring' in f && this.touches(f, at, reach));
+    if (spring >= 0) return { kind: 'force', index: spring };
+    const track = constraints.findIndex((c) => this.touches(c, at, reach));
+    return track >= 0 ? { kind: 'constraint', index: track } : undefined;
   }
 
   private bodyPoint(id: string, local: Vec = [0, 0]): Vec | undefined {
@@ -526,19 +694,12 @@ export class Editor {
     return points.some((p, i) => i > 0 && distanceToSegment(at, points[i - 1]!, p) <= reach);
   }
 
-  /** Removes the rope, rod, pin or spring under a point. Returns false when there is none. */
+  /** Removes the rope, rod, pin, spring or track under a point. Returns false when there is none. */
   removeLinkAt(at: Vec, reach: number): boolean {
-    // A track is a faint guide that often lies under the spring or rope along it, so it is the last thing a click means.
-    const constraints = this.scene.constraints ?? [];
-    const visible = constraints.findIndex((c) => !('slot' in c) && this.touches(c, at, reach));
-    const spring = visible >= 0 ? -1 : (this.scene.forces ?? []).findIndex((f) => 'spring' in f && this.touches(f, at, reach));
-    const constraint = visible >= 0 || spring >= 0 ? visible : constraints.findIndex((c) => this.touches(c, at, reach));
-    if (constraint < 0 && spring < 0) return false;
-    this.checkpoint('');
-    if (constraint >= 0) this.scene.constraints!.splice(constraint, 1);
-    else this.scene.forces!.splice(spring, 1);
-    this.changed();
-    return true;
+    const found = this.linkAt(at, reach);
+    if (!found) return false;
+    this.pickedLink = found;
+    return this.removeSelection();
   }
 
   /** Moves a body by a world displacement from where the drag began. */
@@ -573,6 +734,11 @@ export class Editor {
   overlay(painter: Painter, pointer: Vec | undefined): void {
     if (this.pending && pointer) painter.dashed([this.pending.at, pointer], '#94a3b8');
     const guide = '#38d6f5';
+    const chosen = this.pickedLink?.kind === 'constraint' ? this.scene.constraints?.[this.pickedLink.index] : this.pickedLink ? this.scene.forces?.[this.pickedLink.index] : undefined;
+    if (chosen && !('gravitation' in chosen)) {
+      const { points } = this.linkPath(chosen as ConstraintSpec);
+      for (const [x, y] of points) painter.knob(x, y, guide, true);
+    }
     if (this.corners.length > 0) {
       // The corners so far, the edge that would follow the pointer, and the edge that would close the shape.
       const path = pointer ? [...this.corners, pointer] : this.corners;
@@ -613,8 +779,79 @@ export class Editor {
     }
   }
 
+  /** The panel for several bodies at once: what can be done to all of them together. */
+  private groupProperties(): HTMLElement {
+    const button = (label: string, action: () => void) => {
+      const b = el('button', { type: 'button', class: 'text-button outlined', text: label });
+      b.addEventListener('click', action);
+      return b;
+    };
+    return el('div', { class: 'properties' }, [
+      el('div', { class: 'properties-head' }, [el('b', { text: `${this.selection.length} bodies` }), iconButton('erase', 'Delete (Del)', () => this.removeSelection())]),
+      el('p', { class: 'empty', text: 'Drag any one of them to move them all. Shift-click adds or removes a body; shift-drag on empty space selects a box.' }),
+      el('div', { class: 'info-actions' }, [button('Duplicate', () => this.duplicate()), button('Copy', () => this.copy())]),
+    ]);
+  }
+
+  /**
+   * The panel that edits a rope, rod or spring. `measured` is the scene as the engine built it, with the lengths it
+   * measured at the start written out: a rope left taut has no length of its own until then.
+   */
+  private linkProperties(ref: LinkRef, measured?: SceneFile): HTMLElement | undefined {
+    const u = this.unit;
+    const length = (v: number) => (Math.abs(v) >= 1000 ? `${formatNumber(v / 1000)} km` : `${formatNumber(v)} m`);
+    const list = ref.kind === 'constraint' ? this.scene.constraints : this.scene.forces;
+    const spec = list?.[ref.index];
+    if (!spec) return undefined;
+    const built = (ref.kind === 'constraint' ? measured?.constraints : measured?.forces)?.[ref.index];
+    const span = () => {
+      const { points } = this.linkPath(spec as ConstraintSpec);
+      return points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - points[i]![0], p[1] - points[i]![1]), 0);
+    };
+    const set = (key: string, apply: () => void) => {
+      this.checkpoint(`${key} ${ref.kind} ${ref.index}`);
+      apply();
+      this.changed();
+    };
+    const lengthSlider = (label: string, value: number, apply: (v: number) => void) =>
+      slider({ label, min: 0.1 * u, max: Math.max(2 * value, 2 * u), step: 0.05 * u, hardMin: 1e-3, hardMax: 1e12, value, format: length, onInput: (v) => set('length', () => apply(v)) }).root;
+    let name = 'Link';
+    const rows: HTMLElement[] = [];
+    const note = (text: string) => rows.push(el('p', { class: 'empty', text }));
+    if ('rope' in spec) {
+      name = 'Rope';
+      const from = built && 'rope' in built ? built.rope.length : undefined;
+      rows.push(lengthSlider('Length', spec.rope.length ?? from ?? span(), (v) => (spec.rope.length = v)));
+      note('Longer than the path between its ends and it starts slack. Shorter, and it pulls the ends together at the start.');
+    } else if ('rod' in spec) {
+      name = 'Rod';
+      const from = built && 'rod' in built ? built.rod.length : undefined;
+      rows.push(lengthSlider('Length', spec.rod.length ?? from ?? span(), (v) => (spec.rod.length = v)));
+      note('A rod keeps its ends exactly this far apart. Change it and they are moved to fit when the run starts.');
+    } else if ('spring' in spec) {
+      name = 'Spring';
+      const from = built && 'spring' in built ? built.spring.rest_length : undefined;
+      rows.push(
+        slider({ label: 'Stiffness k', min: 1, max: 500, step: 1, hardMin: 0.001, hardMax: 1e12, value: spec.spring.stiffness, format: (v) => `${formatNumber(v)} N/m`, onInput: (v) => set('stiffness', () => (spec.spring.stiffness = v)) }).root,
+        lengthSlider('Natural length', spec.spring.rest_length ?? from ?? span(), (v) => (spec.spring.rest_length = v)),
+      );
+      note('The spring pulls when it is longer than its natural length and pushes when it is shorter.');
+    } else if ('pin' in spec) {
+      name = 'Pin';
+      note('A pin holds one point of a body in place and lets it turn about it.');
+    } else if ('slot' in spec) {
+      name = 'Track';
+      note('A track keeps a body on a line. It can slide along it and nothing else.');
+    } else {
+      return undefined;
+    }
+    return el('div', { class: 'properties' }, [el('div', { class: 'properties-head' }, [el('b', { text: name }), iconButton('erase', 'Delete (Del)', () => this.removeSelection())]), ...rows]);
+  }
+
   /** The panel that edits the selected body. */
-  properties(): HTMLElement | undefined {
+  properties(measured?: SceneFile): HTMLElement | undefined {
+    if (this.pickedLink) return this.linkProperties(this.pickedLink, measured);
+    if (this.selection.length > 1) return this.groupProperties();
     const index = this.selected;
     const spec = index === undefined ? undefined : this.scene.bodies[index];
     if (!spec || index === undefined) return undefined;

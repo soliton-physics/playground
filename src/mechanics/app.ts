@@ -28,7 +28,8 @@ type Drag =
   | { kind: 'pan'; x: number; y: number }
   | { kind: 'press'; body: number; x: number; y: number; at: Vec }
   | { kind: 'grab' }
-  | { kind: 'move'; body: number; origin: Vec; at: Vec }
+  | { kind: 'move'; origins: Map<number, Vec>; at: Vec }
+  | { kind: 'marquee'; from: Vec; to: Vec; add: boolean }
   | { kind: 'velocity'; body: number }
   | { kind: 'handle'; handle: Handle }
   | { kind: 'tool' };
@@ -394,12 +395,29 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   function refreshProperties(): void {
     // Only with the select tool: while something is being placed or drawn, the panel would be in the way of the stage.
-    const index = sandbox && !session.running && editor.tool === 'select' ? editor.selected : undefined;
+    const active = sandbox && !session.running && editor.tool === 'select';
+    const index = active ? editor.selected : undefined;
     const body = index === undefined ? undefined : editor.scene.bodies[index];
-    const key = body ? `${index}|${body.id}|${body.kind}|${Object.keys(body.shape)[0]}` : '';
+    const link = active ? editor.pickedLink : undefined;
+    const key = link
+      ? `link|${link.kind}|${link.index}|${(editor.scene.constraints?.length ?? 0) + (editor.scene.forces?.length ?? 0)}`
+      : active && editor.selection.length > 1
+        ? `group|${editor.selection.join(',')}`
+        : body
+          ? `${index}|${body.id}|${body.kind}|${Object.keys(body.shape)[0]}`
+          : '';
     if (key === propertiesKey) return;
     propertiesKey = key;
-    const panel = key ? editor.properties() : undefined;
+    // The engine's own account of the scene has the lengths it measured for ropes and springs left to default.
+    let measured: SceneFile | undefined;
+    if (link) {
+      try {
+        measured = JSON.parse(session.world.scene_json_now()) as SceneFile;
+      } catch {
+        measured = undefined;
+      }
+    }
+    const panel = key ? editor.properties(measured) : undefined;
     properties.hidden = !panel;
     if (panel) properties.replaceChildren(panel);
   }
@@ -504,13 +522,27 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       return;
     }
     const body = bodyAt(at);
+    const editing = sandbox && !session.running;
     if (body === undefined) {
+      if (editing && e.shiftKey) {
+        // Shift and drag on empty space draws a box round the bodies to select.
+        drag = { kind: 'marquee', from: at, to: at, add: true };
+        return;
+      }
       if (sandbox) editor.selected = undefined;
+      // A rope, rod or spring is picked by clicking on it; anywhere else the drag moves the view.
+      if (editing) editor.pickedLink = editor.linkAt(at, reach());
       drag = { kind: 'pan', x: e.clientX, y: e.clientY };
       return;
     }
     focusOn(body);
-    if (sandbox) editor.selected = body;
+    if (editing && e.shiftKey) {
+      editor.toggle(body);
+      return;
+    }
+    // Pressing a body that is already part of a group keeps the group, so the group can be dragged by any member.
+    if (sandbox && !editor.selection.includes(body)) editor.selected = body;
+    if (sandbox) editor.pickedLink = undefined;
     if (session.running) {
       session.grab(body, at[0], at[1]);
       drag = { kind: 'grab' };
@@ -551,7 +583,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
           drag = { kind: 'pan', x: e.clientX, y: e.clientY };
         } else if (sandbox) {
           editable();
-          drag = { kind: 'move', body: drag.body, origin: editor.scene.bodies[drag.body]?.position ?? [0, 0], at: drag.at };
+          const moving = editor.selection.includes(drag.body) ? editor.selection : [drag.body];
+          drag = { kind: 'move', origins: new Map(moving.map((i) => [i, editor.scene.bodies[i]?.position ?? [0, 0]])), at: drag.at };
         } else {
           // Pulling on a body is the most direct way to play: the run starts and the hand takes hold.
           setRunning(true);
@@ -567,7 +600,10 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
         editor.stretchTo(at);
         break;
       case 'move':
-        editor.moveTo(drag.body, drag.origin, at[0] - drag.at[0], at[1] - drag.at[1]);
+        editor.moveSelection(drag.origins, at[0] - drag.at[0], at[1] - drag.at[1]);
+        break;
+      case 'marquee':
+        drag.to = at;
         break;
       case 'velocity': {
         const [x, y] = editor.scene.bodies[drag.body]?.position ?? [0, 0];
@@ -588,6 +624,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     touches.delete(e.pointerId);
     if (drag?.kind === 'grab') session.release();
     if (drag?.kind === 'tool') editor.release();
+    if (drag?.kind === 'marquee') editor.selectWithin(drag.from, drag.to, drag.add);
     if (drag?.kind === 'handle') requestAnimationFrame(() => requestAnimationFrame(fit));
     drag = undefined;
     canvas.classList.remove('holding');
@@ -639,6 +676,20 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     if (command && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       gallery();
+    } else if (command && sandbox && ['c', 'v', 'd', 'a'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      const key = e.key.toLowerCase();
+      if (key === 'a') {
+        setRunning(false);
+        editor.selectAll();
+      } else if (key === 'c') {
+        if (editor.copy()) toast(`Copied ${editor.selection.length === 1 ? 'it' : `${editor.selection.length} bodies`}. Ctrl+V pastes.`);
+      } else {
+        // Pasting changes the world, so a run in progress is taken as it stands first.
+        const has = key === 'd' ? editor.selection.length > 0 : true;
+        if (has) editable();
+        if (!(key === 'd' ? editor.duplicate() : editor.paste())) toast(key === 'd' ? 'Select something to duplicate.' : 'Nothing copied yet: select a body and press Ctrl+C.');
+      }
     } else if (command && e.key.toLowerCase() === 'z' && sandbox) {
       e.preventDefault();
       setRunning(false);
@@ -659,9 +710,13 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     } else if (e.key === '/') {
       e.preventDefault();
       gallery();
-    } else if (sandbox && (e.key === 'Delete' || e.key === 'Backspace') && editor.selected !== undefined) {
+    } else if (sandbox && (e.key === 'Delete' || e.key === 'Backspace') && (editor.selection.length > 0 || editor.pickedLink)) {
+      const [bodies, link] = [editor.selection, editor.pickedLink];
       editable();
-      editor.remove(editor.selected);
+      // Taking the world as it stands rebuilt it; what was selected is still what is meant.
+      editor.selection = bodies;
+      editor.pickedLink = link;
+      editor.removeSelection();
     } else if (sandbox && e.key === 'Enter' && editor.tool === 'polygon') {
       editor.finishPolygon();
     } else if (sandbox && e.key === 'Escape') {
@@ -692,6 +747,10 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       if (drag?.kind === 'handle' && drag.handle === handle) painter.label(handle.label(p), at[0], at[1] + 22 / painter.camera.scale, handle.color);
     }
     if (sandbox && !session.running) editor.overlay(painter, pointer);
+    if (drag?.kind === 'marquee') {
+      const [a, b] = [drag.from, drag.to];
+      painter.dashed([a, [b[0], a[1]], b, [a[0], b[1]], a], '#94a3b8');
+    }
   }
 
   let last = performance.now();
@@ -714,7 +773,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       showAcceleration: view.acceleration,
       showTrail: view.trail,
       grab: session.grabbed(),
-      selected: sandbox && !session.running ? editor.selected : undefined,
+      selected: sandbox && !session.running ? editor.selection : undefined,
       overlay,
     };
     renderer.draw(frame, session.running && drag?.kind !== 'grab');

@@ -15,7 +15,7 @@ export interface Frame {
   showTrail: boolean;
   grab?: GrabInfo | null;
   /** Bodies drawn with a selection ring, for the sandbox. */
-  selected?: number;
+  selected?: number[];
   /** No metre labels: for thumbnails. */
   plain?: boolean;
   /** Extra drawing in world space after the bodies: handles, a rope being placed. */
@@ -131,7 +131,7 @@ export class Renderer implements Painter {
     ctx.fillRect(0, 0, this.width, this.height);
     this.drawGrid();
 
-    bodies.forEach((body, i) => body.kind === 'static' && this.drawBody(body, state, i, false, i === frame.selected));
+    bodies.forEach((body, i) => body.kind === 'static' && this.drawBody(body, state, i, false, frame.selected?.includes(i)));
     for (const sketch of frame.sketches) this.drawSketch(sketch);
 
     if (frame.showTrail && frame.focus >= 0 && bodies[frame.focus]) {
@@ -143,7 +143,7 @@ export class Renderer implements Painter {
       this.dashed(this.trail, cssVar('--canvas-body'));
     }
 
-    bodies.forEach((body, i) => body.kind !== 'static' && this.drawBody(body, state, i, i === frame.focus, i === frame.selected));
+    bodies.forEach((body, i) => body.kind !== 'static' && this.drawBody(body, state, i, i === frame.focus, frame.selected?.includes(i)));
 
     if (frame.focus >= 0 && bodies[frame.focus]) {
       const i = frame.focus * STATE_STRIDE;
