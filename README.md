@@ -26,6 +26,9 @@ pendulum. Press `/` to open the gallery.
 - Tools on the left: ball, box, any shape you draw corner by corner, fixed platform, incline, wall or ramp, rope, rod,
   spring, pin, erase.
 - Select a body to change its mass, size, friction and bounce, or drag its arrow to give it a velocity.
+- Click a rope, rod or spring to change its length, or a spring's stiffness and natural length.
+- Shift-click to select several bodies, or shift-drag a box round them; drag one to move them all. Copy, paste and
+  duplicate take the ropes, rods and springs between them along.
 - Undo and redo, autosave in the browser, Save and Open as JSON, and Share for a link that carries the whole scene.
 - Editing while a run is paused carries on from that moment.
 
@@ -45,7 +48,10 @@ embed live simulations, and `&theme=light` or `&theme=dark` to fix the theme.
 | V B X G P I W O D S N E | sandbox tools: select, ball, box, shape, platform, incline, wall, rope, rod, spring, pin, erase |
 | Enter, Esc | finish the shape being drawn; drop it |
 | Ctrl+Z, Ctrl+Shift+Z | undo, redo |
-| Delete | remove the selected body |
+| Ctrl+C, Ctrl+V, Ctrl+D | copy, paste, duplicate the selection |
+| Ctrl+A | select everything |
+| Shift-click, Shift-drag | add to the selection; select a box |
+| Delete | remove what is selected |
 
 ## Development
 
