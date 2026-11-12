@@ -112,6 +112,43 @@ const speedAfterImpact = (body: string): Measure => (s, _f, state) => {
   return index < 0 || impact(s) === undefined ? undefined : state[index * STATE_STRIDE + 3];
 };
 
+const smallest = (quantity: string): Measure => (s) => {
+  const values = s.world.series(s.focus, quantity);
+  return values.length ? values.reduce((least, v) => Math.min(least, v), Infinity) : undefined;
+};
+
+const speedNow: Measure = (s) => {
+  const speed = s.world.series(s.focus, 'speed');
+  return speed[steadySample(s)];
+};
+
+/** The farthest the focused body has been from the centre of a fixed round body, measured from its surface. */
+const farthestAbove = (planet: string): Measure => (s) => {
+  const index = s.bodies.findIndex((b) => b.label === planet);
+  const shape = s.bodies[index]?.shape;
+  if (!shape || shape.kind !== 'circle') return undefined;
+  const [x, y] = [s.world.series(s.focus, 'x'), s.world.series(s.focus, 'y')];
+  let far = 0;
+  for (let i = 0; i < x.length; i++) far = Math.max(far, Math.hypot(x[i]!, y[i]!));
+  return far - shape.radius;
+};
+
+/** Half the swing over the last quarter of the run, once the problem's time is up: the steady state of a driven oscillator. */
+const steadyAmplitude: Measure = (s) => {
+  if (s.finishes.length === 0) return undefined;
+  const x = s.world.series(s.focus, 'x');
+  const tail = x.subarray(Math.floor(0.75 * x.length));
+  let [low, high] = [Infinity, -Infinity];
+  for (const v of tail) {
+    low = Math.min(low, v);
+    high = Math.max(high, v);
+  }
+  return tail.length ? 0.5 * (high - low) : undefined;
+};
+
+/** What one of an answer's units is in the SI units the engine records. */
+const UNIT_SCALE: Record<string, number> = { km: 1000, 'km/s': 1000, min: 60, h: 3600 };
+
 /** How a textbook answer can be read off the running engine, when it can. Thresholds and conditions cannot. */
 function measureFor(name: string): Chip['measure'] {
   const n = name.toLowerCase();
@@ -124,12 +161,17 @@ function measureFor(name: string): Chip['measure'] {
   if (n.startsWith('friction (')) return forceOf('friction');
   if (n.startsWith('time of flight') || n.startsWith('time to reach')) return impact;
   if (n.startsWith('time to the top')) return timeOfTop;
+  if (n.startsWith('orbital speed')) return speedNow;
+  if (n.startsWith('farthest altitude')) return farthestAbove('Earth');
+  if (n.startsWith('speed at the nearest')) return largest('speed');
+  if (n.startsWith('speed at the farthest')) return smallest('speed');
+  if (n.startsWith('steady amplitude')) return steadyAmplitude;
   if (n.startsWith('range') || n.startsWith('horizontal range')) return atImpact('x', true);
   if (n.startsWith('maximum height')) return largest('y', true);
   if (n.startsWith('speed on impact') || n.startsWith('speed on landing')) return atImpact('speed');
   if (n.startsWith('maximum speed') || n.startsWith('speed at the bottom')) return largest('speed');
   if (n.startsWith('maximum force')) return largestForce('spring');
-  if (n.startsWith('period')) return period;
+  if (n.startsWith('period (') || n.startsWith('period,')) return period;
   if (n.startsWith('final speed 1')) return speedAfterImpact('mass 1');
   if (n.startsWith('final speed 2')) return speedAfterImpact('mass 2');
   if (n.startsWith('kinetic energy lost')) return (s) => (impact(s) === undefined ? undefined : (s.world.energy() as { dissipated: number }).dissipated);
@@ -168,7 +210,8 @@ export class Answers {
 
   update(session: Session, forces: ForceInfo[], state: Float64Array): void {
     for (const chip of this.chips) {
-      const value = session.live ? undefined : chip.measure?.(session, forces, state);
+      const raw = session.live ? undefined : chip.measure?.(session, forces, state);
+      const value = raw === undefined ? undefined : raw / (UNIT_SCALE[chip.unit] ?? 1);
       // Once a hand has pulled on the system it is no longer the textbook's problem, and nothing measured is its answer.
       if (value === undefined || !Number.isFinite(value) || session.steps === 0 || session.live) {
         chip.measured.textContent = '';

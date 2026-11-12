@@ -1,7 +1,7 @@
 import { iconButton, slider } from '../controls';
 import type { IconName } from '../icons';
 import { el, formatNumber } from '../ui';
-import { VELOCITY_COLOR, VELOCITY_SCALE, type Painter } from './stage/renderer';
+import { VELOCITY_COLOR, scales, type Painter } from './stage/renderer';
 import type { AnchorSpec, BodySpec, ConstraintSpec, RopeNodeSpec, SceneFile, Vec } from './types';
 
 export type Tool = 'select' | 'ball' | 'box' | 'platform' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
@@ -347,7 +347,7 @@ export class Editor {
     const [x, y] = spec.position ?? [0, 0];
     const [vx, vy] = spec.velocity ?? [0, 0];
     const still = Math.hypot(vx, vy) < 1e-9;
-    return still ? [x + 0.6, y + 0.6] : [x + vx * VELOCITY_SCALE, y + vy * VELOCITY_SCALE];
+    return still ? [x + 0.6, y + 0.6] : [x + vx * scales.velocity, y + vy * scales.velocity];
   }
 
   overlay(painter: Painter, pointer: Vec | undefined): void {

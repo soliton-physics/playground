@@ -1,5 +1,5 @@
 import { iconButton } from '../controls';
-import { el, formatNumber, formatQuantity } from '../ui';
+import { el, formatNumber, formatQuantity, formatTime } from '../ui';
 import { Graph, type GraphSeries } from './graph';
 import type { Session } from './session';
 import { forceColor } from './stage/renderer';
@@ -212,8 +212,8 @@ export class Inspector {
 
   private renderEvents(session: Session): void {
     const finish = session.lastFinish();
-    const items = session.events.slice(-40).reverse().map((event) => el('li', {}, [el('time', { text: `${event.time.toFixed(2)} s` }), el('span', { text: session.describe(event) })]));
-    if (finish) items.unshift(el('li', {}, [el('time', { text: `${finish.time.toFixed(2)} s` }), el('b', { text: finish.reason })]));
+    const items = session.events.slice(-40).reverse().map((event) => el('li', {}, [el('time', { text: formatTime(event.time) }), el('span', { text: session.describe(event) })]));
+    if (finish) items.unshift(el('li', {}, [el('time', { text: formatTime(finish.time) }), el('b', { text: finish.reason })]));
     this.body.replaceChildren(
       items.length
         ? el('ol', { class: 'events' }, items)

@@ -2,7 +2,7 @@ import { closePopover, popover, slider, toast } from '../controls';
 import { mechanics_catalogue } from '../engine';
 import { icon, type IconName } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, el, formatNumber } from '../ui';
+import { clamp, el, formatNumber, formatTime } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
 import { Editor, TOOL_KEYS, emptySandbox } from './editor';
@@ -11,7 +11,7 @@ import { HANDLES, type Handle } from './handles';
 import { Inspector } from './inspector';
 import { Session, type Source } from './session';
 import { downloadScene, loadSandbox, saveSandbox, sceneFromUrl, shareLink } from './share';
-import { Renderer, VELOCITY_SCALE, aggregateForces, type Frame, type Painter } from './stage/renderer';
+import { Renderer, aggregateForces, fitArrows, scales, type Frame, type Painter } from './stage/renderer';
 import { STATE_STRIDE, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
 
 const GRAVITIES: [string, number][] = [
@@ -139,7 +139,17 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     renderer.clearTrail();
     inspector.reset(session);
     answers.reset(session);
-    if (!keepCamera) fit();
+    if (!keepCamera) {
+      fit();
+      const state = session.world.state();
+      let [speed, acceleration] = [0, 0];
+      session.bodies.forEach((_, i) => {
+        speed = Math.max(speed, Math.hypot(state[i * STATE_STRIDE + 3]!, state[i * STATE_STRIDE + 4]!));
+        acceleration = Math.max(acceleration, Math.hypot(state[i * STATE_STRIDE + 6]!, state[i * STATE_STRIDE + 7]!));
+      });
+      const view = framing();
+      fitArrows(Math.max(view.half_height, view.half_width ?? 0), speed, acceleration);
+    }
     return true;
   }
 
@@ -318,7 +328,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     const finish = session.lastFinish();
     if (!finish) return;
     setRunning(false);
-    const at = `t = ${finish.time.toFixed(2)} s`;
+    const at = `t = ${formatTime(finish.time)}`;
     banner.textContent =
       finish.time === 0
         ? 'Nothing moves: the forces balance from the start. Change something, or grab a body.'
@@ -407,7 +417,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
    * past it the scene stops being the one described (an incline beyond vertical, a restitution above one).
    */
   function limits(p: Param): { min: number; max: number } {
-    if (!['kg', 'm', 'm/s', 'N', 'N/m'].includes(p.unit)) return { min: p.min, max: p.max };
+    if (!['kg', 'm', 'm/s', 'N', 'N/m', 'km', 'km/s', 'kg/s', 'rad/s'].includes(p.unit)) return { min: p.min, max: p.max };
     const max = 100 * p.max;
     return { min: p.min < 0 ? -max : p.min, max };
   }
@@ -508,7 +518,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
         break;
       case 'velocity': {
         const [x, y] = editor.scene.bodies[drag.body]?.position ?? [0, 0];
-        editor.setVelocity(drag.body, (at[0] - x) / VELOCITY_SCALE, (at[1] - y) / VELOCITY_SCALE);
+        editor.setVelocity(drag.body, (at[0] - x) / scales.velocity, (at[1] - y) / scales.velocity);
         break;
       }
       case 'handle': {

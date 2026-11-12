@@ -68,3 +68,17 @@ export function cssVar(name: string): string {
   }
   return value;
 }
+
+/** A time on the clock: seconds for a pendulum, minutes or hours for an orbit. */
+export function formatTime(seconds: number): string {
+  const t = Math.abs(seconds);
+  if (t < 120) return `${seconds.toFixed(2)} s`;
+  if (t < 7200) return `${(seconds / 60).toFixed(1)} min`;
+  return `${(seconds / 3600).toFixed(2)} h`;
+}
+
+/** A position on an axis whose lines are `step` metres apart: metres, or kilometres once the lines are that far apart. */
+export function formatLength(metres: number, step: number): string {
+  if (step >= 1000) return `${+(metres / 1000).toFixed(0)} km`;
+  return `${+metres.toFixed(2)} m`;
+}

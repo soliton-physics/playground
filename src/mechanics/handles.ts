@@ -1,4 +1,4 @@
-import { VELOCITY_SCALE, VELOCITY_COLOR, forceColor } from './stage/renderer';
+import { VELOCITY_COLOR, forceColor, scales } from './stage/renderer';
 import type { Vec } from './types';
 
 type Values = Record<string, number>;
@@ -14,7 +14,6 @@ export interface Handle {
   tail?: (p: Values) => Vec;
 }
 
-const S = VELOCITY_SCALE;
 const deg = (radians: number) => (radians * 180) / Math.PI;
 const rad = (degrees: number) => (degrees * Math.PI) / 180;
 const BODY = '#38d6f5';
@@ -27,12 +26,12 @@ function launch(origin: (p: Values) => Vec): Handle {
     tail: origin,
     position: (p) => {
       const [x, y] = origin(p);
-      return [x + p.speed! * Math.cos(rad(p.angle!)) * S, y + p.speed! * Math.sin(rad(p.angle!)) * S];
+      return [x + p.speed! * Math.cos(rad(p.angle!)) * scales.velocity, y + p.speed! * Math.sin(rad(p.angle!)) * scales.velocity];
     },
     drag: (at, p) => {
       const [x, y] = origin(p);
       const [dx, dy] = [at[0] - x, at[1] - y];
-      return { speed: Math.hypot(dx, dy) / S, angle: deg(Math.atan2(dy, dx)) };
+      return { speed: Math.hypot(dx, dy) / scales.velocity, angle: deg(Math.atan2(dy, dx)) };
     },
   };
 }
@@ -46,15 +45,58 @@ function inclineTop(length: number): Handle {
   };
 }
 
+// The Earth of the gravitation scenarios, for placing their knobs.
+const EARTH_RADIUS = 6.371e6;
+const EARTH_MU = 6.674e-11 * 5.972e24;
+const KM = 1000;
+
+/** A satellite's distance from the centre of the Earth, as a knob on the satellite itself. */
+function altitude(param: string): Handle {
+  return {
+    label: (p) => `${p[param]} km up`,
+    color: BODY,
+    position: (p) => [EARTH_RADIUS + p[param]! * KM, 0],
+    drag: (at) => ({ [param]: (Math.hypot(at[0], at[1]) - EARTH_RADIUS) / KM }),
+  };
+}
+
 export const HANDLES: Record<string, Handle[]> = {
+  'circular-orbit': [altitude('altitude')],
+  'elliptical-orbit': [
+    {
+      label: (p) => `${p.boost} × circular speed`,
+      color: VELOCITY_COLOR,
+      tail: (p) => [EARTH_RADIUS + p.perigee! * KM, 0],
+      position: (p) => {
+        const r = EARTH_RADIUS + p.perigee! * KM;
+        return [r, p.boost! * Math.sqrt(EARTH_MU / r) * scales.velocity];
+      },
+      drag: (at, p) => ({ boost: at[1] / scales.velocity / Math.sqrt(EARTH_MU / (EARTH_RADIUS + p.perigee! * KM)) }),
+    },
+    altitude('perigee'),
+  ],
+  'escape-velocity': [
+    {
+      label: (p) => `${p.speed} km/s`,
+      color: VELOCITY_COLOR,
+      tail: () => [0, EARTH_RADIUS],
+      position: (p) => [0, EARTH_RADIUS + p.speed! * KM * scales.velocity],
+      drag: (at) => ({ speed: (at[1] - EARTH_RADIUS) / scales.velocity / KM }),
+    },
+  ],
+  'coupled-oscillators': [
+    { label: (p) => `${p.first} m from rest`, color: BODY, position: (p) => [2 + p.first!, 0.25], drag: (at) => ({ first: at[0] - 2 }) },
+    { label: (p) => `${p.second} m from rest`, color: BODY, position: (p) => [4 + p.second!, 0.25], drag: (at) => ({ second: at[0] - 4 }) },
+  ],
+  'damped-oscillator': [{ label: (p) => `${p.amplitude} m`, color: BODY, position: (p) => [2 + p.amplitude!, 0.25], drag: (at) => ({ amplitude: at[0] - 2 }) }],
   'free-fall': [{ label: (p) => `${p.height} m`, color: BODY, position: (p) => [0, p.height! + 0.3], drag: (at) => ({ height: at[1] - 0.3 }) }],
   'thrown-upward': [
     {
       label: (p) => `${p.speed} m/s`,
       color: VELOCITY_COLOR,
       tail: () => [0, 0.3],
-      position: (p) => [0, 0.3 + p.speed! * S],
-      drag: (at) => ({ speed: (at[1] - 0.3) / S }),
+      position: (p) => [0, 0.3 + p.speed! * scales.velocity],
+      drag: (at) => ({ speed: (at[1] - 0.3) / scales.velocity }),
     },
   ],
   projectile: [launch(() => [0, 0.25])],
@@ -79,13 +121,13 @@ export const HANDLES: Record<string, Handle[]> = {
       label: (p) => `${p.speed} m/s`,
       color: VELOCITY_COLOR,
       tail: (p) => [0, -p.length!],
-      position: (p) => [p.speed! * S, -p.length!],
-      drag: (at) => ({ speed: at[0] / S }),
+      position: (p) => [p.speed! * scales.velocity, -p.length!],
+      drag: (at) => ({ speed: at[0] / scales.velocity }),
     },
   ],
   'collision-1d': [
-    { label: (p) => `${p.u1} m/s`, color: VELOCITY_COLOR, tail: () => [-3, 0.3], position: (p) => [-3 + p.u1! * S, 0.3], drag: (at) => ({ u1: (at[0] + 3) / S }) },
-    { label: (p) => `${p.u2} m/s`, color: VELOCITY_COLOR, tail: () => [0, 0.3], position: (p) => [p.u2! * S, 0.3], drag: (at) => ({ u2: at[0] / S }) },
+    { label: (p) => `${p.u1} m/s`, color: VELOCITY_COLOR, tail: () => [-3, 0.3], position: (p) => [-3 + p.u1! * scales.velocity, 0.3], drag: (at) => ({ u1: (at[0] + 3) / scales.velocity }) },
+    { label: (p) => `${p.u2} m/s`, color: VELOCITY_COLOR, tail: () => [0, 0.3], position: (p) => [p.u2! * scales.velocity, 0.3], drag: (at) => ({ u2: at[0] / scales.velocity }) },
   ],
   seesaw: [
     { label: (p) => `${p.d1} m`, color: BODY, position: (p) => [-p.d1!, 1.2 + 0.03 * p.m1!], drag: (at) => ({ d1: -at[0] }) },

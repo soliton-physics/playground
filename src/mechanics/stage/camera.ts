@@ -61,24 +61,27 @@ export class Camera {
       bottom = Math.min(bottom, b.y - b.radius);
       top = Math.max(top, b.y + b.radius);
     }
-    const usableWidth = this.width * (1 - 2 * margin);
-    const usableHeight = this.height * (1 - 2 * margin);
+    // Everything is worked out for the part of the stage the panels leave free, then put back in terms of the
+    // whole canvas, so a body is never followed to somewhere behind the dock or the inspector.
+    const free = this.usable;
+    const usableWidth = free.width * (1 - 2 * margin);
+    const usableHeight = free.height * (1 - 2 * margin);
     const needed = Math.min(usableWidth / Math.max(right - left, 1e-9), usableHeight / Math.max(top - bottom, 1e-9));
     const targetScale = Math.min(this.scale, needed);
-    const halfW = this.width / (2 * targetScale);
-    const halfH = this.height / (2 * targetScale);
+    const halfW = free.width / (2 * targetScale);
+    const halfH = free.height / (2 * targetScale);
     const padX = halfW * margin * 2;
     const padY = halfH * margin * 2;
-    let targetX = this.centerX;
-    let targetY = this.centerY;
+    let targetX = this.centerX + free.dx / this.scale;
+    let targetY = this.centerY - free.dy / this.scale;
     if (left - padX < targetX - halfW) targetX = left - padX + halfW;
     if (right + padX > targetX + halfW) targetX = right + padX - halfW;
     if (bottom - padY < targetY - halfH) targetY = bottom - padY + halfH;
     if (top + padY > targetY + halfH) targetY = top + padY - halfH;
     const ease = 0.2;
     this.scale += (targetScale - this.scale) * ease;
-    this.centerX += (targetX - this.centerX) * ease;
-    this.centerY += (targetY - this.centerY) * ease;
+    this.centerX += (targetX - free.dx / this.scale - this.centerX) * ease;
+    this.centerY += (targetY + free.dy / this.scale - this.centerY) * ease;
   }
 
   toScreen(x: number, y: number): [number, number] {

@@ -1,4 +1,4 @@
-import { cssVar, currentTheme, formatNumber } from '../../ui';
+import { cssVar, currentTheme, formatLength, formatNumber } from '../../ui';
 import { STATE_STRIDE, type BodyInfo, type ForceInfo, type GrabInfo, type SketchInfo } from '../types';
 import { Camera, type Box } from './camera';
 
@@ -41,8 +41,25 @@ export function forceColor(label: string): string {
 
 export const VELOCITY_COLOR = '#38bdf8';
 export const ACCELERATION_COLOR = '#fb923c';
-/** Metres of arrow per m/s, shared with the handle that sets a launch velocity. */
-export const VELOCITY_SCALE = 0.25;
+/**
+ * Metres of arrow per m/s and per m/s². Shared with the knobs that set a launch velocity. The defaults suit a
+ * scene a few metres across; `fitArrows` changes them for one that is not.
+ */
+export const scales = { velocity: 0.25, acceleration: 0.12 };
+
+/**
+ * Chooses arrow lengths for a scene `extent` metres from centre to edge, given the fastest speed and largest
+ * acceleration in it at the start. The usual lengths are kept whenever they are visible and fit; a satellite at
+ * 7 km/s in a view 16 000 km across needs something else.
+ */
+export function fitArrows(extent: number, speed: number, acceleration: number): void {
+  const fit = (usual: number, largest: number) => {
+    const length = usual * largest;
+    return largest > 0 && (length < 0.05 * extent || length > 0.6 * extent) ? (0.3 * extent) / largest : usual;
+  };
+  scales.velocity = fit(0.25, speed);
+  scales.acceleration = fit(0.12, acceleration);
+}
 
 interface Rect {
   x: number;
@@ -111,7 +128,7 @@ export class Renderer implements Painter {
       const last = this.trail[this.trail.length - 1];
       const point: [number, number] = [state[i]!, state[i + 1]!];
       if (!last || Math.hypot(last[0] - point[0], last[1] - point[1]) > 2 / this.camera.scale) this.trail.push(point);
-      if (this.trail.length > 900) this.trail.shift();
+      if (this.trail.length > 2400) this.trail.shift();
       this.dashed(this.trail, cssVar('--canvas-body'));
     }
 
@@ -121,8 +138,8 @@ export class Renderer implements Painter {
       const i = frame.focus * STATE_STRIDE;
       const [x, y, vx, vy, ax, ay] = [state[i]!, state[i + 1]!, state[i + 3]!, state[i + 4]!, state[i + 6]!, state[i + 7]!];
       if (frame.showForces) this.drawForces(frame.forces);
-      if (frame.showAcceleration) this.arrow(x, y, ax, ay, 0.12, ACCELERATION_COLOR, `a ${formatNumber(Math.hypot(ax, ay))} m/s²`);
-      if (frame.showVelocity) this.arrow(x, y, vx, vy, VELOCITY_SCALE, VELOCITY_COLOR, `v ${formatNumber(Math.hypot(vx, vy))} m/s`);
+      if (frame.showAcceleration) this.arrow(x, y, ax, ay, scales.acceleration, ACCELERATION_COLOR, `a ${formatNumber(Math.hypot(ax, ay))} m/s²`);
+      if (frame.showVelocity) this.arrow(x, y, vx, vy, scales.velocity, VELOCITY_COLOR, `v ${formatNumber(Math.hypot(vx, vy))} m/s`);
     }
 
     if (frame.grab) {
@@ -245,7 +262,10 @@ export class Renderer implements Painter {
 
   private gridStep(): number {
     const { left, right } = this.camera.bounds;
-    return [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100].find((s) => (right - left) / s <= 26) ?? 200;
+    // The smallest of 1, 2, 5 times a power of ten that puts at most 26 lines across, at any scale.
+    const raw = (right - left) / 26;
+    const magnitude = 10 ** Math.floor(Math.log10(raw));
+    return [1, 2, 5, 10].map((m) => m * magnitude).find((s) => s >= raw) ?? 10 * magnitude;
   }
 
   private drawGrid(): void {
@@ -286,12 +306,12 @@ export class Renderer implements Painter {
     ctx.textAlign = 'center';
     for (let x = Math.ceil(left / step) * step; x <= right; x += step) {
       const [sx] = this.camera.toScreen(x, 0);
-      if (sx > insets.left + 30 && sx < this.width - insets.right - 20) ctx.fillText(`${+x.toFixed(2)} m`, sx, this.height - Math.max(6, insets.bottom - 2));
+      if (sx > insets.left + 30 && sx < this.width - insets.right - 20) ctx.fillText(formatLength(x, step), sx, this.height - Math.max(6, insets.bottom - 2));
     }
     ctx.textAlign = 'left';
     for (let y = Math.ceil(bottom / step) * step; y <= top; y += step) {
       const [, sy] = this.camera.toScreen(0, y);
-      if (sy > this.axis.clearTop + 14 && sy < this.height - insets.bottom - 24) ctx.fillText(`${+y.toFixed(2)} m`, this.axis.left, sy - 4);
+      if (sy > this.axis.clearTop + 14 && sy < this.height - insets.bottom - 24) ctx.fillText(formatLength(y, step), this.axis.left, sy - 4);
     }
   }
 

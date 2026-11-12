@@ -27,7 +27,10 @@ export class Session {
   dt = 1e-3;
   focus = 0;
   running = false;
+  /** How fast the viewer asked for, as a multiple of the scene's own pace. */
   speed = 1;
+  /** The scene's own pace: seconds of simulation per second of watching. One, except for scenes that take hours. */
+  playback = 1;
   steps = 0;
   /** The furthest step this run has reached; the timeline can scrub up to here. */
   reached = 0;
@@ -41,12 +44,19 @@ export class Session {
 
   private build(): void {
     const source = this.source;
-    const dt = source.kind === 'scenario' ? source.spec.dt : Number(JSON.parse(source.json)?.world?.dt) || 1e-3;
-    const recordEvery = Math.max(1, Math.round(0.005 / dt));
-    const world =
-      source.kind === 'scenario'
-        ? new MechanicsWorld(source.spec.id, source.params, recordEvery)
-        : MechanicsWorld.from_scene(source.json, recordEvery);
+    const make = (recordEvery: number) =>
+      source.kind === 'scenario' ? new MechanicsWorld(source.spec.id, source.params, recordEvery) : MechanicsWorld.from_scene(source.json, recordEvery);
+    // A sample every five thousandths of a second of watching. The scene has to be built to learn its time step
+    // and its pace; when those ask for another interval it is built again.
+    let recordEvery = 5;
+    let world = make(recordEvery);
+    const wanted = Math.max(1, Math.round((0.005 * world.playback()) / world.dt()));
+    if (wanted !== recordEvery) {
+      world.free();
+      recordEvery = wanted;
+      world = make(recordEvery);
+    }
+    this.playback = world.playback();
     this.world?.free();
     this.world = world;
     this.dt = world.dt();
@@ -72,7 +82,7 @@ export class Session {
 
   /** The end of the timeline: the problem's window, or however far the run has got. */
   get span(): number {
-    return Math.max(this.horizon, this.reached * this.dt, 1);
+    return Math.max(this.horizon, this.reached * this.dt, this.playback);
   }
 
   /** Steps `count` times. With `stopAtFinish` it stops on the step the problem ends and returns true. */
@@ -104,7 +114,7 @@ export class Session {
   /** Runs the clock forward; true when the problem ended during this call, which is where the front end pauses. */
   advance(seconds: number): boolean {
     if (!this.running) return false;
-    this.accumulator += seconds * this.speed;
+    this.accumulator += seconds * this.speed * this.playback;
     const steps = Math.min(MAX_STEPS_PER_FRAME, Math.floor(this.accumulator / this.dt));
     if (steps === 0) return false;
     this.branch();
@@ -118,7 +128,7 @@ export class Session {
 
   stepOnce(): void {
     this.branch();
-    this.run(Math.max(1, Math.round(0.01 / this.dt)), true);
+    this.run(Math.max(1, Math.round((0.01 * this.playback) / this.dt)), true);
     this.reached = Math.max(this.reached, this.steps);
   }
 

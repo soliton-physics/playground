@@ -1,6 +1,6 @@
 import { closePopover, iconButton, popover, toggleButton } from '../controls';
 import { icon } from '../icons';
-import { el } from '../ui';
+import { el, formatTime } from '../ui';
 import type { Session } from './session';
 
 export interface ViewOptions {
@@ -89,7 +89,7 @@ export class Dock {
   private openSpeeds(): void {
     const menu = el('div', { class: 'menu' });
     for (const speed of SPEEDS) {
-      const row = el('button', { type: 'button', text: speed === 1 ? '×1  real time' : `×${speed}` });
+      const row = el('button', { type: 'button', text: `×${speed}` });
       if (this.speedChip.textContent === `×${speed}`) row.setAttribute('aria-current', 'true');
       row.addEventListener('click', () => {
         this.handlers.speed(speed);
@@ -112,7 +112,7 @@ export class Dock {
     this.fill.style.width = percent(session.time);
     this.thumb.style.left = percent(session.time);
     this.reached.style.width = percent(session.reached * session.dt);
-    this.clock.textContent = `${session.time.toFixed(2)} s`;
+    this.clock.textContent = formatTime(session.time);
     this.timeline.setAttribute('aria-valuenow', session.time.toFixed(2));
 
     const finish = session.finishes[0];
@@ -120,12 +120,12 @@ export class Dock {
     if (key !== this.tickKey) {
       this.tickKey = key;
       const marks = session.events.slice(-60).map((event) => {
-        const tick = el('div', { class: 'timeline-tick', title: `${event.time.toFixed(2)} s  ${session.describe(event)}` });
+        const tick = el('div', { class: 'timeline-tick', title: `${formatTime(event.time)}  ${session.describe(event)}` });
         tick.style.left = percent(event.time);
         return tick;
       });
       if (finish) {
-        const tick = el('div', { class: 'timeline-tick finish', title: `${finish.time.toFixed(2)} s  ${finish.reason}` });
+        const tick = el('div', { class: 'timeline-tick finish', title: `${formatTime(finish.time)}  ${finish.reason}` });
         tick.style.left = percent(finish.time);
         marks.push(tick);
       }
