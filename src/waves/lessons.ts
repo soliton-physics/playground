@@ -1,0 +1,429 @@
+import { formatDuration, formatQuantity } from '../ui';
+import type { Formula } from './formulas';
+import { resultant, type Component, type Pulse, type Sine } from './model';
+
+/** Something the reader can change: a slider, or a choice between a few named values. */
+export interface Param {
+  id: string;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  hardMin?: number;
+  hardMax?: number;
+  options?: { label: string; value: number }[];
+}
+
+export type Values = Record<string, number>;
+
+export interface Fact {
+  label: string;
+  value: string;
+}
+
+/** Something drawn on the plot to name a part of the wave. */
+export type Mark =
+  | { kind: 'span'; from: number; to: number; at: number; label: string }
+  | { kind: 'rise'; x: number; to: number; label: string }
+  | { kind: 'point'; x: number; label: string; tone: 'node' | 'antinode' }
+  | { kind: 'end'; x: number; type: 'fixed' | 'free' | 'closed' | 'open' };
+
+export interface Lesson {
+  id: string;
+  title: string;
+  description: string;
+  params: Param[];
+  domain(p: Values): [number, number];
+  parts(p: Values): Component[];
+  /** The largest displacement the plot must have room for. */
+  height(p: Values): number;
+  /** The numbers worth knowing about this wave, worked out from the parameters. */
+  facts(p: Values): Fact[];
+  marks?(p: Values, t: number): Mark[];
+  formulas: Formula[];
+  /** What the wave travels in. Air is drawn as layers that move along the wave; a string as beads that move across. */
+  medium: 'string' | 'air';
+  /** Unit of displacement: a string moves centimetres, air a few thousandths of a millimetre. */
+  yUnit: string;
+  /** Draw each part faintly behind their sum. */
+  showParts?: boolean;
+  /** When the story is over, for a pulse that has done what it came to do. */
+  duration?(p: Values): number;
+}
+
+const TAU = 2 * Math.PI;
+const rad = (degrees: number) => (degrees * Math.PI) / 180;
+const q = formatQuantity;
+const sine = (amplitude: number, wavelength: number, frequency: number, phase = 0, direction: 1 | -1 = 1): Sine => ({ kind: 'sine', amplitude, wavelength, frequency, phase, direction });
+const pulse = (amplitude: number, width: number, centre: number, speed: number, direction: 1 | -1): Pulse => ({ kind: 'pulse', amplitude, width, centre, speed, direction });
+
+const amplitude = (value: number, unit = 'm', max = 0.5): Param => ({ id: 'amplitude', label: 'Amplitude', unit, min: max / 10, max, step: max / 100, value, hardMin: 0, hardMax: max * 20 });
+const wavelength = (value: number, max = 6): Param => ({ id: 'wavelength', label: 'Wavelength', unit: 'm', min: max / 12, max, step: max / 120, value, hardMin: max / 600, hardMax: max * 100 });
+const frequency = (value: number, min: number, max: number, id = 'frequency', label = 'Frequency'): Param => ({ id, label, unit: 'Hz', min, max, step: (max - min) / 200, value, hardMin: min / 100, hardMax: max * 100 });
+
+/** The crest nearest the left of the plot, so that the labels ride along with the wave. */
+function firstCrest(c: Sine, from: number, t: number): number {
+  const k = TAU / c.wavelength;
+  const x = (Math.PI / 2 - c.phase + c.direction * TAU * c.frequency * t) / k;
+  return from + ((((x - from) % c.wavelength) + c.wavelength) % c.wavelength);
+}
+
+function crestMarks(c: Sine, [from, to]: [number, number], t: number, top: number): Mark[] {
+  let crest = firstCrest(c, from, t);
+  if (crest + c.wavelength > to) crest -= c.wavelength;
+  if (crest < from || c.amplitude <= 0) return [];
+  return [
+    { kind: 'span', from: crest, to: crest + c.wavelength, at: top, label: `λ = ${q(c.wavelength, 'm')}` },
+    { kind: 'rise', x: crest, to: c.amplitude, label: 'A' },
+  ];
+}
+
+const sineFacts = (c: Sine): Fact[] => [
+  { label: 'Speed of the wave, v = fλ', value: q(c.frequency * c.wavelength, 'm/s') },
+  { label: 'Period, T = 1/f', value: formatDuration(1 / c.frequency) },
+  { label: 'Wave number, k = 2π/λ', value: q(TAU / c.wavelength, 'rad/m') },
+  { label: 'Angular frequency, ω = 2πf', value: q(TAU * c.frequency, 'rad/s') },
+];
+
+/** Nodes and antinodes of 2A sin(kx + shift) cos ωt between the two ends. */
+function stationaryMarks(lambda: number, shift: number, [from, to]: [number, number]): Mark[] {
+  const marks: Mark[] = [];
+  const quarter = lambda / 4;
+  // sin(kx + shift) = 0 at x = (nπ − shift)/k; every quarter wavelength alternates node, antinode.
+  const start = (-shift / TAU) * lambda;
+  for (let n = Math.ceil((from - start) / quarter - 1e-9); start + n * quarter <= to + 1e-9; n++) {
+    marks.push({ kind: 'point', x: start + n * quarter, label: n % 2 === 0 ? 'N' : 'A', tone: n % 2 === 0 ? 'node' : 'antinode' });
+  }
+  return marks;
+}
+
+const travelling: Lesson = {
+  id: 'travelling-wave',
+  title: 'A travelling wave',
+  description:
+    'The shape moves along; the string does not. Watch one bead: it only goes up and down, once for every wavelength that passes. Click anywhere on the wave to read that point.',
+  params: [
+    amplitude(0.2),
+    wavelength(2),
+    frequency(1, 0.2, 5),
+    { id: 'phase', label: 'Starting phase', unit: '°', min: 0, max: 360, step: 5, value: 0 },
+    { id: 'direction', label: 'Travels', unit: '', min: -1, max: 1, step: 2, value: 1, options: [{ label: 'to the right', value: 1 }, { label: 'to the left', value: -1 }] },
+  ],
+  domain: () => [0, 12],
+  parts: (p) => [sine(p.amplitude!, p.wavelength!, p.frequency!, rad(p.phase!), p.direction! < 0 ? -1 : 1)],
+  height: (p) => p.amplitude!,
+  facts: (p) => sineFacts(sine(p.amplitude!, p.wavelength!, p.frequency!)),
+  marks(p, t) {
+    const [c] = this.parts(p) as [Sine];
+    return crestMarks(c, this.domain(p), t, p.amplitude! * 1.25);
+  },
+  formulas: [
+    { label: 'Displacement', tex: String.raw`y(x,t) = A\,\sin(kx - \omega t + \varphi)`, note: 'Moving to the left, the sign in the middle becomes +.' },
+    { label: 'How the numbers are tied', tex: String.raw`k = \frac{2\pi}{\lambda}, \qquad \omega = 2\pi f = \frac{2\pi}{T}, \qquad v = f\lambda = \frac{\omega}{k}` },
+    { label: 'Speed of a bead on the string', tex: String.raw`\frac{\partial y}{\partial t} = -A\,\omega\,\cos(kx - \omega t + \varphi)`, note: 'Greatest, Aω, as the bead passes through rest. It is not the speed of the wave.' },
+    { label: 'Phase difference between two points', tex: String.raw`\Delta\varphi = \frac{2\pi}{\lambda}\,\Delta x`, note: 'Click a second point to see it.' },
+  ],
+  medium: 'string',
+  yUnit: 'm',
+};
+
+const longitudinal: Lesson = {
+  id: 'sound-wave',
+  title: 'A sound wave',
+  description:
+    'In sound the air moves back and forth along the direction the wave travels. The layers bunch up into compressions and spread into rarefactions, and it is that pattern which moves. The graph shows how far each layer is from its place.',
+  params: [frequency(170, 85, 680), { id: 'speed', label: 'Speed of sound', unit: 'm/s', min: 300, max: 360, step: 1, value: 340, hardMin: 100, hardMax: 6000 }, amplitude(10, 'µm', 20)],
+  domain: () => [0, 8],
+  parts: (p) => [sine(p.amplitude!, p.speed! / p.frequency!, p.frequency!)],
+  height: (p) => p.amplitude!,
+  facts: (p) => [{ label: 'Wavelength, λ = v/f', value: q(p.speed! / p.frequency!, 'm') }, ...sineFacts(sine(1, p.speed! / p.frequency!, p.frequency!)).slice(1)],
+  marks(p, t) {
+    const [c] = this.parts(p) as [Sine];
+    const [from, to] = this.domain(p);
+    // Layers crowd together where the displacement falls through zero going along the wave: a quarter wavelength
+    // past each crest.
+    const marks: Mark[] = [];
+    for (let x = firstCrest(c, from, t) + c.wavelength / 4 - c.wavelength; x <= to; x += c.wavelength / 2) {
+      const compression = Math.round((x - firstCrest(c, from, t) - c.wavelength / 4) / (c.wavelength / 2)) % 2 === 0;
+      if (x >= from) marks.push({ kind: 'point', x, label: compression ? 'C' : 'R', tone: compression ? 'antinode' : 'node' });
+    }
+    return marks;
+  },
+  formulas: [
+    { label: 'Displacement of a layer of air', tex: String.raw`s(x,t) = s_0\,\sin(kx - \omega t)`, note: 'Along the direction of travel, not across it.' },
+    { label: 'Change in pressure', tex: String.raw`\Delta p = -B\,\frac{\partial s}{\partial x} = -B\,k\,s_0\cos(kx - \omega t)`, note: 'Greatest where the displacement is zero: C marks a compression, R a rarefaction.' },
+    { label: 'Speed of sound in a gas', tex: String.raw`v = \sqrt{\frac{\gamma P}{\rho}}`, note: 'Newton’s formula with Laplace’s correction. About 340 m/s in air at room temperature.' },
+    { label: 'Wavelength', tex: String.raw`\lambda = \frac{v}{f}` },
+  ],
+  medium: 'air',
+  yUnit: 'µm',
+};
+
+const onString: Lesson = {
+  id: 'wave-on-string',
+  title: 'Speed of a wave on a string',
+  description:
+    'How fast a wave runs along a string is set by the string alone: how hard it is pulled and how heavy it is. Shake it faster and the wave does not hurry; the wavelength shrinks instead.',
+  params: [
+    { id: 'tension', label: 'Tension', unit: 'N', min: 1, max: 100, step: 1, value: 20, hardMin: 0.01, hardMax: 1e5 },
+    { id: 'density', label: 'Mass per metre', unit: 'kg/m', min: 0.005, max: 0.5, step: 0.005, value: 0.05, hardMin: 1e-5, hardMax: 100 },
+    frequency(5, 1, 20),
+    amplitude(0.1),
+  ],
+  domain: () => [0, 20],
+  parts: (p) => [sine(p.amplitude!, Math.sqrt(p.tension! / p.density!) / p.frequency!, p.frequency!)],
+  height: (p) => p.amplitude!,
+  facts: (p) => {
+    const v = Math.sqrt(p.tension! / p.density!);
+    return [{ label: 'Speed of the wave, v = √(T/μ)', value: q(v, 'm/s') }, { label: 'Wavelength, λ = v/f', value: q(v / p.frequency!, 'm') }, { label: 'Period', value: formatDuration(1 / p.frequency!) }];
+  },
+  marks(p, t) {
+    const [c] = this.parts(p) as [Sine];
+    return crestMarks(c, this.domain(p), t, p.amplitude! * 1.25);
+  },
+  formulas: [
+    { label: 'Speed on a stretched string', tex: String.raw`v = \sqrt{\frac{T}{\mu}}`, note: 'T is the tension, μ the mass of each metre of string. Neither the frequency nor the amplitude appears.' },
+    { label: 'So the wavelength follows', tex: String.raw`\lambda = \frac{v}{f} = \frac{1}{f}\sqrt{\frac{T}{\mu}}` },
+  ],
+  medium: 'string',
+  yUnit: 'm',
+};
+
+const superposition: Lesson = {
+  id: 'superposition',
+  title: 'Two waves add',
+  description:
+    'Two waves on the same string, same wavelength, same direction. The string simply does both at once. In step they build each other up; half a cycle apart they cancel. The faint lines are the two waves, the bright one is what the string does.',
+  params: [
+    { ...amplitude(0.2), id: 'first', label: 'Amplitude of the first' },
+    { ...amplitude(0.2), id: 'second', label: 'Amplitude of the second' },
+    { id: 'difference', label: 'Phase difference', unit: '°', min: 0, max: 360, step: 5, value: 60 },
+    wavelength(2),
+    frequency(1, 0.2, 5),
+  ],
+  domain: () => [0, 12],
+  parts: (p) => [sine(p.first!, p.wavelength!, p.frequency!), sine(p.second!, p.wavelength!, p.frequency!, rad(p.difference!))],
+  height: (p) => p.first! + p.second!,
+  facts(p) {
+    const sum = resultant(this.parts(p) as Sine[]);
+    const d = ((p.difference! % 360) + 360) % 360;
+    const kind = d === 0 ? 'constructive: in step' : d === 180 ? 'destructive: exactly out of step' : 'in between';
+    return [
+      { label: 'Amplitude of the sum', value: q(sum.amplitude, 'm') },
+      { label: 'Its phase, ahead of the first', value: q((sum.phase * 180) / Math.PI, '°') },
+      { label: 'Interference', value: kind },
+      { label: 'Speed of each wave', value: q(p.frequency! * p.wavelength!, 'm/s') },
+    ];
+  },
+  formulas: [
+    { label: 'Principle of superposition', tex: String.raw`y = y_1 + y_2`, note: 'Displacements add, point by point. The waves pass through each other unchanged.' },
+    { label: 'Two equal waves, φ apart', tex: String.raw`y = 2A\cos\frac{\varphi}{2}\;\sin\!\left(kx - \omega t + \frac{\varphi}{2}\right)` },
+    { label: 'Unequal waves', tex: String.raw`A_R = \sqrt{A_1^2 + A_2^2 + 2A_1A_2\cos\varphi}` },
+    { label: 'Build up, cancel', tex: String.raw`\varphi = 2n\pi:\ A_R = A_1 + A_2 \qquad \varphi = (2n+1)\pi:\ A_R = |A_1 - A_2|` },
+  ],
+  medium: 'string',
+  yUnit: 'm',
+  showParts: true,
+};
+
+const BEAT_SPEED = 340;
+const beats: Lesson = {
+  id: 'beats',
+  title: 'Beats',
+  description:
+    'Two notes of nearly the same pitch. They drift in and out of step, so the sound swells and fades: these are beats, and a musician tunes by making them slow down and stop. Click a point to see what a listener there hears over time.',
+  params: [frequency(20, 16, 40, 'first', 'Frequency of the first'), frequency(22, 16, 40, 'second', 'Frequency of the second'), amplitude(10, 'µm', 20)],
+  domain: () => [0, 510],
+  parts: (p) => [sine(p.amplitude!, BEAT_SPEED / p.first!, p.first!), sine(p.amplitude!, BEAT_SPEED / p.second!, p.second!)],
+  height: (p) => 2 * p.amplitude!,
+  facts: (p) => {
+    const beat = Math.abs(p.first! - p.second!);
+    return [
+      { label: 'Beat frequency, |f₁ − f₂|', value: q(beat, 'Hz') },
+      { label: 'Time between swells', value: beat > 0 ? formatDuration(1 / beat) : 'never: the notes agree' },
+      { label: 'Pitch that is heard, (f₁ + f₂)/2', value: q((p.first! + p.second!) / 2, 'Hz') },
+      { label: 'Speed of sound', value: q(BEAT_SPEED, 'm/s') },
+    ];
+  },
+  formulas: [
+    { label: 'At the listener', tex: String.raw`s = s_0\cos\omega_1 t + s_0\cos\omega_2 t` },
+    { label: 'Which is', tex: String.raw`s = \Big[\,2s_0\cos\frac{(\omega_1 - \omega_2)\,t}{2}\Big]\cos\frac{(\omega_1 + \omega_2)\,t}{2}`, note: 'A note at the average frequency whose loudness rises and falls slowly: the bracket.' },
+    { label: 'Beat frequency', tex: String.raw`f_\text{beat} = |f_1 - f_2|`, note: 'Loudness peaks twice in each cycle of the bracket, so the 2 in it cancels.' },
+  ],
+  medium: 'air',
+  yUnit: 'µm',
+  showParts: false,
+};
+
+const crossing: Lesson = {
+  id: 'pulses-crossing',
+  title: 'Two pulses cross',
+  description:
+    'Two pulses run towards each other on one string. Where they overlap their displacements add: two crests make a taller one, a crest and a trough flatten each other for an instant. Then each carries on as if the other had never been there.',
+  params: [
+    { id: 'first', label: 'Height of the first', unit: 'm', min: -0.5, max: 0.5, step: 0.01, value: 0.3, hardMin: -5, hardMax: 5 },
+    { id: 'second', label: 'Height of the second', unit: 'm', min: -0.5, max: 0.5, step: 0.01, value: -0.3, hardMin: -5, hardMax: 5 },
+    { id: 'width', label: 'Width', unit: 'm', min: 0.2, max: 1.5, step: 0.05, value: 0.6, hardMin: 0.05, hardMax: 5 },
+    { id: 'speed', label: 'Speed', unit: 'm/s', min: 0.5, max: 5, step: 0.1, value: 2, hardMin: 0.05, hardMax: 100 },
+  ],
+  domain: () => [0, 12],
+  parts: (p) => [pulse(p.first!, p.width!, 2, p.speed!, 1), pulse(p.second!, p.width!, 10, p.speed!, -1)],
+  height: (p) => Math.max(Math.abs(p.first!), Math.abs(p.second!), Math.abs(p.first! + p.second!)),
+  facts: (p) => [
+    { label: 'They meet at', value: `${q(4 / p.speed!, 's')}, at x = 6.00 m` },
+    { label: 'Height where they overlap', value: q(p.first! + p.second!, 'm') },
+    { label: 'Afterwards', value: 'each keeps its own shape and speed' },
+  ],
+  formulas: [
+    { label: 'Principle of superposition', tex: String.raw`y(x,t) = f(x - vt) + g(x + vt)`, note: 'Any shape moving right plus any shape moving left is a wave on the string.' },
+    { label: 'A flat string that is not at rest', tex: String.raw`y = 0 \ \text{everywhere, but}\ \frac{\partial y}{\partial t} \neq 0`, note: 'When equal and opposite pulses overlap exactly the string is straight and moving: the energy is all kinetic for that instant.' },
+  ],
+  medium: 'string',
+  yUnit: 'm',
+  showParts: true,
+  duration: (p) => 9 / p.speed!,
+};
+
+const STRING_END = 10;
+const reflection = (free: boolean): Lesson => ({
+  id: free ? 'reflection-free' : 'reflection-fixed',
+  title: free ? 'Reflection at a free end' : 'Reflection at a fixed end',
+  description: free
+    ? 'The end of the string is a light ring free to slide on a rod. Nothing holds it down, so it overshoots to twice the height of the pulse, and that sends the pulse back the same way up.'
+    : 'The end of the string is tied to a wall. The pulse pulls up on the wall, the wall pulls back down on the string, and the pulse returns upside down.',
+  params: [
+    { id: 'height', label: 'Height of the pulse', unit: 'm', min: 0.05, max: 0.5, step: 0.01, value: 0.3, hardMin: -5, hardMax: 5 },
+    { id: 'width', label: 'Width', unit: 'm', min: 0.2, max: 1.5, step: 0.05, value: 0.6, hardMin: 0.05, hardMax: 3 },
+    { id: 'speed', label: 'Speed', unit: 'm/s', min: 0.5, max: 5, step: 0.1, value: 2, hardMin: 0.05, hardMax: 100 },
+  ],
+  domain: () => [0, STRING_END],
+  // The wall is replaced by a pulse coming the other way from behind it: its mirror image, upside down for a
+  // fixed end so that the two always cancel at the wall, upright for a free end so that their slopes do.
+  parts: (p) => [pulse(p.height!, p.width!, 3, p.speed!, 1), pulse(free ? p.height! : -p.height!, p.width!, 2 * STRING_END - 3, p.speed!, -1)],
+  height: (p) => Math.abs(p.height!) * (free ? 2 : 1),
+  facts: (p) => [
+    { label: 'Reaches the end at', value: q((STRING_END - 3) / p.speed!, 's') },
+    { label: 'Comes back', value: free ? 'the same way up' : 'upside down' },
+    { label: 'Change of phase on reflection', value: free ? '0' : 'π (180°)' },
+    { label: free ? 'Greatest height of the ring' : 'Displacement of the end', value: free ? q(2 * p.height!, 'm') : 'always 0' },
+  ],
+  marks: () => [{ kind: 'end', x: STRING_END, type: free ? 'free' : 'fixed' }],
+  formulas: free
+    ? [
+        { label: 'Incident and reflected', tex: String.raw`y = f(x - vt) + f(2L - x - vt)`, note: 'The reflected pulse is the mirror image of the incoming one.' },
+        { label: 'At a free end', tex: String.raw`\frac{\partial y}{\partial x}\bigg|_{x=L} = 0`, note: 'Nothing pulls the ring up or down, so the string meets the rod level. No change of phase.' },
+      ]
+    : [
+        { label: 'Incident and reflected', tex: String.raw`y = f(x - vt) - f(2L - x - vt)`, note: 'The reflected pulse is the mirror image of the incoming one, turned over.' },
+        { label: 'At a fixed end', tex: String.raw`y(L, t) = 0`, note: 'The end cannot move. The wall’s reaction (Newton’s third law) turns the pulse over: a phase change of π.' },
+      ],
+  medium: 'string',
+  yUnit: 'm',
+  showParts: false,
+  duration: (p) => (2 * (STRING_END - 3) + 1) / p.speed!,
+});
+
+const standing: Lesson = {
+  id: 'standing-wave',
+  title: 'Standing waves on a string',
+  description:
+    'A string held at both ends, like a guitar’s. A wave and its reflection run through each other and the pattern stands still: nodes that never move, antinodes that swing the most. Only whole numbers of half-wavelengths fit, which is why a string has notes.',
+  params: [
+    { id: 'harmonic', label: 'Harmonic', unit: '', min: 1, max: 8, step: 1, value: 3, hardMin: 1, hardMax: 30 },
+    { id: 'length', label: 'Length of the string', unit: 'm', min: 0.3, max: 3, step: 0.01, value: 1.2, hardMin: 0.05, hardMax: 100 },
+    { id: 'tension', label: 'Tension', unit: 'N', min: 10, max: 200, step: 1, value: 80, hardMin: 0.1, hardMax: 1e5 },
+    { id: 'density', label: 'Mass per metre', unit: 'kg/m', min: 0.001, max: 0.02, step: 0.0005, value: 0.005, hardMin: 1e-5, hardMax: 10 },
+    { ...amplitude(1, 'cm', 2), label: 'Swing at an antinode' },
+  ],
+  domain: (p) => [0, p.length!],
+  parts(p) {
+    const n = Math.max(1, Math.round(p.harmonic!));
+    const lambda = (2 * p.length!) / n;
+    const f = Math.sqrt(p.tension! / p.density!) / lambda;
+    return [sine(p.amplitude! / 2, lambda, f, 0, 1), sine(p.amplitude! / 2, lambda, f, 0, -1)];
+  },
+  height: (p) => p.amplitude!,
+  facts: (p) => {
+    const n = Math.max(1, Math.round(p.harmonic!));
+    const v = Math.sqrt(p.tension! / p.density!);
+    return [
+      { label: 'Speed of waves on it, √(T/μ)', value: q(v, 'm/s') },
+      { label: 'Wavelength, 2L/n', value: q((2 * p.length!) / n, 'm') },
+      { label: `Frequency of harmonic ${n}`, value: q((n * v) / (2 * p.length!), 'Hz') },
+      { label: 'Fundamental, v/2L', value: q(v / (2 * p.length!), 'Hz') },
+      { label: 'Nodes, antinodes', value: `${n + 1}, ${n}` },
+    ];
+  },
+  marks(p) {
+    const n = Math.max(1, Math.round(p.harmonic!));
+    return [...stationaryMarks((2 * p.length!) / n, 0, this.domain(p)), { kind: 'end', x: 0, type: 'fixed' }, { kind: 'end', x: p.length!, type: 'fixed' }];
+  },
+  formulas: [
+    { label: 'A wave and its reflection', tex: String.raw`y = A\sin(kx - \omega t) + A\sin(kx + \omega t) = 2A\,\sin kx\,\cos\omega t`, note: 'Every point swings in time with the rest; how far depends on where it is.' },
+    { label: 'Nodes and antinodes', tex: String.raw`\text{nodes: } x = \frac{n\lambda}{2} \qquad \text{antinodes: } x = \Big(n + \tfrac12\Big)\frac{\lambda}{2}`, note: 'Neighbouring nodes are half a wavelength apart.' },
+    { label: 'What fits between fixed ends', tex: String.raw`L = \frac{n\lambda}{2} \quad\Longrightarrow\quad f_n = \frac{n\,v}{2L} = \frac{n}{2L}\sqrt{\frac{T}{\mu}}`, note: 'n = 1 is the fundamental; all harmonics are present.' },
+  ],
+  medium: 'string',
+  yUnit: 'cm',
+  showParts: false,
+};
+
+const SOUND = 340;
+const pipe = (closed: boolean): Lesson => {
+  const wavelengthOf = (p: Values) => {
+    const m = Math.max(1, Math.round(p.mode!));
+    return closed ? (4 * p.length!) / (2 * m - 1) : (2 * p.length!) / m;
+  };
+  // A closed end cannot move, so it is a node of displacement; an open end is free, an antinode.
+  const shift = closed ? 0 : Math.PI / 2;
+  return {
+    id: closed ? 'closed-pipe' : 'open-pipe',
+    title: closed ? 'Air column closed at one end' : 'Air column open at both ends',
+    description: closed
+      ? 'A pipe closed at one end, like a bottle you blow across. The air cannot move at the closed end and moves most at the open one, so a quarter of a wavelength fits, or three quarters, or five: only the odd harmonics sound.'
+      : 'A pipe open at both ends, like a flute. The air moves most at each open end, so a half wavelength fits, or two halves, or three: every harmonic sounds.',
+    params: [
+      { id: 'mode', label: closed ? 'Mode (1st, 2nd, 3rd…)' : 'Harmonic', unit: '', min: 1, max: 6, step: 1, value: closed ? 2 : 2, hardMin: 1, hardMax: 20 },
+      { id: 'length', label: 'Length of the pipe', unit: 'm', min: 0.1, max: 2, step: 0.01, value: 0.5, hardMin: 0.01, hardMax: 50 },
+      { ...amplitude(10, 'µm', 20), label: 'Swing at an antinode' },
+    ],
+    domain: (p) => [0, p.length!],
+    parts: (p) => [sine(p.amplitude! / 2, wavelengthOf(p), SOUND / wavelengthOf(p), shift, 1), sine(p.amplitude! / 2, wavelengthOf(p), SOUND / wavelengthOf(p), shift, -1)],
+    height: (p) => p.amplitude!,
+    facts: (p) => {
+      const m = Math.max(1, Math.round(p.mode!));
+      const fundamental = SOUND / ((closed ? 4 : 2) * p.length!);
+      return [
+        { label: closed ? 'Wavelength, 4L/(2n − 1)' : 'Wavelength, 2L/n', value: q(wavelengthOf(p), 'm') },
+        { label: 'Frequency of this mode', value: q(SOUND / wavelengthOf(p), 'Hz') },
+        { label: closed ? 'Fundamental, v/4L' : 'Fundamental, v/2L', value: q(fundamental, 'Hz') },
+        { label: 'Which harmonic this is', value: closed ? `${2 * m - 1} (odd ones only)` : `${m}` },
+        { label: 'Speed of sound', value: q(SOUND, 'm/s') },
+      ];
+    },
+    marks(p) {
+      return [...stationaryMarks(wavelengthOf(p), shift, this.domain(p)), { kind: 'end', x: 0, type: closed ? 'closed' : 'open' }, { kind: 'end', x: p.length!, type: 'open' }];
+    },
+    formulas: closed
+      ? [
+          { label: 'Displacement of the air', tex: String.raw`s = 2s_0\,\sin kx\,\cos\omega t`, note: 'A node at the closed end, x = 0; an antinode at the open end.' },
+          { label: 'What fits', tex: String.raw`L = (2n - 1)\frac{\lambda}{4} \quad\Longrightarrow\quad f = (2n - 1)\,\frac{v}{4L}`, note: 'Frequencies in the ratio 1 : 3 : 5… The even harmonics are missing.' },
+          { label: 'Pressure', tex: String.raw`\text{pressure antinode} \leftrightarrow \text{displacement node}`, note: 'The pressure changes most at the closed end, where the air cannot get out of the way.' },
+        ]
+      : [
+          { label: 'Displacement of the air', tex: String.raw`s = 2s_0\,\cos kx\,\cos\omega t`, note: 'An antinode at each open end.' },
+          { label: 'What fits', tex: String.raw`L = \frac{n\lambda}{2} \quad\Longrightarrow\quad f_n = \frac{n\,v}{2L}`, note: 'Frequencies in the ratio 1 : 2 : 3… An open pipe sounds an octave above a closed one of the same length.' },
+        ],
+    medium: 'air',
+    yUnit: 'µm',
+    showParts: false,
+  };
+};
+
+export const lessons: Lesson[] = [travelling, longitudinal, onString, superposition, crossing, reflection(false), reflection(true), standing, pipe(true), pipe(false), beats];
+
+export const findLesson = (id: string | null) => lessons.find((lesson) => lesson.id === id);
+
+export const defaults = (lesson: Lesson): Values => Object.fromEntries(lesson.params.map((p) => [p.id, p.value]));
