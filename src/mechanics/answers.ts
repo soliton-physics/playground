@@ -85,7 +85,10 @@ const timeOfTop: Measure = (s) => {
 /** The period, from successive moments the body turns round the same way; needs two of them. */
 const period: Measure = (s) => {
   const times = s.world.series_time();
-  const vx = s.world.series(s.focus, 'vx');
+  // Whichever way the body mostly moves: side to side for a block on a table, up and down for one on a hanging spring.
+  const [sideways, upright] = [s.world.series(s.focus, 'vx'), s.world.series(s.focus, 'vy')];
+  const swing = (v: Float64Array) => v.reduce((most, x) => Math.max(most, Math.abs(x)), 0);
+  const vx = swing(sideways) >= swing(upright) ? sideways : upright;
   const turns: number[] = [];
   for (let i = 1; i < vx.length; i++) {
     if (vx[i - 1]! > 0 && vx[i]! <= 0) turns.push(times[i - 1]! + ((times[i]! - times[i - 1]!) * vx[i - 1]!) / (vx[i - 1]! - vx[i]!));
@@ -146,13 +149,134 @@ const steadyAmplitude: Measure = (s) => {
   return tail.length ? 0.5 * (high - low) : undefined;
 };
 
+const index = (s: Session, label: string) => s.bodies.findIndex((b) => b.label === label);
+
+/** When everything came to rest, if it has. */
+const cameToRest: Measure = (s) => s.finishes.find((f) => f.reason.includes('came to rest'))?.time;
+
+/** How far the focused body is from where it started, once the problem has ended. */
+const travelled: Measure = (s) => {
+  if (s.finishes.length === 0) return undefined;
+  const [x, y] = [s.world.series(s.focus, 'x'), s.world.series(s.focus, 'y')];
+  const i = sampleAt(s.world.series_time(), s.finishes[0]!.time);
+  return Math.hypot(x[i]! - x[0]!, y[i]! - y[0]!);
+};
+
+/** The speed of a named body now, once the problem has reached `after`: an impact, or its end. */
+const speedOf = (label: string, after: (s: Session) => number | undefined): Measure => (s, _f, state) => {
+  const i = index(s, label);
+  return i < 0 || after(s) === undefined ? undefined : Math.hypot(state[i * STATE_STRIDE + 3]!, state[i * STATE_STRIDE + 4]!);
+};
+const ended = (s: Session) => s.finishes[0]?.time;
+
+/** The first recorded sample at which a spring is pushing on the focused body: the moment it is met. */
+function firstTouch(s: Session): number {
+  const flat = s.world.series_force(s.focus, 'spring');
+  for (let i = 0; 2 * i + 1 < flat.length; i++) if (flat[2 * i] !== 0 || flat[2 * i + 1] !== 0) return i;
+  return -1;
+}
+
+/**
+ * How far the focused body squeezes a spring it runs into. Samples are a few milliseconds apart, so where exactly
+ * the two met is not recorded. The spring's own force is: it grows by k for every metre of squeeze, which two
+ * samples early in the squeeze give, and then the hardest push says how deep it went.
+ */
+const compression: Measure = (s) => {
+  const met = firstTouch(s);
+  const flat = s.world.series_force(s.focus, 'spring');
+  const push = (i: number) => Math.hypot(flat[2 * i] ?? 0, flat[2 * i + 1] ?? 0);
+  if (met < 0 || push(met + 1) === 0) return undefined;
+  const [x, y] = [s.world.series(s.focus, 'x'), s.world.series(s.focus, 'y')];
+  const moved = Math.hypot(x[met + 1]! - x[met]!, y[met + 1]! - y[met]!);
+  const stiffness = (push(met + 1) - push(met)) / moved;
+  if (!(stiffness > 0) || !Number.isFinite(stiffness)) return undefined;
+  let hardest = 0;
+  let last = met;
+  for (let i = met; i < x.length && push(i) > 0; i++) {
+    hardest = Math.max(hardest, push(i));
+    last = i;
+  }
+  // It is the greatest compression only once the body has started back, or has gone.
+  return last < x.length - 1 || push(last) < hardest ? hardest / stiffness : undefined;
+};
+
+const speedOnMeeting: Measure = (s) => {
+  const met = firstTouch(s);
+  return met < 1 ? undefined : s.world.series(s.focus, 'speed')[met - 1];
+};
+
+/** How far below its starting height the focused body has been, once it has started back up. */
+const deepestDrop: Measure = (s) => {
+  const y = s.world.series(s.focus, 'y');
+  const lowest = y.reduce((least, v) => Math.min(least, v), Infinity);
+  return y.length > 2 && y[y.length - 1]! > lowest + 1e-9 ? y[0]! - lowest : undefined;
+};
+
+/** The angle between the velocities of two named bodies, in degrees, after they have collided. */
+const angleBetween = (a: string, b: string): Measure => (s, _f, state) => {
+  const [i, j] = [index(s, a), index(s, b)];
+  if (i < 0 || j < 0 || impact(s) === undefined) return undefined;
+  const v = (k: number): [number, number] => [state[k * STATE_STRIDE + 3]!, state[k * STATE_STRIDE + 4]!];
+  const [p, q] = [v(i), v(j)];
+  const product = Math.hypot(...p) * Math.hypot(...q);
+  return product < 1e-12 ? undefined : (Math.acos(Math.max(-1, Math.min(1, (p[0] * q[0] + p[1] * q[1]) / product))) * 180) / Math.PI;
+};
+
+/** The angle a named body's velocity makes with the x axis, in degrees and without sign, after an impact. */
+const headingOf = (label: string): Measure => (s, _f, state) => {
+  const i = index(s, label);
+  if (i < 0 || impact(s) === undefined) return undefined;
+  return (Math.abs(Math.atan2(state[i * STATE_STRIDE + 4]!, state[i * STATE_STRIDE + 3]!)) * 180) / Math.PI;
+};
+
+/**
+ * How fast a named body's spin is growing: its angular speed over the time taken, for a body spun up steadily from
+ * rest. The engine's own figure for the angular acceleration at an instant is less exact for a body turning about a pin.
+ */
+const spinRate = (label: string | undefined): Measure => (s) => {
+  const i = label === undefined ? s.focus : index(s, label);
+  if (i < 0) return undefined;
+  const k = steadySample(s);
+  const time = s.world.series_time()[k]!;
+  return time > 0 ? Math.abs(s.world.series(i, 'omega')[k]!) / time : undefined;
+};
+
+/** A recorded quantity of the focused body when the problem's time is up. */
+const atTheEnd = (quantity: string, scale = 1): Measure => (s) => {
+  const end = s.finishes.find((f) => f.reason.includes('time window'))?.time;
+  if (end === undefined) return undefined;
+  return Math.abs(s.world.series(s.focus, quantity)[sampleAt(s.world.series_time(), end)]!) * scale;
+};
+
 /** What one of an answer's units is in the SI units the engine records. */
-const UNIT_SCALE: Record<string, number> = { km: 1000, 'km/s': 1000, min: 60, h: 3600 };
+// A scale shows kilograms for the newtons pressed on it: the one answer in kg that is measured is that reading.
+const UNIT_SCALE: Record<string, number> = { km: 1000, 'km/s': 1000, min: 60, h: 3600, kg: 9.8 };
 
 /** How a textbook answer can be read off the running engine, when it can. Thresholds and conditions cannot. */
 function measureFor(name: string): Chip['measure'] {
   const n = name.toLowerCase();
-  if (n.startsWith('acceleration')) return acceleration;
+  if (n.startsWith('acceleration') || n.startsWith('deceleration') || n.startsWith('centripetal acceleration')) return acceleration;
+  if (n.startsWith('stopping distance')) return travelled;
+  if (n.startsWith('time to stop')) return cameToRest;
+  if (n.startsWith('range along the slope')) return travelled;
+  if (n.startsWith('apparent weight') || n.startsWith('scale reading')) return forceOf('normal');
+  if (n.startsWith('true weight')) return forceOf('gravity');
+  if (n.startsWith('recoil speed')) return speedOf('gun', (s) => (s.time > 0.05 ? s.time : undefined));
+  if (n.startsWith('greatest compression')) return compression;
+  if (n.startsWith('greatest force of the spring')) return largestForce('spring');
+  if (n.startsWith('speed it comes back with')) return speedOf('block', ended);
+  if (n.startsWith('speed on reaching the spring')) return speedOnMeeting;
+  if (n.startsWith('speed of the struck disc')) return speedOf('struck disc', impact);
+  if (n.startsWith('speed of the incoming disc')) return speedOf('incoming disc', impact);
+  if (n.startsWith('angle of the struck disc')) return headingOf('struck disc');
+  if (n.startsWith('angle between the two')) return angleBetween('incoming disc', 'struck disc');
+  if (n.startsWith('angular acceleration of the pulley')) return spinRate('pulley');
+  if (n.startsWith('angular acceleration of the wheel')) return spinRate('wheel');
+  if (n.startsWith('angular acceleration (')) return spinRate(undefined);
+  if (n.startsWith('angular speed after')) return atTheEnd('omega');
+  if (n.startsWith('turns made')) return atTheEnd('angle', 1 / (2 * Math.PI));
+  if (n.startsWith('lowest point below')) return deepestDrop;
+  if (n.startsWith('greatest speed')) return largest('speed');
   if (n.startsWith('tension on the left')) return forceOn('m1', 'tension');
   if (n.startsWith('tension on the right')) return forceOn('m2', 'tension');
   if (n.startsWith('tension at the bottom')) return firstForce('tension');

@@ -60,7 +60,65 @@ function altitude(param: string): Handle {
   };
 }
 
+/** A speed along the x axis, drawn from `tail` towards `sign`: the knob is the tip of the velocity arrow. */
+function speedAlong(param: string, tail: Vec, sign: 1 | -1): Handle {
+  return {
+    label: (p) => `${p[param]} m/s`,
+    color: VELOCITY_COLOR,
+    tail: () => tail,
+    position: (p) => [tail[0] + sign * p[param]! * scales.velocity, tail[1]],
+    drag: (at) => ({ [param]: (sign * (at[0] - tail[0])) / scales.velocity }),
+  };
+}
+
+/** How far a block on a track starts from where it would rest, as a knob on the block. */
+function pulledOut(param: string, rest: number): Handle {
+  return { label: (p) => `${p[param]} m`, color: BODY, position: (p) => [rest + p[param]!, 0.25], drag: (at) => ({ [param]: at[0] - rest }) };
+}
+
 export const HANDLES: Record<string, Handle[]> = {
+  'stopping-distance': [speedAlong('speed', [0, 0.25], 1)],
+  'projectile-on-incline': [
+    {
+      label: (p) => `${p.speed} m/s, ${p.elevation}° above the slope`,
+      color: VELOCITY_COLOR,
+      tail: (p) => [-0.252 * Math.sin(rad(p.slope!)), 0.252 * Math.cos(rad(p.slope!))],
+      position: (p) => {
+        const angle = rad(p.slope! + Math.min(p.elevation!, 85 - p.slope!));
+        return [-0.252 * Math.sin(rad(p.slope!)) + p.speed! * Math.cos(angle) * scales.velocity, 0.252 * Math.cos(rad(p.slope!)) + p.speed! * Math.sin(angle) * scales.velocity];
+      },
+      drag: (at, p) => {
+        const [dx, dy] = [at[0] + 0.252 * Math.sin(rad(p.slope!)), at[1] - 0.252 * Math.cos(rad(p.slope!))];
+        return { speed: Math.hypot(dx, dy) / scales.velocity, elevation: deg(Math.atan2(dy, dx)) - p.slope! };
+      },
+    },
+  ],
+  'circular-motion': [
+    {
+      label: (p) => `${p.speed} m/s`,
+      color: VELOCITY_COLOR,
+      tail: (p) => [p.radius!, 0],
+      position: (p) => [p.radius!, p.speed! * scales.velocity],
+      drag: (at) => ({ speed: at[1] / scales.velocity }),
+    },
+  ],
+  'connected-blocks': [
+    {
+      label: (p) => `pull ${p.force} N`,
+      color: forceColor('applied'),
+      tail: () => [2.0, 0.25],
+      position: (p) => [2.3 + p.force! * 0.04, 0.25],
+      drag: (at) => ({ force: (at[0] - 2.3) / 0.04 }),
+    },
+  ],
+  'spring-compression': [speedAlong('speed', [3.8, 0.25], -1)],
+  'ball-on-spring': [{ label: (p) => `${p.height} m above the spring`, color: BODY, position: (p) => [0, 1.35 + p.height!], drag: (at) => ({ height: at[1] - 1.35 }) }],
+  'oblique-collision': [
+    { label: (p) => `off-centre by ${p.offset} of a diameter`, color: BODY, position: (p) => [-3, 0.6 * p.offset!], drag: (at) => ({ offset: at[1] / 0.6 }) },
+  ],
+  'torque-on-rod': [{ label: (p) => `${p.length} m`, color: BODY, position: (p) => [p.length!, 0], drag: (at) => ({ length: Math.hypot(at[0], at[1]) }) }],
+  'springs-in-series': [pulledOut('amplitude', 3.3)],
+  'springs-in-parallel': [pulledOut('amplitude', 2.3)],
   'circular-orbit': [altitude('altitude')],
   'elliptical-orbit': [
     {

@@ -807,6 +807,14 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     // For driving the page from a test script: where a body is on screen.
     Object.assign(window, {
       solitonDebug: {
+        /** Where each of the scenario's knobs is on screen. */
+        knobs: () => {
+          const rect = canvas.getBoundingClientRect();
+          return handles().map((h) => {
+            const [x, y] = renderer.camera.toScreen(...h.position(current()));
+            return [rect.left + x, rect.top + y];
+          });
+        },
         screenOf: (label: string) => {
           const i = session.bodies.findIndex((b) => b.label === label);
           const state = session.world.state();

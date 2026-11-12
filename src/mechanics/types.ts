@@ -125,7 +125,7 @@ export type ConstraintSpec =
 export type ForceSpec =
   | { applied: { body: string; force: Vec; point?: Vec; from?: number; until?: number } }
   | { torque: { body: string; torque: number } }
-  | { spring: { a: AnchorSpec; b: AnchorSpec; stiffness: number; rest_length?: number } }
+  | { spring: { a: AnchorSpec; b: AnchorSpec; stiffness: number; rest_length?: number; pushes_only?: boolean } }
   | { linear_drag: { body: string; coefficient: number } }
   | { quadratic_drag: { body: string; coefficient: number } }
   | { driving: { body: string; amplitude: Vec; angular_frequency: number; phase?: number } }
