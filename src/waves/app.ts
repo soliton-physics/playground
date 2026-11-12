@@ -3,6 +3,7 @@ import { WaveSimulation } from '../engine';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
 import { cssVar, el, formatNumber } from '../ui';
+import { formulasFor } from './formulas';
 import { LinePlot, type Series } from './line';
 import { findPreset, presets, type Preset } from './presets';
 
@@ -46,8 +47,13 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
   const canvas = el('canvas', { class: 'stage-canvas' });
   const description = el('p', { class: 'empty' });
   const readout = el('dl', { class: 'readout' });
+  const formulas = el('div', { class: 'formulas' });
+  // Open where there is room beside the wave; on a phone the wave comes first and the formulas are a tap away.
+  const formulaFold = el('details', { class: 'formula-fold' }, [el('summary', { text: 'Formulas' }), formulas]);
+  formulaFold.open = window.innerWidth > 900;
   const clock = el('output', { class: 'clock' });
   const plot = new LinePlot(canvas);
+
   let session: Session | undefined;
   let stepsPerFrame = 20;
   let drawing = false;
@@ -68,7 +74,41 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
   });
 
   const dock = el('div', { class: 'dock glass overlay' }, [iconButton('restart', 'Start again (R)', () => session && start(session.preset)), play, clock, speedChip, el('span', { class: 'dock-divider' }), draw]);
-  main.append(canvas, el('section', { class: 'wave-readout glass overlay' }, [description, el('h4', { class: 'panel-title', text: 'Conserved quantities' }), readout]), dock);
+  const panel = el('section', { class: 'wave-readout glass overlay' }, [description, el('h4', { class: 'panel-title', text: 'Conserved quantities, now' }), readout, formulaFold]);
+  main.append(canvas, panel, dock);
+
+  // The wave is drawn clear of the panel: beside it on a wide screen, above it on a narrow one. An opened fold
+  // on a phone may cover the wave, but never takes more than half the height from it.
+  const clearPanel = () => {
+    const wide = main.clientWidth > 900;
+    plot.right = !embedded && wide ? 384 : 16;
+    plot.bottom = embedded || wide ? 92 : Math.min(panel.offsetHeight + 92, main.clientHeight / 2);
+  };
+  for (const watched of [main, panel]) new ResizeObserver(clearPanel).observe(watched);
+
+  /**
+   * Typesets the formulas for a preset. The typesetter is fetched the first time it is wanted, so it costs nothing
+   * to the mechanics mode, and a preset chosen meanwhile is not overwritten by a slower, older request.
+   */
+  async function showFormulas(preset: Preset): Promise<void> {
+    const [{ default: katex }] = await Promise.all([import('katex'), import('katex/dist/katex.min.css')]);
+    if (session?.preset.id !== preset.id) return;
+    const typeset = (tex: string) => {
+      const holder = el('div', { class: 'formula-tex' });
+      try {
+        katex.render(tex, holder, { displayMode: true, throwOnError: false });
+      } catch {
+        holder.textContent = tex;
+      }
+      return holder;
+    };
+    formulas.replaceChildren(
+      ...formulasFor(preset).flatMap((group) => [
+        el('h4', { class: 'panel-title', text: group.title }),
+        ...group.formulas.map((f) => el('div', { class: 'formula' }, [el('span', { class: 'formula-label', text: f.label }), typeset(f.tex), ...(f.note ? [el('p', { class: 'formula-note', text: f.note })] : [])])),
+      ]),
+    );
+  }
 
   function refreshPlay(): void {
     play.replaceChildren(icon(session?.running ? 'pause' : 'play', 20));
@@ -86,6 +126,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
     stepsPerFrame = preset.stepsPerFrame;
     speed.set(stepsPerFrame);
     description.textContent = preset.description;
+    void showFormulas(preset);
     shell.setTitle(preset.model === 'kdv' ? 'Korteweg–de Vries' : 'Nonlinear Schrödinger', preset.title.replace(/^(KdV|NLS): /, ''));
     refreshPlay();
     if (!embedded) history.replaceState(null, '', `?mode=waves&preset=${preset.id}`);

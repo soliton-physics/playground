@@ -7,7 +7,7 @@ export interface Series {
   fill?: string;
 }
 
-const MARGIN = { left: 46, right: 16, top: 16, bottom: 92 };
+const MARGIN = { left: 46, top: 16 };
 
 /** The field against position, with a fixed vertical range so a soliton's height can be read off. */
 export class LinePlot {
@@ -18,6 +18,10 @@ export class LinePlot {
   private x1 = 1;
   private y0 = 0;
   private y1 = 1;
+  /** Pixels kept clear on the right, for the panel that floats there. */
+  right = 16;
+  /** Pixels kept clear below, for the dock and whatever sits above it. */
+  bottom = 92;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.context = canvas.getContext('2d')!;
@@ -27,15 +31,15 @@ export class LinePlot {
 
   /** The field coordinates under a canvas pixel, for drawing a profile by hand. */
   toField(px: number, py: number): [number, number] {
-    const w = this.width - MARGIN.left - MARGIN.right;
-    const h = this.height - MARGIN.top - MARGIN.bottom;
+    const w = this.width - MARGIN.left - this.right;
+    const h = this.height - MARGIN.top - this.bottom;
     return [this.x0 + ((px - MARGIN.left) / w) * (this.x1 - this.x0), this.y1 - ((py - MARGIN.top) / h) * (this.y1 - this.y0)];
   }
 
   draw(x: Float64Array, series: Series[], range: [number, number]): void {
     const { context, width, height } = this;
-    const plotWidth = width - MARGIN.left - MARGIN.right;
-    const plotHeight = height - MARGIN.top - MARGIN.bottom;
+    const plotWidth = width - MARGIN.left - this.right;
+    const plotHeight = height - MARGIN.top - this.bottom;
     [this.x0, this.x1] = [x[0] ?? 0, x[x.length - 1] ?? 1];
     [this.y0, this.y1] = range;
     const { x0, x1, y0, y1 } = this;
@@ -53,7 +57,7 @@ export class LinePlot {
       context.strokeStyle = tick === 0 ? cssVar('--canvas-axis') : cssVar('--canvas-grid-major');
       context.beginPath();
       context.moveTo(MARGIN.left, y);
-      context.lineTo(width - MARGIN.right, y);
+      context.lineTo(width - this.right, y);
       context.stroke();
       context.fillText(tick.toFixed(1), MARGIN.left - 8, y + 4);
     }
@@ -63,9 +67,9 @@ export class LinePlot {
       context.strokeStyle = cssVar('--canvas-grid');
       context.beginPath();
       context.moveTo(px, MARGIN.top);
-      context.lineTo(px, height - MARGIN.bottom);
+      context.lineTo(px, height - this.bottom);
       context.stroke();
-      context.fillText(tick.toFixed(0), px, height - MARGIN.bottom + 16);
+      context.fillText(tick.toFixed(0), px, height - this.bottom + 16);
     }
 
     for (const { values, color, width: lineWidth, fill } of series) {

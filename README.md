@@ -33,7 +33,10 @@ pendulum. Press `/` to open the gallery.
 - Editing while a run is paused carries on from that moment.
 
 **Waves** (`?mode=waves&preset=<id>`). KdV and NLS solitons, collisions, a bump breaking into a soliton train, the
-Satsuma–Yajima breather. Switch on the pencil and draw your own wave.
+Satsuma–Yajima breather. Switch on the pencil and draw your own wave. The panel beside the wave keeps the formulas
+in view: the equation being solved, the soliton solution and what its numbers mean, what is particular to the scene,
+and the integrals that stay constant. They live in `src/waves/formulas.ts` and are typeset with KaTeX, fetched only
+when the wave mode is opened.
 
 Add `&embed` for a compact view suitable for iframes, which is how the [docs](https://github.com/soliton-physics/docs)
 embed live simulations, and `&theme=light` or `&theme=dark` to fix the theme.

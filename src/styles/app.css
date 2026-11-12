@@ -1067,11 +1067,72 @@ body.embed .scale-chip {
 .wave-readout {
   top: 12px;
   right: 12px;
-  width: 280px;
+  bottom: 84px;
+  width: 360px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: auto;
+}
+
+.formula-fold > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+.formula-fold[open] > summary {
+  margin-bottom: 4px;
+}
+
+.formulas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.formulas .panel-title {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.formula {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.formula-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* A formula wider than the panel scrolls sideways by itself; it never pushes the panel wider. */
+.formula-tex {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+  font-size: 0.92rem;
+}
+
+.formula-tex .katex-display {
+  margin: 0.35em 0;
+  text-align: left;
+}
+
+.formula-tex .katex-display > .katex {
+  text-align: left;
+}
+
+.formula-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 /* ---------- embed ---------- */
@@ -1107,6 +1168,14 @@ body.embed .banner {
 /* ---------- small screens ---------- */
 
 @media (max-width: 900px) {
+  .wave-readout {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 76px;
+    width: auto;
+    max-height: 38vh;
+  }
   .inspector {
     width: 260px;
   }
