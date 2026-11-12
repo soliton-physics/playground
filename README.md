@@ -32,11 +32,24 @@ pendulum. Press `/` to open the gallery.
 - Undo and redo, autosave in the browser, Save and Open as JSON, and Share for a link that carries the whole scene.
 - Editing while a run is paused carries on from that moment.
 
-**Waves** (`?mode=waves&preset=<id>`). KdV and NLS solitons, collisions, a bump breaking into a soliton train, the
-Satsuma–Yajima breather. Switch on the pencil and draw your own wave. The panel beside the wave keeps the formulas
-in view: the equation being solved, the soliton solution and what its numbers mean, what is particular to the scene,
-and the integrals that stay constant. They live in `src/waves/formulas.ts` and are typeset with KaTeX, fetched only
-when the wave mode is opened.
+**Waves** (`?mode=waves&preset=<id>`), in three groups.
+
+- **Class 11 · Waves.** The NCERT chapter: a travelling wave, a sound wave, the speed of a wave on a string, two waves
+  adding, two pulses crossing, reflection at a fixed and at a free end, standing waves on a string, air columns closed
+  and open, beats. Each has sliders, the numbers worth knowing (wavelength, period, speed, k, ω…), and its formulas.
+  A lesson's parameters go in the link: `?mode=waves&preset=standing-wave&harmonic=5`.
+- **Reading a point.** Click anywhere on a wave: displacement, the velocity and acceleration of the medium there, the
+  amplitude and phase of that point, and its own history as a small graph. Drag it along. A second click adds a
+  second point and gives the distance and phase difference between them. Escape clears them.
+- **Wave lab** (`preset=wave-lab`). Up to five sine waves and pulses of your own, added together. Remix on any
+  lesson opens it in the lab as its parts. The link carries the whole lab.
+- **Beyond the textbook · Solitons.** KdV and NLS solitons, collisions, a bump breaking into a soliton train, the
+  Satsuma–Yajima breather, integrated by the engine. Switch on the pencil and draw your own wave.
+
+The textbook waves are closed forms, sums of `A sin(kx ∓ ωt + φ)` and of pulses `f(x ∓ vt)`, evaluated in
+`src/waves/model.ts`; nothing is integrated, which is why any point can be read exactly at any time. This is the one
+place the playground does its own arithmetic and does not ask the engine. Reflection uses the mirror-image pulse.
+Formulas are typeset with KaTeX, fetched only when the wave mode is opened.
 
 Add `&embed` for a compact view suitable for iframes, which is how the [docs](https://github.com/soliton-physics/docs)
 embed live simulations, and `&theme=light` or `&theme=dark` to fix the theme.
@@ -90,6 +103,12 @@ src/
     editor.ts              the sandbox: tools, edits, undo, properties
     gallery.ts, answers.ts, share.ts
   waves/                   the wave mode
+    model.ts               sine waves and pulses as closed forms; the motion of one point
+    lessons.ts             the class 11 lessons: parameters, parts, facts, marks, formulas
+    lab.ts                 the wave lab: its state, its link, its editor
+    scene.ts               what is on the plot: a textbook wave, or a soliton from the engine
+    line.ts                the plot: curve, beads or layers of air, marks, chosen points
+    app.ts, gallery.ts, presets.ts, formulas.ts
 ```
 
 ## Deployment
