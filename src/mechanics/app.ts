@@ -30,7 +30,8 @@ type Drag =
   | { kind: 'grab' }
   | { kind: 'move'; body: number; origin: Vec; at: Vec }
   | { kind: 'velocity'; body: number }
-  | { kind: 'handle'; handle: Handle };
+  | { kind: 'handle'; handle: Handle }
+  | { kind: 'tool' };
 
 export async function mountMechanics(main: HTMLElement, query: URLSearchParams, embedded: boolean, shell: Shell): Promise<void> {
   const catalogue = mechanics_catalogue() as ScenarioSpec[];
@@ -41,7 +42,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   const hint = el('div', { class: 'hint glass overlay', hidden: true });
   const banner = el('p', { class: 'banner glass overlay', hidden: true });
   const scaleChip = el('p', { class: 'scale-chip glass overlay', title: 'The scale of the stage at this zoom' });
-  const properties = el('div', { class: 'glass overlay', hidden: true, style: 'left:64px;top:50%;transform:translateY(-50%)' });
+  const properties = el('div', { class: 'glass overlay', hidden: true, style: 'left:64px;bottom:84px' });
   main.append(canvas);
 
   const renderer = new Renderer(canvas);
@@ -392,7 +393,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   }
 
   function refreshProperties(): void {
-    const index = sandbox && !session.running ? editor.selected : undefined;
+    // Only with the select tool: while something is being placed or drawn, the panel would be in the way of the stage.
+    const index = sandbox && !session.running && editor.tool === 'select' ? editor.selected : undefined;
     const body = index === undefined ? undefined : editor.scene.bodies[index];
     const key = body ? `${index}|${body.id}|${body.kind}|${Object.keys(body.shape)[0]}` : '';
     if (key === propertiesKey) return;
@@ -487,6 +489,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     if (sandbox && editor.tool !== 'select') {
       editable();
       editor.press({ at, body: bodyAt(at), reach: reach() });
+      // An incline or a wall is dragged out; the other tools are done with the press.
+      if (editor.stretching) drag = { kind: 'tool' };
       return;
     }
     const knob = handles().find((h) => pixels(h.position(current()), e) < KNOB_REACH);
@@ -559,6 +563,9 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       case 'grab':
         session.dragTo(at[0], at[1]);
         break;
+      case 'tool':
+        editor.stretchTo(at);
+        break;
       case 'move':
         editor.moveTo(drag.body, drag.origin, at[0] - drag.at[0], at[1] - drag.at[1]);
         break;
@@ -580,6 +587,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   const lift = (e: PointerEvent) => {
     touches.delete(e.pointerId);
     if (drag?.kind === 'grab') session.release();
+    if (drag?.kind === 'tool') editor.release();
     if (drag?.kind === 'handle') requestAnimationFrame(() => requestAnimationFrame(fit));
     drag = undefined;
     canvas.classList.remove('holding');
@@ -654,8 +662,11 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     } else if (sandbox && (e.key === 'Delete' || e.key === 'Backspace') && editor.selected !== undefined) {
       editable();
       editor.remove(editor.selected);
+    } else if (sandbox && e.key === 'Enter' && editor.tool === 'polygon') {
+      editor.finishPolygon();
     } else if (sandbox && e.key === 'Escape') {
-      editor.setTool('select');
+      // The first Escape drops a shape half drawn; the next goes back to the select tool.
+      if (!editor.cancel()) editor.setTool('select');
     } else if (sandbox && TOOL_KEYS[e.key.toLowerCase()]) {
       editor.setTool(TOOL_KEYS[e.key.toLowerCase()]!);
     }

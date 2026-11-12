@@ -1004,8 +1004,7 @@ body.embed .scale-chip {
 
 .rail {
   left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 84px;
   display: flex;
   flex-direction: column;
   gap: 2px;

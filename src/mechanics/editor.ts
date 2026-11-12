@@ -4,13 +4,16 @@ import { el, formatNumber } from '../ui';
 import { VELOCITY_COLOR, scales, type Painter } from './stage/renderer';
 import type { AnchorSpec, BodySpec, ConstraintSpec, RopeNodeSpec, SceneFile, Vec } from './types';
 
-export type Tool = 'select' | 'ball' | 'box' | 'platform' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
+export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
 
 const TOOLS: [Tool, IconName, string][] = [
   ['select', 'cursor', 'Select and move (V)'],
   ['ball', 'ball', 'Ball (B)'],
   ['box', 'box', 'Box (X)'],
+  ['polygon', 'polygon', 'Any shape: click its corners (G)'],
   ['platform', 'platform', 'Fixed platform (P)'],
+  ['incline', 'incline', 'Incline: drag from its foot to its top (I)'],
+  ['wall', 'wall', 'Wall or ramp: drag along it (W)'],
   ['rope', 'rope', 'Rope: click two ends (O)'],
   ['rod', 'rod', 'Rigid rod: click two ends (D)'],
   ['spring', 'spring', 'Spring: click two ends (S)'],
@@ -18,13 +21,16 @@ const TOOLS: [Tool, IconName, string][] = [
   ['erase', 'erase', 'Erase (E)'],
 ];
 
-export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', p: 'platform', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
+export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', g: 'polygon', p: 'platform', i: 'incline', w: 'wall', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
 
 const HINTS: Record<Tool, string> = {
   select: 'Drag a body to move it. Drag its arrow to give it a velocity.',
   ball: 'Click to drop a ball.',
   box: 'Click to place a box.',
+  polygon: 'Click each corner in turn. Click the first corner again, or press Enter, to finish.',
   platform: 'Click to place a fixed platform.',
+  incline: 'Drag from the foot of the slope to its top.',
+  wall: 'Drag along where the wall or ramp should be.',
   rope: 'Click a body, then another body or an empty point.',
   rod: 'Click a body, then another body or an empty point.',
   spring: 'Click a body, then another body or an empty point.',
@@ -68,6 +74,35 @@ export function orbitSandbox(): SceneFile {
   };
 }
 
+/** The convex hull of some points, counter-clockwise: the shape a rubber band round them would take. */
+function convexHull(points: Vec[]): Vec[] {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: Vec, a: Vec, b: Vec) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list: Vec[]) => {
+    const out: Vec[] = [];
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(sorted), ...half(sorted.reverse())];
+}
+
+/** The area of a polygon and where its centre of mass is. */
+function areaAndCentroid(points: Vec[]): { area: number; centroid: Vec } {
+  let [twice, cx, cy] = [0, 0, 0];
+  points.forEach(([x0, y0], i) => {
+    const [x1, y1] = points[(i + 1) % points.length]!;
+    const w = x0 * y1 - x1 * y0;
+    twice += w;
+    cx += (x0 + x1) * w;
+    cy += (y0 + y1) * w;
+  });
+  return { area: Math.abs(twice) / 2, centroid: [cx / (3 * twice), cy / (3 * twice)] };
+}
+
 /** What a pointer press landed on. */
 export interface Hit {
   at: Vec;
@@ -84,7 +119,8 @@ function distanceToSegment(p: Vec, a: Vec, b: Vec): number {
   return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
 }
 
-const round = (value: number, step = 0.05) => Math.round(value / step) * step;
+/** To the nearest `step`, without the stray digits binary arithmetic leaves: 0.575, not 0.5750000000000001. */
+const round = (value: number, step = 0.05) => Number((Math.round(value / step) * step).toPrecision(12));
 
 function mentions(value: unknown, id: string): boolean {
   if (Array.isArray(value)) return value.some((v) => mentions(v, id));
@@ -101,6 +137,10 @@ export class Editor {
   tool: Tool = 'select';
   selected: number | undefined;
   private pending: { tool: Tool; anchor: AnchorSpec; at: Vec } | undefined;
+  /** The corners clicked so far with the polygon tool. */
+  private corners: Vec[] = [];
+  /** The incline or wall being dragged out. */
+  private stretch: { from: Vec; to: Vec } | undefined;
   private history: string[] = [];
   private future: string[] = [];
   private lastEdit = { key: '', time: 0 };
@@ -147,6 +187,8 @@ export class Editor {
   setTool(tool: Tool): void {
     this.tool = tool;
     this.pending = undefined;
+    this.corners = [];
+    this.stretch = undefined;
     for (const [id, button] of this.buttons) button.setAttribute('aria-pressed', String(id === tool));
     this.hint(HINTS[tool]);
   }
@@ -224,7 +266,7 @@ export class Editor {
     const angle = spec.angle ?? 0;
     const [dx, dy] = [hit.at[0] - px, hit.at[1] - py];
     const local: Vec = [dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle)];
-    const offCentre = 'rectangle' in spec.shape && Math.hypot(local[0], local[1]) > 0.08 * u;
+    const offCentre = ('rectangle' in spec.shape || 'polygon' in spec.shape) && Math.hypot(local[0], local[1]) > 0.08 * u;
     return { body: offCentre ? { id: spec.id, local: [round(local[0], 0.01 * u), round(local[1], 0.01 * u)] } : { id: spec.id } };
   }
 
@@ -239,6 +281,12 @@ export class Editor {
         return this.add({ id: this.uniqueId('ball'), kind: 'rigid', shape: { circle: 0.3 * u }, mass: 1, position: [x, y], restitution: 0.5, friction: [0.5, 0.4] });
       case 'box':
         return this.add({ id: this.uniqueId('box'), kind: 'rigid', shape: { rectangle: [0.8 * u, 0.5 * u] }, mass: 2, position: [x, y], restitution: 0.2, friction: [0.5, 0.4] });
+      case 'polygon':
+        return this.corner([x, y], hit.reach ?? 0.15 * u);
+      case 'incline':
+      case 'wall':
+        this.stretch = { from: [x, y], to: [x, y] };
+        return true;
       case 'platform':
         return this.add({ id: this.uniqueId('platform'), kind: 'static', shape: { rectangle: [3 * u, 0.3 * u] }, position: [x, y], friction: [0.6, 0.5] });
       case 'erase':
@@ -260,6 +308,114 @@ export class Editor {
       default:
         return this.link(hit);
     }
+  }
+
+  /** Whether a press with the current tool starts a drag that `stretchTo` and `release` should follow. */
+  get stretching(): boolean {
+    return this.stretch !== undefined;
+  }
+
+  stretchTo(at: Vec): void {
+    const u = this.unit;
+    if (this.stretch) this.stretch.to = [round(at[0], 0.05 * u), round(at[1], 0.05 * u)];
+  }
+
+  /** The pointer came up: the incline or wall dragged out becomes a body. */
+  release(): void {
+    const drawn = this.stretch;
+    this.stretch = undefined;
+    if (!drawn) return;
+    const u = this.unit;
+    const { from } = drawn;
+    let { to } = drawn;
+    const tapped = Math.hypot(to[0] - from[0], to[1] - from[1]) < 0.2 * u;
+    if (this.tool === 'incline') {
+      // A tap gives a slope of the usual size, rising to the left from where it was tapped.
+      if (tapped) to = [from[0] - 3 * u, from[1] + 1.7 * u];
+      if (Math.abs(to[0] - from[0]) < 0.1 * u || Math.abs(to[1] - from[1]) < 0.1 * u) {
+        this.hint('An incline needs both a width and a height: drag diagonally.');
+        return;
+      }
+      const [high, low] = to[1] >= from[1] ? [to, from] : [from, to];
+      // A right angle under the top, the slope running down to the foot.
+      this.addPolygon('incline', [[high[0], low[1]], [low[0], low[1]], [high[0], high[1]]], true);
+    } else {
+      if (tapped) to = [from[0], from[1] + 2 * u];
+      const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+      const angle = Math.atan2(to[1] - from[1], to[0] - from[0]);
+      this.add({
+        id: this.uniqueId('wall'),
+        kind: 'static',
+        shape: { rectangle: [round(length, 0.01 * u), 0.2 * u] },
+        position: [0.5 * (from[0] + to[0]), 0.5 * (from[1] + to[1])],
+        angle,
+        friction: [0.5, 0.4],
+      });
+    }
+  }
+
+  /** A click with the polygon tool: one more corner, or the end of the shape. */
+  private corner(at: Vec, reach: number): boolean {
+    const near = (p: Vec | undefined) => p !== undefined && Math.hypot(p[0] - at[0], p[1] - at[1]) <= reach;
+    // The first corner again closes the shape; so does a second click on the last one, as a double click does.
+    if (this.corners.length >= 3 && (near(this.corners[0]) || near(this.corners[this.corners.length - 1]))) {
+      this.finishPolygon();
+    } else if (!near(this.corners[this.corners.length - 1])) {
+      this.corners.push(at);
+      if (this.corners.length === 3) this.hint('Keep clicking corners. Click the first corner again, or press Enter, to finish.');
+    }
+    return true;
+  }
+
+  /** Turns the corners clicked so far into a body. Returns false when there are too few to make one. */
+  finishPolygon(): boolean {
+    const corners = this.corners;
+    this.corners = [];
+    if (corners.length < 3) {
+      if (this.tool === 'polygon') this.hint('A shape needs at least three corners.');
+      return false;
+    }
+    this.hint(HINTS.polygon);
+    return this.addPolygon('shape', corners, false);
+  }
+
+  /** Forgets a shape, incline or link being drawn. Returns true if there was one. */
+  cancel(): boolean {
+    const busy = this.corners.length > 0 || this.stretch !== undefined || this.pending !== undefined;
+    this.corners = [];
+    this.stretch = undefined;
+    this.pending = undefined;
+    return busy;
+  }
+
+  /**
+   * Adds a polygon given by corners in world coordinates. The engine collides convex shapes, so a shape with a dent
+   * in it is replaced by its hull, and the user is told. Corners are stored about the centre of mass, which is
+   * where the body's position is.
+   */
+  private addPolygon(name: string, corners: Vec[], fixed: boolean): boolean {
+    const u = this.unit;
+    const hull = convexHull(corners);
+    const { area, centroid } = areaAndCentroid(hull);
+    if (hull.length < 3 || area < 1e-4 * u * u) {
+      this.hint('Those corners are in a line: there is no shape between them.');
+      return true;
+    }
+    if (hull.length < corners.length) this.hint('Shapes that collide have to be convex, so the dents were filled in.');
+    const grid = 0.001 * u;
+    const body: BodySpec = {
+      id: this.uniqueId(name),
+      kind: fixed ? 'static' : 'rigid',
+      shape: { polygon: hull.map(([x, y]): Vec => [round(x - centroid[0], grid), round(y - centroid[1], grid)]) },
+      position: [round(centroid[0], grid), round(centroid[1], grid)],
+      friction: [0.5, 0.4],
+    };
+    if (!fixed) {
+      // About as heavy as the box of the same area would be.
+      body.mass = Math.max(0.1, Number(((5 * area) / (u * u)).toFixed(1)));
+      body.restitution = 0.2;
+    }
+    return this.add(body);
   }
 
   private add(body: BodySpec): boolean {
@@ -416,6 +572,29 @@ export class Editor {
 
   overlay(painter: Painter, pointer: Vec | undefined): void {
     if (this.pending && pointer) painter.dashed([this.pending.at, pointer], '#94a3b8');
+    const guide = '#38d6f5';
+    if (this.corners.length > 0) {
+      // The corners so far, the edge that would follow the pointer, and the edge that would close the shape.
+      const path = pointer ? [...this.corners, pointer] : this.corners;
+      painter.dashed(path.length >= 3 ? [...path, path[0]!] : path, guide);
+      this.corners.forEach(([x, y], i) => painter.knob(x, y, guide, i === 0 && this.corners.length >= 3));
+    }
+    if (this.stretch) {
+      const { from, to } = this.stretch;
+      if (this.tool === 'incline') {
+        const [high, low] = to[1] >= from[1] ? [to, from] : [from, to];
+        const corner: Vec = [high[0], low[1]];
+        painter.dashed([corner, low, high, corner], guide);
+        const angle = (Math.atan2(high[1] - low[1], Math.abs(high[0] - low[0])) * 180) / Math.PI;
+        if (Number.isFinite(angle) && angle > 0) painter.label(`${formatNumber(angle)}°`, low[0], low[1], guide);
+      } else {
+        painter.dashed([from, to], guide);
+        const angle = (Math.atan2(to[1] - from[1], to[0] - from[0]) * 180) / Math.PI;
+        painter.label(`${formatNumber(Math.hypot(to[0] - from[0], to[1] - from[1]))} m at ${formatNumber(angle)}°`, to[0], to[1], guide);
+      }
+      painter.knob(from[0], from[1], guide);
+      painter.knob(to[0], to[1], guide, true);
+    }
     // A slot keeps a body on a line and has nothing else to show for itself; drawn here so it can be seen and erased.
     for (const constraint of this.scene.constraints ?? []) {
       if (!('slot' in constraint)) continue;
@@ -475,6 +654,29 @@ export class Editor {
       rows.push(
         slider({ label: 'Width', min: 0.1 * u, max: 8 * u, step: 0.1 * u, hardMin: 1e-3, hardMax: 1e12, value: w, format: length, onInput: (v) => set('width', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [v, b.shape.rectangle[1]] })) }).root,
         slider({ label: 'Height', min: 0.1 * u, max: 4 * u, step: 0.1 * u, hardMin: 1e-3, hardMax: 1e12, value: h, format: length, onInput: (v) => set('height', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [b.shape.rectangle[0], v] })) }).root,
+        slider({ label: 'Tilt', min: -90, max: 90, step: 1, hardMin: -180, hardMax: 180, value: Number((((spec.angle ?? 0) * 180) / Math.PI).toFixed(3)), format: (v) => `${formatNumber(v)}°`, onInput: (v) => set('tilt', (b) => (b.angle = (v * Math.PI) / 180)) }).root,
+      );
+    }
+    if ('polygon' in spec.shape) {
+      const reach = (points: Vec[]) => Math.max(...points.map(([x, y]) => Math.hypot(x, y)));
+      rows.push(
+        slider({
+          label: 'Size',
+          min: 0.1 * u,
+          max: 5 * u,
+          step: 0.05 * u,
+          hardMin: 1e-3,
+          hardMax: 1e12,
+          value: reach(spec.shape.polygon),
+          format: length,
+          // Every corner moves out from the centre of mass by the same factor: the shape is kept, only its size changes.
+          onInput: (v) =>
+            set('size', (b) => {
+              if (!('polygon' in b.shape)) return;
+              const factor = v / reach(b.shape.polygon);
+              b.shape = { polygon: b.shape.polygon.map(([x, y]): Vec => [x * factor, y * factor]) };
+            }),
+        }).root,
         slider({ label: 'Tilt', min: -90, max: 90, step: 1, hardMin: -180, hardMax: 180, value: Number((((spec.angle ?? 0) * 180) / Math.PI).toFixed(3)), format: (v) => `${formatNumber(v)}°`, onInput: (v) => set('tilt', (b) => (b.angle = (v * Math.PI) / 180)) }).root,
       );
     }
