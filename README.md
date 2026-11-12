@@ -23,7 +23,8 @@ pendulum. Press `/` to open the gallery.
 
 **Build your own** (`?mode=mechanics&sandbox`). Choose Remix on any scenario, or start from bare ground.
 
-- Tools on the left: ball, box, fixed platform, rope, rod, spring, pin, erase.
+- Tools on the left: ball, box, any shape you draw corner by corner, fixed platform, incline, wall or ramp, rope, rod,
+  spring, pin, erase.
 - Select a body to change its mass, size, friction and bounce, or drag its arrow to give it a velocity.
 - Undo and redo, autosave in the browser, Save and Open as JSON, and Share for a link that carries the whole scene.
 - Editing while a run is paused carries on from that moment.
@@ -41,7 +42,8 @@ embed live simulations, and `&theme=light` or `&theme=dark` to fix the theme.
 | R | restart |
 | F | fit the view |
 | / or Ctrl+K | gallery |
-| V B X P O D S N E | sandbox tools: select, ball, box, platform, rope, rod, spring, pin, erase |
+| V B X G P I W O D S N E | sandbox tools: select, ball, box, shape, platform, incline, wall, rope, rod, spring, pin, erase |
+| Enter, Esc | finish the shape being drawn; drop it |
 | Ctrl+Z, Ctrl+Shift+Z | undo, redo |
 | Delete | remove the selected body |
 
