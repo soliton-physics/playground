@@ -57,6 +57,10 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   const editor = new Editor(
     () => rebuildSandbox(),
     (text) => showHint(text),
+    () => {
+      const { top, bottom } = renderer.camera.bounds;
+      return 0.5 * (top - bottom);
+    },
   );
   const answers = new Answers();
   const inspector = new Inspector((body) => focusOn(body));

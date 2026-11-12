@@ -106,8 +106,11 @@ export class Editor {
   private lastEdit = { key: '', time: 0 };
   private readonly buttons = new Map<Tool, HTMLButtonElement>();
 
-  /** `changed` rebuilds the world from `scene`; `hint` shows a line of guidance on the stage. */
-  constructor(private readonly changed: () => void, private readonly hint: (text: string) => void) {
+  /**
+   * `changed` rebuilds the world from `scene`; `hint` shows a line of guidance on the stage; `span` is how many
+   * metres the stage shows from its middle to its top edge right now.
+   */
+  constructor(private readonly changed: () => void, private readonly hint: (text: string) => void, private readonly span: () => number = () => 4) {
     this.rail = el('div', { class: 'rail glass overlay', role: 'toolbar', 'aria-label': 'Sandbox tools' });
     for (const [tool, name, label] of TOOLS) {
       const button = iconButton(name, label, () => this.setTool(tool));
@@ -116,6 +119,17 @@ export class Editor {
     }
     this.rail.append(el('div', { class: 'rail-divider' }), iconButton('undo', 'Undo (Ctrl+Z)', () => this.undo()), iconButton('redo', 'Redo (Ctrl+Shift+Z)', () => this.redo()));
     this.setTool('select');
+  }
+
+  /**
+   * The size of things at the scale being looked at, as a power of ten: 1 when the stage shows a few metres, a
+   * million in a remixed orbit. New bodies, the size sliders and the grid that positions snap to are all in these
+   * units, so a ball dropped beside the Earth is a few hundred kilometres across and can be seen, not thirty
+   * centimetres and a dot.
+   */
+  get unit(): number {
+    const span = this.span();
+    return span > 0 && Number.isFinite(span) ? 10 ** Math.floor(Math.log10(span / 2.5)) : 1;
   }
 
   get json(): string {
@@ -203,28 +217,30 @@ export class Editor {
   }
 
   private anchorAt(hit: Hit): AnchorSpec {
-    if (hit.body === undefined) return { fixed: [round(hit.at[0]), round(hit.at[1])] };
+    const u = this.unit;
+    if (hit.body === undefined) return { fixed: [round(hit.at[0], 0.05 * u), round(hit.at[1], 0.05 * u)] };
     const spec = this.scene.bodies[hit.body]!;
     const [px, py] = spec.position ?? [0, 0];
     const angle = spec.angle ?? 0;
     const [dx, dy] = [hit.at[0] - px, hit.at[1] - py];
     const local: Vec = [dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle)];
-    const offCentre = 'rectangle' in spec.shape && Math.hypot(local[0], local[1]) > 0.08;
-    return { body: offCentre ? { id: spec.id, local: [round(local[0], 0.01), round(local[1], 0.01)] } : { id: spec.id } };
+    const offCentre = 'rectangle' in spec.shape && Math.hypot(local[0], local[1]) > 0.08 * u;
+    return { body: offCentre ? { id: spec.id, local: [round(local[0], 0.01 * u), round(local[1], 0.01 * u)] } : { id: spec.id } };
   }
 
   /** A press on the stage with a placing tool. Returns true when the tool used it. */
   press(hit: Hit): boolean {
-    const [x, y] = [round(hit.at[0]), round(hit.at[1])];
+    const u = this.unit;
+    const [x, y] = [round(hit.at[0], 0.05 * u), round(hit.at[1], 0.05 * u)];
     switch (this.tool) {
       case 'select':
         return false;
       case 'ball':
-        return this.add({ id: this.uniqueId('ball'), kind: 'rigid', shape: { circle: 0.3 }, mass: 1, position: [x, y], restitution: 0.5, friction: [0.5, 0.4] });
+        return this.add({ id: this.uniqueId('ball'), kind: 'rigid', shape: { circle: 0.3 * u }, mass: 1, position: [x, y], restitution: 0.5, friction: [0.5, 0.4] });
       case 'box':
-        return this.add({ id: this.uniqueId('box'), kind: 'rigid', shape: { rectangle: [0.8, 0.5] }, mass: 2, position: [x, y], restitution: 0.2, friction: [0.5, 0.4] });
+        return this.add({ id: this.uniqueId('box'), kind: 'rigid', shape: { rectangle: [0.8 * u, 0.5 * u] }, mass: 2, position: [x, y], restitution: 0.2, friction: [0.5, 0.4] });
       case 'platform':
-        return this.add({ id: this.uniqueId('platform'), kind: 'static', shape: { rectangle: [3, 0.3] }, position: [x, y], friction: [0.6, 0.5] });
+        return this.add({ id: this.uniqueId('platform'), kind: 'static', shape: { rectangle: [3 * u, 0.3 * u] }, position: [x, y], friction: [0.6, 0.5] });
       case 'erase':
         // A rope in front of a wall or over the ground is what the click was aimed at, not what is behind it.
         if (hit.body !== undefined && this.scene.bodies[hit.body]?.kind === 'static' && this.removeLinkAt(hit.at, hit.reach ?? 0.15)) return true;
@@ -374,7 +390,8 @@ export class Editor {
     const spec = this.scene.bodies[index];
     if (!spec) return;
     this.checkpoint(`move ${index}`);
-    spec.position = [round(origin[0] + dx, 0.01), round(origin[1] + dy, 0.01)];
+    const grid = 0.01 * this.unit;
+    spec.position = [round(origin[0] + dx, grid), round(origin[1] + dy, grid)];
     this.changed();
   }
 
@@ -393,7 +410,8 @@ export class Editor {
     const [x, y] = spec.position ?? [0, 0];
     const [vx, vy] = spec.velocity ?? [0, 0];
     const still = Math.hypot(vx, vy) < 1e-9;
-    return still ? [x + 0.6, y + 0.6] : [x + vx * scales.velocity, y + vy * scales.velocity];
+    const reach = 0.6 * this.unit;
+    return still ? [x + reach, y + reach] : [x + vx * scales.velocity, y + vy * scales.velocity];
   }
 
   overlay(painter: Painter, pointer: Vec | undefined): void {
@@ -412,7 +430,7 @@ export class Editor {
       const speed = Math.hypot(vx, vy);
       if (speed < 1e-9) painter.dashed([spec.position ?? [0, 0], tip], VELOCITY_COLOR);
       painter.knob(tip[0], tip[1], VELOCITY_COLOR);
-      painter.label(speed < 1e-9 ? 'drag to launch' : `${formatNumber(speed)} m/s`, tip[0], tip[1] + 0.25, VELOCITY_COLOR);
+      painter.label(speed < 1e-9 ? 'drag to launch' : `${formatNumber(speed)} m/s`, tip[0], tip[1] + 0.25 * this.unit, VELOCITY_COLOR);
     }
   }
 
@@ -428,6 +446,8 @@ export class Editor {
     };
     const rows: HTMLElement[] = [];
     const isStatic = spec.kind === 'static';
+    const u = this.unit;
+    const length = (v: number) => (Math.abs(v) >= 1000 ? `${formatNumber(v / 1000)} km` : `${formatNumber(v)} m`);
     if (!('halfplane' in spec.shape)) {
       const kinds = el('div', { class: 'kind-switch' });
       for (const [label, fixed] of [['Moves', false], ['Fixed', true]] as const) {
@@ -449,12 +469,12 @@ export class Editor {
       rows.push(slider({ label: 'Mass', min: 0.1, max: 20, step: 0.1, hardMin: 0.001, hardMax: 1e6, value: spec.mass ?? 1, format: (v) => `${formatNumber(v)} kg`, onInput: (v) => set('mass', (b) => (b.mass = v)) }).root);
     }
     if ('circle' in spec.shape) {
-      rows.push(slider({ label: 'Radius', min: 0.05, max: 1.5, step: 0.05, hardMin: 0.01, hardMax: 1000, value: spec.shape.circle, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('size', (b) => (b.shape = { circle: v })) }).root);
+      rows.push(slider({ label: 'Radius', min: 0.05 * u, max: 1.5 * u, step: 0.05 * u, hardMin: 1e-3, hardMax: 1e12, value: spec.shape.circle, format: length, onInput: (v) => set('size', (b) => (b.shape = { circle: v })) }).root);
     } else if ('rectangle' in spec.shape) {
       const [w, h] = spec.shape.rectangle;
       rows.push(
-        slider({ label: 'Width', min: 0.1, max: 8, step: 0.1, hardMin: 0.01, hardMax: 10000, value: w, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('width', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [v, b.shape.rectangle[1]] })) }).root,
-        slider({ label: 'Height', min: 0.1, max: 4, step: 0.1, hardMin: 0.01, hardMax: 10000, value: h, format: (v) => `${formatNumber(v)} m`, onInput: (v) => set('height', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [b.shape.rectangle[0], v] })) }).root,
+        slider({ label: 'Width', min: 0.1 * u, max: 8 * u, step: 0.1 * u, hardMin: 1e-3, hardMax: 1e12, value: w, format: length, onInput: (v) => set('width', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [v, b.shape.rectangle[1]] })) }).root,
+        slider({ label: 'Height', min: 0.1 * u, max: 4 * u, step: 0.1 * u, hardMin: 1e-3, hardMax: 1e12, value: h, format: length, onInput: (v) => set('height', (b) => 'rectangle' in b.shape && (b.shape = { rectangle: [b.shape.rectangle[0], v] })) }).root,
         slider({ label: 'Tilt', min: -90, max: 90, step: 1, hardMin: -180, hardMax: 180, value: Number((((spec.angle ?? 0) * 180) / Math.PI).toFixed(3)), format: (v) => `${formatNumber(v)}°`, onInput: (v) => set('tilt', (b) => (b.angle = (v * Math.PI) / 180)) }).root,
       );
     }
@@ -463,6 +483,11 @@ export class Editor {
     );
     if (!isStatic) {
       rows.push(slider({ label: 'Bounce e', min: 0, max: 1, step: 0.05, value: spec.restitution ?? 1, format: (v) => formatNumber(v, 2), onInput: (v) => set('bounce', (b) => (b.restitution = v)) }).root);
+    }
+    // At a few pixels across a body is drawn as a dot of fixed size, and changing its size changes nothing on screen.
+    const size = 'circle' in spec.shape ? 2 * spec.shape.circle : 'rectangle' in spec.shape ? Math.max(...spec.shape.rectangle) : Infinity;
+    if (size < this.span() / 60) {
+      rows.push(el('p', { class: 'empty', text: `At this zoom it is too small to draw to scale, so it shows as a dot. Sizes here are best set in steps of ${length(0.05 * u)}, or zoom in.` }));
     }
     const head = el('div', { class: 'properties-head' }, [el('b', { text: spec.id })]);
     head.append(iconButton('erase', 'Delete (Del)', () => this.remove(index)));
