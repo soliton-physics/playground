@@ -38,6 +38,7 @@ const paths = {
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   hand: '<path d="M8 12V6a1.5 1.5 0 0 1 3 0v5V4.5a1.5 1.5 0 0 1 3 0V11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.5 6.5-6 6.5-3 0-4.500-1.500-6.500-5L5 12.500A1.500 1.500 0 0 1 8 12z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  parts: '<path d="M2 9c2.500-5 5 5 7.500 0s5 5 7.500 0 2.500-2 5 0"/><path d="M2 16c3.300-5 6.700 5 10 0s6.700 5 10 0" opacity=".55"/>',
   wave: '<path d="M2 14c3 0 3-7 6-7s3 10 6 10 3-7 6-7"/>',
   atom: '<circle cx="12" cy="12" r="1.8" fill="currentColor"/><ellipse cx="12" cy="12" rx="9" ry="4"/><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(120 12 12)"/>',
 } as const;

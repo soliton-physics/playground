@@ -34,7 +34,13 @@ export function formatNumber(value: number, digits = 3): string {
 }
 
 export function formatQuantity(value: number, unit: string, digits = 3): string {
+  if (unit === '°') return `${formatNumber(value, digits)}°`;
   return unit ? `${formatNumber(value, digits)} ${unit}` : formatNumber(value, digits);
+}
+
+/** A length of time: milliseconds when it is too short for seconds to say much. */
+export function formatDuration(seconds: number): string {
+  return Math.abs(seconds) < 0.1 && seconds !== 0 ? `${formatNumber(seconds * 1000)} ms` : `${formatNumber(seconds)} s`;
 }
 
 export function clamp(value: number, min: number, max: number): number {

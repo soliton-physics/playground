@@ -1,15 +1,35 @@
 import { cssVar } from '../ui';
+import type { Mark } from './lessons';
+import type { Series } from './scene';
 
-export interface Series {
-  values: Float64Array;
+export type { Series };
+
+export interface ProbeMark {
+  x: number;
+  y: number;
+  label: string;
   color: string;
-  width: number;
-  fill?: string;
 }
 
-const MARGIN = { left: 46, top: 16 };
+export interface Frame {
+  x: Float64Array;
+  series: Series[];
+  range: [number, number];
+  xUnit: string;
+  yUnit: string;
+  marks: Mark[];
+  probes: ProbeMark[];
+  medium: 'string' | 'air' | 'field';
+  /** How far a layer of air is drawn from its place for each unit of displacement, in units of x. */
+  layerGain: number;
+}
 
-/** The field against position, with a fixed vertical range so a soliton's height can be read off. */
+const MARGIN = { left: 56, top: 30 };
+const STRIP = 58;
+const FONT = '11px Inter, ui-sans-serif, system-ui, sans-serif';
+const LABEL_FONT = '600 12px Inter, ui-sans-serif, system-ui, sans-serif';
+
+/** The wave against position, with a fixed vertical range so heights can be read off and compared. */
 export class LinePlot {
   private readonly context: CanvasRenderingContext2D;
   private width = 0;
@@ -18,6 +38,7 @@ export class LinePlot {
   private x1 = 1;
   private y0 = 0;
   private y1 = 1;
+  private strip = 0;
   /** Pixels kept clear on the right, for the panel that floats there. */
   right = 16;
   /** Pixels kept clear below, for the dock and whatever sits above it. */
@@ -29,48 +50,81 @@ export class LinePlot {
     this.resize();
   }
 
-  /** The field coordinates under a canvas pixel, for drawing a profile by hand. */
-  toField(px: number, py: number): [number, number] {
-    const w = this.width - MARGIN.left - this.right;
-    const h = this.height - MARGIN.top - this.bottom;
-    return [this.x0 + ((px - MARGIN.left) / w) * (this.x1 - this.x0), this.y1 - ((py - MARGIN.top) / h) * (this.y1 - this.y0)];
+  private get plotWidth(): number {
+    return this.width - MARGIN.left - this.right;
   }
 
-  draw(x: Float64Array, series: Series[], range: [number, number]): void {
+  private get plotHeight(): number {
+    return this.height - MARGIN.top - this.bottom - this.strip;
+  }
+
+  /** The field coordinates under a canvas pixel. */
+  toField(px: number, py: number): [number, number] {
+    return [this.x0 + ((px - MARGIN.left) / this.plotWidth) * (this.x1 - this.x0), this.y1 - ((py - MARGIN.top) / this.plotHeight) * (this.y1 - this.y0)];
+  }
+
+  toPixelX(x: number): number {
+    return MARGIN.left + ((x - this.x0) / (this.x1 - this.x0)) * this.plotWidth;
+  }
+
+  draw(frame: Frame): void {
     const { context, width, height } = this;
-    const plotWidth = width - MARGIN.left - this.right;
-    const plotHeight = height - MARGIN.top - this.bottom;
+    const { x, series, range } = frame;
+    this.strip = frame.medium === 'air' ? STRIP : 0;
     [this.x0, this.x1] = [x[0] ?? 0, x[x.length - 1] ?? 1];
     [this.y0, this.y1] = range;
-    const { x0, x1, y0, y1 } = this;
-    const toX = (v: number) => MARGIN.left + ((v - x0) / (x1 - x0)) * plotWidth;
+    const { x0, x1, y0, y1, plotHeight } = this;
+    const toX = (v: number) => this.toPixelX(v);
     const toY = (v: number) => MARGIN.top + ((y1 - v) / (y1 - y0)) * plotHeight;
+    const floor = MARGIN.top + plotHeight;
+    const text = cssVar('--canvas-text');
 
     context.fillStyle = cssVar('--canvas-bg');
     context.fillRect(0, 0, width, height);
     context.lineWidth = 1;
-    context.fillStyle = cssVar('--canvas-text');
-    context.font = '11px Inter, ui-sans-serif, system-ui, sans-serif';
+    context.fillStyle = text;
+    context.font = FONT;
     context.textAlign = 'right';
-    for (const tick of ticks(y0, y1, 6)) {
+    context.textBaseline = 'alphabetic';
+    context.setLineDash([]);
+    const ySteps = ticks(y0, y1, 6);
+    for (const tick of ySteps.values) {
       const y = Math.round(toY(tick)) + 0.5;
       context.strokeStyle = tick === 0 ? cssVar('--canvas-axis') : cssVar('--canvas-grid-major');
       context.beginPath();
       context.moveTo(MARGIN.left, y);
       context.lineTo(width - this.right, y);
       context.stroke();
-      context.fillText(tick.toFixed(1), MARGIN.left - 8, y + 4);
+      context.fillText(tick.toFixed(ySteps.decimals), MARGIN.left - 8, y + 4);
     }
     context.textAlign = 'center';
-    for (const tick of ticks(x0, x1, 10)) {
+    const xSteps = ticks(x0, x1, 10);
+    const labelRow = floor + this.strip + 16;
+    for (const tick of xSteps.values) {
       const px = Math.round(toX(tick)) + 0.5;
       context.strokeStyle = cssVar('--canvas-grid');
       context.beginPath();
       context.moveTo(px, MARGIN.top);
-      context.lineTo(px, height - this.bottom);
+      context.lineTo(px, floor);
       context.stroke();
-      context.fillText(tick.toFixed(0), px, height - this.bottom + 16);
+      context.fillText(tick.toFixed(xSteps.decimals), px, labelRow);
     }
+    if (frame.yUnit) {
+      context.textAlign = 'left';
+      context.fillText(`displacement (${frame.yUnit})`, MARGIN.left, MARGIN.top - 12);
+    }
+    if (frame.xUnit) {
+      context.textAlign = 'right';
+      context.fillText(`position (${frame.xUnit})`, width - this.right, labelRow + 15);
+    }
+
+    const sum = series[series.length - 1]?.values;
+    const at = (position: number): number => {
+      if (!sum) return 0;
+      const s = Math.min(Math.max(((position - x0) / (x1 - x0)) * (x.length - 1), 0), x.length - 1 - 1e-9);
+      const i = Math.floor(s);
+      return sum[i]! + (s - i) * (sum[i + 1]! - sum[i]!);
+    };
 
     for (const { values, color, width: lineWidth, fill } of series) {
       const trace = () => {
@@ -95,6 +149,159 @@ export class LinePlot {
       context.lineJoin = 'round';
       context.stroke();
     }
+
+    // Beads on a string: each stays at its own x and only rides up and down.
+    if (frame.medium === 'string') {
+      context.fillStyle = cssVar('--accent');
+      const count = 24;
+      for (let i = 0; i <= count; i++) {
+        const position = x0 + ((x1 - x0) * i) / count;
+        context.beginPath();
+        context.arc(toX(position), toY(at(position)), 3, 0, 2 * Math.PI);
+        context.fill();
+      }
+    }
+
+    // Layers of air: each is drawn shifted along the wave by its displacement, so they crowd and thin out.
+    if (frame.medium === 'air') {
+      const top = floor + 10;
+      const bottom = floor + STRIP - 14;
+      const count = Math.max(40, Math.round(this.plotWidth / 9));
+      context.strokeStyle = cssVar('--accent');
+      context.lineWidth = 1.5;
+      context.globalAlpha = 0.75;
+      context.beginPath();
+      for (let i = 0; i <= count; i++) {
+        const position = x0 + ((x1 - x0) * i) / count;
+        const px = toX(position + frame.layerGain * at(position));
+        context.moveTo(px, top);
+        context.lineTo(px, bottom);
+      }
+      context.stroke();
+      context.globalAlpha = 1;
+      const ends = frame.marks.filter((m) => m.kind === 'end');
+      if (ends.length) {
+        context.strokeStyle = text;
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(toX(x0), top - 3);
+        context.lineTo(toX(x1), top - 3);
+        context.moveTo(toX(x0), bottom + 3);
+        context.lineTo(toX(x1), bottom + 3);
+        for (const end of ends) {
+          if (end.kind !== 'end' || end.type !== 'closed') continue;
+          context.moveTo(toX(end.x), top - 3);
+          context.lineTo(toX(end.x), bottom + 3);
+        }
+        context.stroke();
+      }
+    }
+
+    for (const mark of frame.marks) this.mark(mark, toX, toY, floor, at);
+
+    for (const probe of frame.probes) {
+      const px = Math.round(toX(probe.x)) + 0.5;
+      context.strokeStyle = probe.color;
+      context.lineWidth = 1;
+      context.setLineDash([4, 4]);
+      context.beginPath();
+      context.moveTo(px, MARGIN.top);
+      context.lineTo(px, floor + this.strip);
+      context.stroke();
+      context.setLineDash([]);
+      context.fillStyle = probe.color;
+      context.beginPath();
+      context.arc(px, toY(probe.y), 5.5, 0, 2 * Math.PI);
+      context.fill();
+      context.strokeStyle = cssVar('--canvas-bg');
+      context.lineWidth = 2;
+      context.stroke();
+      context.beginPath();
+      context.roundRect(px - 10, MARGIN.top - 20, 20, 18, 5);
+      context.fill();
+      context.fillStyle = '#0a0e1a';
+      context.font = LABEL_FONT;
+      context.textAlign = 'center';
+      context.fillText(probe.label, px, MARGIN.top - 7);
+    }
+  }
+
+  private mark(mark: Mark, toX: (v: number) => number, toY: (v: number) => number, floor: number, at: (x: number) => number): void {
+    const { context } = this;
+    const ink = cssVar('--text');
+    context.font = LABEL_FONT;
+    context.lineWidth = 1.5;
+    context.setLineDash([]);
+    if (mark.kind === 'span') {
+      const [a, b, y] = [toX(mark.from), toX(mark.to), toY(mark.at)];
+      context.strokeStyle = ink;
+      context.fillStyle = ink;
+      context.beginPath();
+      context.moveTo(a, y);
+      context.lineTo(b, y);
+      for (const [tip, back] of [[a, 1], [b, -1]] as const) {
+        context.moveTo(tip + back * 7, y - 4);
+        context.lineTo(tip, y);
+        context.lineTo(tip + back * 7, y + 4);
+      }
+      context.stroke();
+      context.textAlign = 'center';
+      context.fillText(mark.label, (a + b) / 2, y - 8);
+    } else if (mark.kind === 'rise') {
+      const [px, base, tip] = [toX(mark.x), toY(0), toY(mark.to)];
+      context.strokeStyle = ink;
+      context.fillStyle = ink;
+      context.beginPath();
+      context.moveTo(px, base);
+      context.lineTo(px, tip + 4);
+      context.moveTo(px - 4, tip + 11);
+      context.lineTo(px, tip + 4);
+      context.lineTo(px + 4, tip + 11);
+      context.stroke();
+      context.textAlign = 'left';
+      context.fillText(mark.label, px + 8, (base + tip) / 2 + 4);
+    } else if (mark.kind === 'point') {
+      const px = toX(mark.x);
+      const color = mark.tone === 'node' ? cssVar('--muted') : '#fbbf24';
+      context.fillStyle = color;
+      if (mark.label === 'N') {
+        context.beginPath();
+        context.arc(px, toY(0), 4, 0, 2 * Math.PI);
+        context.fill();
+      }
+      context.textAlign = 'center';
+      context.fillText(mark.label, px, floor - 8);
+    } else if (mark.type === 'fixed') {
+      const px = toX(mark.x);
+      const [top, bottom] = [toY(0) - 46, toY(0) + 46];
+      context.strokeStyle = cssVar('--canvas-text');
+      context.lineWidth = 3;
+      context.beginPath();
+      context.moveTo(px, top);
+      context.lineTo(px, bottom);
+      context.stroke();
+      context.lineWidth = 1;
+      context.beginPath();
+      const away = mark.x > (this.x0 + this.x1) / 2 ? 1 : -1;
+      for (let y = top + 4; y < bottom; y += 9) {
+        context.moveTo(px, y);
+        context.lineTo(px + away * 8, y + 7);
+      }
+      context.stroke();
+    } else if (mark.type === 'free') {
+      const px = toX(mark.x);
+      context.strokeStyle = cssVar('--canvas-text');
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(px, MARGIN.top + 10);
+      context.lineTo(px, floor - 10);
+      context.stroke();
+      context.strokeStyle = cssVar('--accent');
+      context.lineWidth = 2.5;
+      context.beginPath();
+      context.arc(px, toY(at(mark.x)), 7, 0, 2 * Math.PI);
+      context.stroke();
+    }
   }
 
   private resize(): void {
@@ -109,11 +316,42 @@ export class LinePlot {
   }
 }
 
-function ticks(min: number, max: number, count: number): number[] {
+/** Draws a wave small, with no axes: a card in the gallery, or a point's own history. */
+export function sparkline(canvas: HTMLCanvasElement, lines: { values: Float64Array; color: string; width: number }[], limit: number): void {
+  const scale = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0) return;
+  canvas.width = Math.round(rect.width * scale);
+  canvas.height = Math.round(rect.height * scale);
+  const context = canvas.getContext('2d')!;
+  context.setTransform(scale, 0, 0, scale, 0, 0);
+  context.clearRect(0, 0, rect.width, rect.height);
+  const middle = rect.height / 2;
+  context.strokeStyle = cssVar('--canvas-axis');
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(0, middle + 0.5);
+  context.lineTo(rect.width, middle + 0.5);
+  context.stroke();
+  for (const { values, color, width } of lines) {
+    context.strokeStyle = color;
+    context.lineWidth = width;
+    context.lineJoin = 'round';
+    context.beginPath();
+    for (let i = 0; i < values.length; i++) {
+      const px = (i / (values.length - 1)) * rect.width;
+      const py = middle - (values[i]! / limit) * (middle - 4);
+      i === 0 ? context.moveTo(px, py) : context.lineTo(px, py);
+    }
+    context.stroke();
+  }
+}
+
+function ticks(min: number, max: number, count: number): { values: number[]; decimals: number } {
   const raw = (max - min) / count;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   const step = [1, 2, 5, 10].map((m) => m * magnitude).find((s) => s >= raw) ?? raw;
-  const result: number[] = [];
-  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) result.push(Math.abs(v) < 1e-12 ? 0 : v);
-  return result;
+  const values: number[] = [];
+  for (let v = Math.ceil(min / step - 1e-9) * step; v <= max + step * 1e-9; v += step) values.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+  return { values, decimals: Math.min(6, Math.max(0, -Math.floor(Math.log10(step) + 1e-9))) };
 }

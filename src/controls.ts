@@ -19,6 +19,20 @@ export function toggleButton(name: IconName, label: string, pressed: boolean, on
   return button;
 }
 
+/** A choice between a few named values, shown as buttons side by side. */
+export function choice(label: string, options: { label: string; value: number }[], value: number, onChange: (value: number) => void): HTMLElement {
+  const buttons = options.map((option) => {
+    const button = el('button', { type: 'button', text: option.label });
+    button.setAttribute('aria-pressed', String(option.value === value));
+    button.addEventListener('click', () => {
+      for (const other of buttons) other.setAttribute('aria-pressed', String(other === button));
+      onChange(option.value);
+    });
+    return button;
+  });
+  return el('div', { class: 'slider' }, [el('span', { class: 'slider-head' }, [el('span', { text: label })]), el('div', { class: 'choice', role: 'group', 'aria-label': label }, buttons)]);
+}
+
 export interface SliderOptions {
   /** The range the slider starts with. It stretches when a value goes past it, up to the hard limits. */
   min: number;
