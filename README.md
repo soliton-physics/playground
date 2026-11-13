@@ -26,6 +26,15 @@ pendulum, and class 12's charges and fields, Gauss's law, and magnets and matter
 - A bar magnet is red at its north pole and blue at its south. The small needles across the stage are compasses,
   red end along the field; they fade where the field is weak, which is how a neutral point shows.
 
+**Trace rays** (`?mode=optics&scenario=<id>`). The class 12 chapter on ray optics: spherical mirrors, refraction and
+total internal reflection, lenses, the prism, the telescope and the microscope.
+
+- Drag the knob on the bench: the top of the object, the start of a ray, the eyepiece. The engine traces every ray
+  again as you move it. Parameters has the rest, and a scenario's numbers go in the link.
+- The blue arrow is the image the formulas are about, found from rays near the axis; dashed when it is virtual, with
+  the rays produced back to it. The red rays are exact, so a tall object or a wide beam shows spherical aberration.
+- Each textbook answer has the traced value beside it.
+
 **Build your own** (`?mode=mechanics&sandbox`). Choose Remix on any scenario, or start from bare ground.
 
 - Tools on the left: ball, box, any shape you draw corner by corner, fixed platform, incline, wall or ramp, rope, rod,
@@ -112,6 +121,7 @@ src/
     editor.ts              the sandbox: tools, edits, undo, properties
     gallery.ts, answers.ts, share.ts
   waves/                   the wave mode
+  optics/                  the optics bench: renderer, handles, gallery
     model.ts               sine waves and pulses as closed forms; the motion of one point
     lessons.ts             the class 11 lessons: parameters, parts, facts, marks, formulas
     lab.ts                 the wave lab: its state, its link, its editor

@@ -130,6 +130,19 @@ button {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
+/* Three tabs and a title do not fit a narrow bar, or a projector's large type: the other tabs keep their icons. */
+@media (max-width: 1100px) {
+  .mode-tab:not(.active) span {
+    display: none;
+  }
+}
+
+@media (max-width: 1500px) {
+  :root[data-present] .mode-tab:not(.active) span {
+    display: none;
+  }
+}
+
 .title-button {
   display: inline-flex;
   align-items: center;

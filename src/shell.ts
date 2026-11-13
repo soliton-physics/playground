@@ -2,7 +2,7 @@ import { iconButton } from './controls';
 import { icon } from './icons';
 import { el, presenting, setPresenting, toggleTheme } from './ui';
 
-export type Mode = 'mechanics' | 'waves';
+export type Mode = 'mechanics' | 'waves' | 'optics';
 
 /** The top bar, and the two things in it that belong to whichever mode is running. */
 export interface Shell {
@@ -24,8 +24,8 @@ export function buildShell(active: Mode): Shell {
   let share = () => {};
   titleButton.addEventListener('click', () => open());
 
-  const tab = (mode: Mode, text: string, name: 'atom' | 'wave') =>
-    el('a', { href: `?mode=${mode}`, class: mode === active ? 'mode-tab active' : 'mode-tab' }, [icon(name, 16), el('span', { text })]);
+  const tab = (mode: Mode, text: string, name: 'atom' | 'wave' | 'lens') =>
+    el('a', { href: `?mode=${mode}`, class: mode === active ? 'mode-tab active' : 'mode-tab', title: text }, [icon(name, 16), el('span', { text })]);
   const docs = import.meta.env.VITE_DOCS_URL ?? 'https://soliton-docs.vercel.app';
   const shareButton = el('button', { type: 'button', class: 'text-button' }, [icon('share', 16), el('span', { class: 'wide-only', text: 'Share' })]);
   shareButton.addEventListener('click', () => share());
@@ -36,7 +36,7 @@ export function buildShell(active: Mode): Shell {
         el('img', { src: './favicon.svg', alt: '', width: 26, height: 26 }),
         el('span', { text: 'Soliton' }),
       ]),
-      el('nav', { class: 'modes' }, [tab('mechanics', 'Mechanics', 'atom'), tab('waves', 'Waves', 'wave')]),
+      el('nav', { class: 'modes' }, [tab('mechanics', 'Mechanics', 'atom'), tab('waves', 'Waves', 'wave'), tab('optics', 'Optics', 'lens')]),
     ]),
     titleButton,
     el('div', { class: 'topbar-right' }, [

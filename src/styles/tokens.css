@@ -47,6 +47,11 @@
   --pole-north: #b91c1c;
   --pole-south: #1d4ed8;
   --pole-ink: #ffffff;
+  /* The optical bench: rays the red of a laboratory laser, glass a pale blue, mirrors dark. */
+  --ray: #c81e1e;
+  --glass-fill: rgba(14, 116, 144, 0.13);
+  --glass-edge: #0e7490;
+  --mirror: #1f2937;
 
   --series-1: #2a78d6;
   --series-2: #c2410c;
@@ -109,6 +114,10 @@
   --pole-north: #dc2626;
   --pole-south: #2563eb;
   --pole-ink: #ffffff;
+  --ray: #fb7185;
+  --glass-fill: rgba(103, 232, 249, 0.14);
+  --glass-edge: #67e8f9;
+  --mirror: #e5e7eb;
 
   --series-1: #5b9dee;
   --series-2: #f08a4b;
