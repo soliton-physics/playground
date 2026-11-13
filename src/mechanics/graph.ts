@@ -1,4 +1,4 @@
-import { cssVar } from '../ui';
+import { cssVar, paint, stageFont, stageScale } from '../ui';
 
 export interface GraphSeries {
   label: string;
@@ -24,7 +24,8 @@ export class Graph {
     const theme = { grid: cssVar('--border'), text: cssVar('--muted'), axis: cssVar('--border-strong') };
     if (this.width === 0) this.resize();
     ctx.clearRect(0, 0, this.width, this.height);
-    const margin = { left: 40, right: 8, top: 34, bottom: 20 };
+    const k = stageScale();
+    const margin = { left: 44 * k, right: 8, top: 36 * k, bottom: 22 * k };
     const w = this.width - margin.left - margin.right;
     const h = this.height - margin.top - margin.bottom;
     const n = time.length;
@@ -53,7 +54,7 @@ export class Graph {
 
     ctx.strokeStyle = theme.grid;
     ctx.fillStyle = theme.text;
-    ctx.font = '11px system-ui, sans-serif';
+    ctx.font = stageFont(11.5);
     ctx.textAlign = 'right';
     for (const tick of ticks(min, max, 4)) {
       const y = toY(tick);
@@ -62,7 +63,7 @@ export class Graph {
       ctx.lineTo(this.width - margin.right, y);
       ctx.strokeStyle = Math.abs(tick) < 1e-12 ? theme.axis : theme.grid;
       ctx.stroke();
-      ctx.fillText(format(tick), margin.left - 4, y + 4);
+      ctx.fillText(format(tick), margin.left - 5, y + 4 * k);
     }
     ctx.textAlign = 'center';
     for (const tick of ticks(t0, t1, 5)) ctx.fillText(`${tick.toFixed(1)}`, toX(tick), this.height - 5);
@@ -74,25 +75,28 @@ export class Graph {
         const y = toY(s.values[i]!);
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = s.color;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = paint(s.color);
+      ctx.lineWidth = 2 * k;
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(toX(time[n - 1]!), toY(s.values[n - 1]!), 2.5, 0, 2 * Math.PI);
-      ctx.fillStyle = s.color;
+      ctx.arc(toX(time[n - 1]!), toY(s.values[n - 1]!), 3 * k, 0, 2 * Math.PI);
+      ctx.fillStyle = paint(s.color);
       ctx.fill();
     }
 
     ctx.textAlign = 'left';
     ctx.fillStyle = theme.text;
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(`${this.title}${this.unit ? ` (${this.unit})` : ''}`, margin.left, 14);
+    ctx.font = stageFont(12.5, 600);
+    ctx.fillText(`${this.title}${this.unit ? ` (${this.unit})` : ''}`, margin.left, 14 * k);
     let legendX = this.width - margin.right;
     ctx.textAlign = 'right';
     for (const s of [...series].reverse()) {
-      ctx.fillStyle = s.color;
-      ctx.fillText(s.label, legendX, 28);
-      legendX -= ctx.measureText(s.label).width + 12;
+      ctx.fillStyle = cssVar('--text');
+      ctx.fillText(s.label, legendX, 30 * k);
+      legendX -= ctx.measureText(s.label).width + 5 * k;
+      ctx.fillStyle = paint(s.color);
+      ctx.fillRect(legendX - 12 * k, 30 * k - 6 * k, 12 * k, 3 * k);
+      legendX -= 24 * k;
     }
   }
 

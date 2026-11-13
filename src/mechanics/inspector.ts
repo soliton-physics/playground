@@ -1,5 +1,5 @@
 import { iconButton } from '../controls';
-import { el, formatNumber, formatQuantity, formatTime } from '../ui';
+import { cssColor, el, formatNumber, formatQuantity, formatTime } from '../ui';
 import { Graph, type GraphSeries } from './graph';
 import type { Session } from './session';
 import { forceColor } from './stage/renderer';
@@ -23,7 +23,7 @@ const PLOTS: [Plot, string, string][] = [
   ['forces', 'Forces', 'N'],
 ];
 
-const ENERGY_COLORS = { kinetic: '#38bdf8', potential: '#f59e0b', dissipated: '#f43f5e', total: '#94a3b8' };
+const ENERGY_COLORS = { kinetic: '--series-1', potential: '--series-2', dissipated: '--series-3' };
 
 /** The one place for detail: the selected body, then forces, energy, graphs or events on demand. */
 export class Inspector {
@@ -107,7 +107,7 @@ export class Inspector {
       // An impact delivers an impulse, not a force: shown in N·s so a landing does not read as a 14 kN push.
       ...forces.map((f) => {
         const scale = f.impulsive ? dt : 1;
-        const name = el('span', {}, [el('span', { class: 'swatch', style: `background:${forceColor(f.label)}` }), f.impulsive ? `${f.label} impulse` : f.label]);
+        const name = el('span', {}, [el('span', { class: 'swatch', style: `background:${cssColor(forceColor(f.label))}` }), f.impulsive ? `${f.label} impulse` : f.label]);
         return row(name, formatQuantity(Math.hypot(f.force[0], f.force[1]) * scale, f.impulsive ? 'N·s' : 'N'), pair(f.force[0] * scale, f.force[1] * scale));
       }),
       row('net force', formatQuantity(Math.hypot(net[0], net[1]), 'N'), pair(net[0], net[1]), true),
@@ -140,7 +140,7 @@ export class Inspector {
     ] as const;
     const total = Math.max(1e-9, parts.reduce((sum, [, v]) => sum + Math.max(0, v), 0));
     const bar = el('div', { class: 'energy-bar' }, parts.map(([name, value, color]) =>
-      el('div', { class: 'energy-segment', title: name, style: `width:${(Math.max(0, value) / total) * 100}%;background:${color}` }),
+      el('div', { class: 'energy-segment', title: name, style: `width:${(Math.max(0, value) / total) * 100}%;background:${cssColor(color)}` }),
     ));
     const rows: [string, number, string?][] = [
       ['kinetic', e.kinetic, ENERGY_COLORS.kinetic],
@@ -150,7 +150,7 @@ export class Inspector {
     ];
     const table = el('table', { class: 'table' }, [
       ...rows.map(([name, value, color]) =>
-        el('tr', {}, [el('td', {}, [color ? el('span', { class: 'swatch', style: `background:${color}` }) : '', name]), el('td', { class: 'num', text: formatQuantity(value, 'J') })]),
+        el('tr', {}, [el('td', {}, [color ? el('span', { class: 'swatch', style: `background:${cssColor(color)}` }) : '', name]), el('td', { class: 'num', text: formatQuantity(value, 'J') })]),
       ),
       el('tr', { class: 'total' }, [el('td', { text: 'conserved total' }), el('td', { class: 'num', text: formatQuantity(e.conserved - this.potentialFloor, 'J') })]),
     ]);
@@ -184,11 +184,11 @@ export class Inspector {
     const pick = (flat: Float64Array, offset: number) => flat.filter((_, k) => k % 2 === offset);
     let series: GraphSeries[];
     if (this.plot === 'position') {
-      series = [{ label: 'x', color: '#38bdf8', values: world.series(b, 'x') }, { label: 'y', color: '#a78bfa', values: world.series(b, 'y') }];
+      series = [{ label: 'x', color: '--series-1', values: world.series(b, 'x') }, { label: 'y', color: '--series-2', values: world.series(b, 'y') }];
     } else if (this.plot === 'velocity') {
-      series = [{ label: 'vx', color: '#38bdf8', values: world.series(b, 'vx') }, { label: 'vy', color: '#a78bfa', values: world.series(b, 'vy') }];
+      series = [{ label: 'vx', color: '--series-1', values: world.series(b, 'vx') }, { label: 'vy', color: '--series-2', values: world.series(b, 'vy') }];
     } else if (this.plot === 'acceleration') {
-      series = [{ label: 'ax', color: '#38bdf8', values: world.series(b, 'ax') }, { label: 'ay', color: '#a78bfa', values: world.series(b, 'ay') }];
+      series = [{ label: 'ax', color: '--series-1', values: world.series(b, 'ax') }, { label: 'ay', color: '--series-2', values: world.series(b, 'ay') }];
     } else if (this.plot === 'energy') {
       const floor = Number.isFinite(this.potentialFloor) ? this.potentialFloor : 0;
       series = [
@@ -205,7 +205,7 @@ export class Inspector {
           return { label, color: forceColor(label), values: x.map((v, k) => Math.hypot(v, y[k]!)) };
         })
         .filter((s) => s.values.some((v) => v > 1e-9));
-      if (series.length === 0) series = [{ label: 'no contact or constraint forces yet', color: '#94a3b8', values: new Float64Array(world.series_time().length) }];
+      if (series.length === 0) series = [{ label: 'no contact or constraint forces yet', color: '--force-other', values: new Float64Array(world.series_time().length) }];
     }
     this.graph?.draw(world.series_time(), series, session.horizon);
   }

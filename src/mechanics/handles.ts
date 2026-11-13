@@ -1,4 +1,4 @@
-import { VELOCITY_COLOR, forceColor, scales } from './stage/renderer';
+import { KNOB_COLOR, forceColor, scales } from './stage/renderer';
 import type { Vec } from './types';
 
 type Values = Record<string, number>;
@@ -16,13 +16,13 @@ export interface Handle {
 
 const deg = (radians: number) => (radians * 180) / Math.PI;
 const rad = (degrees: number) => (degrees * Math.PI) / 180;
-const BODY = '#38d6f5';
+const BODY = KNOB_COLOR;
 
 /** A launch velocity drawn from `origin`: the knob sits at the arrow's tip. */
 function launch(origin: (p: Values) => Vec): Handle {
   return {
     label: (p) => `${p.speed} m/s at ${p.angle}°`,
-    color: VELOCITY_COLOR,
+    color: KNOB_COLOR,
     tail: origin,
     position: (p) => {
       const [x, y] = origin(p);
@@ -64,7 +64,7 @@ function altitude(param: string): Handle {
 function speedAlong(param: string, tail: Vec, sign: 1 | -1): Handle {
   return {
     label: (p) => `${p[param]} m/s`,
-    color: VELOCITY_COLOR,
+    color: KNOB_COLOR,
     tail: () => tail,
     position: (p) => [tail[0] + sign * p[param]! * scales.velocity, tail[1]],
     drag: (at) => ({ [param]: (sign * (at[0] - tail[0])) / scales.velocity }),
@@ -81,7 +81,7 @@ export const HANDLES: Record<string, Handle[]> = {
   'projectile-on-incline': [
     {
       label: (p) => `${p.speed} m/s, ${p.elevation}° above the slope`,
-      color: VELOCITY_COLOR,
+      color: KNOB_COLOR,
       tail: (p) => [-0.252 * Math.sin(rad(p.slope!)), 0.252 * Math.cos(rad(p.slope!))],
       position: (p) => {
         const angle = rad(p.slope! + Math.min(p.elevation!, 85 - p.slope!));
@@ -96,7 +96,7 @@ export const HANDLES: Record<string, Handle[]> = {
   'circular-motion': [
     {
       label: (p) => `${p.speed} m/s`,
-      color: VELOCITY_COLOR,
+      color: KNOB_COLOR,
       tail: (p) => [p.radius!, 0],
       position: (p) => [p.radius!, p.speed! * scales.velocity],
       drag: (at) => ({ speed: at[1] / scales.velocity }),
@@ -123,7 +123,7 @@ export const HANDLES: Record<string, Handle[]> = {
   'elliptical-orbit': [
     {
       label: (p) => `${p.boost} × circular speed`,
-      color: VELOCITY_COLOR,
+      color: KNOB_COLOR,
       tail: (p) => [EARTH_RADIUS + p.perigee! * KM, 0],
       position: (p) => {
         const r = EARTH_RADIUS + p.perigee! * KM;
@@ -136,7 +136,7 @@ export const HANDLES: Record<string, Handle[]> = {
   'escape-velocity': [
     {
       label: (p) => `${p.speed} km/s`,
-      color: VELOCITY_COLOR,
+      color: KNOB_COLOR,
       tail: () => [0, EARTH_RADIUS],
       position: (p) => [0, EARTH_RADIUS + p.speed! * KM * scales.velocity],
       drag: (at) => ({ speed: (at[1] - EARTH_RADIUS) / scales.velocity / KM }),
@@ -151,7 +151,7 @@ export const HANDLES: Record<string, Handle[]> = {
   'thrown-upward': [
     {
       label: (p) => `${p.speed} m/s`,
-      color: VELOCITY_COLOR,
+      color: KNOB_COLOR,
       tail: () => [0, 0.3],
       position: (p) => [0, 0.3 + p.speed! * scales.velocity],
       drag: (at) => ({ speed: (at[1] - 0.3) / scales.velocity }),
@@ -177,15 +177,15 @@ export const HANDLES: Record<string, Handle[]> = {
   'vertical-circle': [
     {
       label: (p) => `${p.speed} m/s`,
-      color: VELOCITY_COLOR,
+      color: KNOB_COLOR,
       tail: (p) => [0, -p.length!],
       position: (p) => [p.speed! * scales.velocity, -p.length!],
       drag: (at) => ({ speed: at[0] / scales.velocity }),
     },
   ],
   'collision-1d': [
-    { label: (p) => `${p.u1} m/s`, color: VELOCITY_COLOR, tail: () => [-3, 0.3], position: (p) => [-3 + p.u1! * scales.velocity, 0.3], drag: (at) => ({ u1: (at[0] + 3) / scales.velocity }) },
-    { label: (p) => `${p.u2} m/s`, color: VELOCITY_COLOR, tail: () => [0, 0.3], position: (p) => [p.u2! * scales.velocity, 0.3], drag: (at) => ({ u2: at[0] / scales.velocity }) },
+    { label: (p) => `${p.u1} m/s`, color: KNOB_COLOR, tail: () => [-3, 0.3], position: (p) => [-3 + p.u1! * scales.velocity, 0.3], drag: (at) => ({ u1: (at[0] + 3) / scales.velocity }) },
+    { label: (p) => `${p.u2} m/s`, color: KNOB_COLOR, tail: () => [0, 0.3], position: (p) => [p.u2! * scales.velocity, 0.3], drag: (at) => ({ u2: at[0] / scales.velocity }) },
   ],
   seesaw: [
     { label: (p) => `${p.d1} m`, color: BODY, position: (p) => [-p.d1!, 1.2 + 0.03 * p.m1!], drag: (at) => ({ d1: -at[0] }) },

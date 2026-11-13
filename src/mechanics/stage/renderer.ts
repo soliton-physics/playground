@@ -1,4 +1,4 @@
-import { cssVar, currentTheme, formatLength, formatNumber } from '../../ui';
+import { clamp, cssVar, formatLength, formatNumber, paint, stageFont, stageScale } from '../../ui';
 import { STATE_STRIDE, type BodyInfo, type ForceInfo, type GrabInfo, type SketchInfo } from '../types';
 import { Camera, type Box } from './camera';
 
@@ -22,25 +22,39 @@ export interface Frame {
   overlay?: (painter: Painter) => void;
 }
 
-const FORCE_COLORS: Record<string, string> = {
-  gravity: '#f59e0b',
-  normal: '#22c55e',
-  friction: '#f43f5e',
-  tension: '#a78bfa',
-  applied: '#3b82f6',
-  spring: '#ec4899',
-  reaction: '#94a3b8',
-  drag: '#94a3b8',
-  driving: '#3b82f6',
-  torque: '#94a3b8',
+const FORCE_TOKENS: Record<string, string> = {
+  gravity: '--force-gravity',
+  normal: '--force-normal',
+  friction: '--force-friction',
+  tension: '--force-tension',
+  applied: '--force-applied',
+  driving: '--force-applied',
+  spring: '--force-spring',
 };
 
+/** The theme token for a force's colour: the same one wherever that force is drawn or listed. */
 export function forceColor(label: string): string {
-  return FORCE_COLORS[label] ?? '#94a3b8';
+  return FORCE_TOKENS[label] ?? '--force-other';
 }
 
-export const VELOCITY_COLOR = '#38bdf8';
-export const ACCELERATION_COLOR = '#fb923c';
+/** Velocity and acceleration are drawn in ink and told apart by their heads, which leaves colour to the forces. */
+export const MOTION_COLOR = '--motion';
+/** Anything on the stage that can be dragged. */
+export const KNOB_COLOR = '--accent';
+
+/** A force has a solid head, a velocity an open one, an acceleration two. */
+export type ArrowStyle = 'force' | 'velocity' | 'acceleration';
+
+/**
+ * The length an arrow is drawn at, in pixels, for one that would be `length` to scale. Below `least` it is held
+ * there so a small force beside a large one can still be seen and told apart; its label carries the real size.
+ * It shrinks to nothing over the last few pixels so an arrow does not pop in as a body starts to move.
+ */
+function legible(length: number, least: number): number {
+  const fade = 3;
+  return length >= least ? length : least * Math.min(1, length / fade);
+}
+
 /**
  * Metres of arrow per m/s and per m/s². Shared with the knobs that set a launch velocity. The defaults suit a
  * scene a few metres across; `fitArrows` changes them for one that is not.
@@ -73,7 +87,7 @@ export interface Painter {
   ctx: CanvasRenderingContext2D;
   camera: Camera;
   knob(x: number, y: number, color: string, active?: boolean): void;
-  arrow(x: number, y: number, vx: number, vy: number, scale: number, color: string, label: string): void;
+  arrow(x: number, y: number, vx: number, vy: number, scale: number, color: string, label: string, style?: ArrowStyle): void;
   dashed(points: [number, number][], color: string): void;
   label(text: string, x: number, y: number, color: string): void;
 }
@@ -140,7 +154,7 @@ export class Renderer implements Painter {
       const point: [number, number] = [state[i]!, state[i + 1]!];
       if (!last || Math.hypot(last[0] - point[0], last[1] - point[1]) > 2 / this.camera.scale) this.trail.push(point);
       if (this.trail.length > 2400) this.trail.shift();
-      this.dashed(this.trail, cssVar('--canvas-body'));
+      this.dashed(this.trail, KNOB_COLOR);
     }
 
     bodies.forEach((body, i) => body.kind !== 'static' && this.drawBody(body, state, i, i === frame.focus, frame.selected?.includes(i)));
@@ -149,8 +163,8 @@ export class Renderer implements Painter {
       const i = frame.focus * STATE_STRIDE;
       const [x, y, vx, vy, ax, ay] = [state[i]!, state[i + 1]!, state[i + 3]!, state[i + 4]!, state[i + 6]!, state[i + 7]!];
       if (frame.showForces) this.drawForces(frame.forces);
-      if (frame.showAcceleration) this.arrow(x, y, ax, ay, scales.acceleration, ACCELERATION_COLOR, `a ${formatNumber(Math.hypot(ax, ay))} m/s²`);
-      if (frame.showVelocity) this.arrow(x, y, vx, vy, scales.velocity, VELOCITY_COLOR, `v ${formatNumber(Math.hypot(vx, vy))} m/s`);
+      if (frame.showAcceleration) this.arrow(x, y, ax, ay, scales.acceleration, MOTION_COLOR, `a ${formatNumber(Math.hypot(ax, ay))} m/s²`, 'acceleration');
+      if (frame.showVelocity) this.arrow(x, y, vx, vy, scales.velocity, MOTION_COLOR, `v ${formatNumber(Math.hypot(vx, vy))} m/s`, 'velocity');
     }
 
     if (frame.grab) {
@@ -166,18 +180,19 @@ export class Renderer implements Painter {
 
   knob(x: number, y: number, color: string, active = false): void {
     const { ctx } = this;
+    const k = stageScale();
     const [sx, sy] = this.camera.toScreen(x, y);
     ctx.beginPath();
-    ctx.arc(sx, sy, active ? 8 : 6.5, 0, Math.PI * 2);
+    ctx.arc(sx, sy, (active ? 8 : 6.5) * k, 0, Math.PI * 2);
     ctx.fillStyle = cssVar('--canvas-bg');
     ctx.fill();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5 * k;
+    ctx.strokeStyle = paint(color);
     ctx.stroke();
     if (active) {
       ctx.beginPath();
-      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
-      ctx.fillStyle = color;
+      ctx.arc(sx, sy, 3 * k, 0, Math.PI * 2);
+      ctx.fillStyle = paint(color);
       ctx.fill();
     }
   }
@@ -187,40 +202,75 @@ export class Renderer implements Painter {
     const { ctx } = this;
     ctx.save();
     this.path(points);
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.6;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = paint(color);
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 1.5 * stageScale();
     ctx.setLineDash([5, 5]);
     ctx.stroke();
     ctx.restore();
   }
 
   /** Arrow from a world point along a world vector scaled by `scale` metres per unit. */
-  arrow(x: number, y: number, vx: number, vy: number, scale: number, color: string, label: string): void {
-    const magnitude = Math.hypot(vx, vy);
-    if (magnitude < 1e-9) return;
+  arrow(x: number, y: number, vx: number, vy: number, scale: number, color: string, label: string, style: ArrowStyle = 'force'): void {
+    if (Math.hypot(vx, vy) < 1e-9) return;
     const { ctx } = this;
-    const [sx, sy] = this.camera.toScreen(x, y);
-    const [ex, ey] = this.camera.toScreen(x + vx * scale, y + vy * scale);
-    const length = Math.hypot(ex - sx, ey - sy);
-    if (length < 3) return;
-    const ux = (ex - sx) / length;
-    const uy = (ey - sy) / length;
-    const head = Math.min(10, length * 0.6);
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 2.5;
+    const k = stageScale();
+    let [sx, sy] = this.camera.toScreen(x, y);
+    const [tx, ty] = this.camera.toScreen(x + vx * scale, y + vy * scale);
+    const trueLength = Math.hypot(tx - sx, ty - sy);
+    if (trueLength < 1e-6) return;
+    const length = legible(trueLength, 30 * k);
+    if (length < 4) return;
+    const ux = (tx - sx) / trueLength;
+    const uy = (ty - sy) / trueLength;
+    // Velocity and acceleration often point the same way as each other and as the net force: each is drawn
+    // a little to its own side of the body's centre so the three never lie on top of one another.
+    const aside = style === 'velocity' ? -9 * k : style === 'acceleration' ? 9 * k : 0;
+    sx += -uy * aside;
+    sy += ux * aside;
+    const [ex, ey] = [sx + ux * length, sy + uy * length];
+    const head = Math.min(13 * k, length * 0.5);
+    const width = (style === 'force' ? 3 : 2.25) * k;
+    const chevron = (back: number) => {
+      const [cx, cy] = [ex - ux * back, ey - uy * back];
+      ctx.moveTo(cx - ux * head - uy * head * 0.5, cy - uy * head + ux * head * 0.5);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx - ux * head + uy * head * 0.5, cy - uy * head - ux * head * 0.5);
+    };
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      if (style === 'force') {
+        ctx.lineTo(ex - ux * head * 0.8, ey - uy * head * 0.8);
+      } else {
+        ctx.lineTo(ex, ey);
+        chevron(0);
+        if (style === 'acceleration') chevron(head * 0.7);
+      }
+    };
     ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(ex - ux * head * 0.8, ey - uy * head * 0.8);
+    ctx.lineJoin = 'round';
+    // A rim in the background colour keeps an arrow readable where it crosses a body or another arrow.
+    ctx.strokeStyle = cssVar('--canvas-bg');
+    ctx.lineWidth = width + 3 * k;
+    trace();
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(ex, ey);
-    ctx.lineTo(ex - ux * head - uy * head * 0.5, ey - uy * head + ux * head * 0.5);
-    ctx.lineTo(ex - ux * head + uy * head * 0.5, ey - uy * head - ux * head * 0.5);
-    ctx.closePath();
-    ctx.fill();
+    ctx.strokeStyle = paint(color);
+    ctx.fillStyle = paint(color);
+    ctx.lineWidth = width;
+    trace();
+    ctx.stroke();
+    if (style === 'force') {
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - ux * head - uy * head * 0.5, ey - uy * head + ux * head * 0.5);
+      ctx.lineTo(ex - ux * head + uy * head * 0.5, ey - uy * head - ux * head * 0.5);
+      ctx.closePath();
+      ctx.strokeStyle = cssVar('--canvas-bg');
+      ctx.lineWidth = 1.5 * k;
+      ctx.stroke();
+      ctx.fill();
+    }
     if (label) this.placeLabel(label, ex, ey, ux, uy, color);
   }
 
@@ -229,20 +279,26 @@ export class Renderer implements Painter {
     this.placeLabel(text, sx, sy, 0, -1, color);
   }
 
-  /** Puts a label near a point, trying a few sides until it overlaps nothing already placed. */
+  /**
+   * Puts a label near a point, trying a few sides until it overlaps nothing already placed. The words are in
+   * ink on a plate, with a bar of the arrow's colour: coloured text is too faint to read from the back of a room.
+   */
   private placeLabel(text: string, x: number, y: number, ux: number, uy: number, color: string): void {
     const { ctx } = this;
-    ctx.font = '600 12px Inter, ui-sans-serif, system-ui, sans-serif';
-    const w = ctx.measureText(text).width + 10;
-    const h = 18;
-    const gap = 8;
+    const k = stageScale();
+    ctx.font = stageFont(12.5, 600);
+    const bar = 4 * k;
+    const w = ctx.measureText(text).width + bar + 13 * k;
+    const h = 21 * k;
+    const gap = 8 * k;
+    const side = 15 * k;
     const candidates: [number, number][] = [
       [x + ux * gap + (ux >= 0 ? 0 : -w), y + uy * gap - h / 2],
-      [x - uy * 14 - w / 2, y + ux * 14 - h / 2],
-      [x + uy * 14 - w / 2, y - ux * 14 - h / 2],
-      [x + ux * (gap + 16) + (ux >= 0 ? 0 : -w), y + uy * (gap + 16) - h / 2],
-      [x - w / 2, y - h - gap - 14],
-      [x - w / 2, y + gap + 14],
+      [x - uy * side - w / 2, y + ux * side - h / 2],
+      [x + uy * side - w / 2, y - ux * side - h / 2],
+      [x + ux * (gap + 16 * k) + (ux >= 0 ? 0 : -w), y + uy * (gap + 16 * k) - h / 2],
+      [x - w / 2, y - h - gap - side],
+      [x - w / 2, y + gap + side],
     ];
     const fits = (r: Rect) =>
       r.x >= 2 && r.y >= 2 && r.x + r.w <= this.width - 2 && r.y + r.h <= this.height - 2 && !this.labels.some((o) => r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h);
@@ -254,18 +310,23 @@ export class Renderer implements Painter {
         break;
       }
     }
-    rect ??= { x: candidates[0]![0], y: candidates[0]![1], w, h };
+    // Nowhere free: overlap something rather than run off the edge of the stage.
+    rect ??= { x: clamp(candidates[0]![0], 2, this.width - w - 2), y: clamp(candidates[0]![1], 2, this.height - h - 2), w, h };
     this.labels.push(rect);
-    ctx.globalAlpha = 0.82;
-    ctx.fillStyle = cssVar('--canvas-bg');
+    ctx.globalAlpha = 0.94;
+    ctx.fillStyle = cssVar('--surface');
     ctx.beginPath();
-    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 5);
+    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 5 * k);
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = color;
+    ctx.fillStyle = paint(color);
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, bar, rect.h, [5 * k, 0, 0, 5 * k]);
+    ctx.fill();
+    ctx.fillStyle = cssVar('--text');
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, rect.x + 5, rect.y + h / 2 + 0.5);
+    ctx.fillText(text, rect.x + bar + 6 * k, rect.y + h / 2 + 0.5);
     ctx.textBaseline = 'alphabetic';
   }
 
@@ -313,7 +374,7 @@ export class Renderer implements Painter {
     const { left, right, top, bottom } = this.camera.bounds;
     const step = this.gridStep() * 5;
     const { insets } = this.camera;
-    ctx.font = '11px Inter, ui-sans-serif, system-ui, sans-serif';
+    ctx.font = stageFont(11.5);
     ctx.fillStyle = cssVar('--canvas-text');
     ctx.textAlign = 'center';
     for (let x = Math.ceil(left / step) * step; x <= right; x += step) {
@@ -333,7 +394,7 @@ export class Renderer implements Painter {
     const [x, y, angle] = [state[i]!, state[i + 1]!, state[i + 2]!];
     const isStatic = body.kind === 'static';
     const edge = isStatic ? cssVar('--canvas-static-edge') : cssVar('--canvas-body');
-    ctx.lineWidth = focused ? 2.5 : 1.75;
+    ctx.lineWidth = (focused ? 3 : 1.75) * stageScale();
     ctx.strokeStyle = edge;
     ctx.fillStyle = isStatic ? cssVar('--canvas-static') : cssVar('--canvas-body-fill');
     const shape = body.shape;
@@ -374,11 +435,6 @@ export class Renderer implements Painter {
       return;
     }
 
-    const glow = !isStatic && currentTheme() === 'dark';
-    if (glow) {
-      ctx.shadowColor = edge;
-      ctx.shadowBlur = focused ? 16 : 9;
-    }
     let ringRadius = 0;
     const [sx, sy] = this.camera.toScreen(x, y);
     if (shape.kind === 'circle') {
@@ -388,7 +444,6 @@ export class Renderer implements Painter {
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      ctx.shadowBlur = 0;
       if (body.kind === 'rigid' && r > 7) {
         ctx.beginPath();
         ctx.moveTo(sx, sy);
@@ -404,7 +459,6 @@ export class Renderer implements Painter {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      ctx.shadowBlur = 0;
     }
     if (selected) {
       // A ring round a ball; for a box or a platform, a dashed outline just outside its own edges.
@@ -433,7 +487,7 @@ export class Renderer implements Painter {
   private drawSketch(sketch: SketchInfo): void {
     const { ctx } = this;
     ctx.strokeStyle = cssVar('--canvas-rope');
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * stageScale();
     ctx.lineJoin = 'round';
     switch (sketch.kind) {
       case 'line':
@@ -465,7 +519,7 @@ export class Renderer implements Painter {
         const coils = 11;
         const lead = Math.min(10, length * 0.12);
         const amplitude = Math.min(9, Math.max(4, this.camera.scale * 0.09));
-        ctx.strokeStyle = forceColor('spring');
+        ctx.strokeStyle = paint(forceColor('spring'));
         ctx.beginPath();
         ctx.moveTo(ax, ay);
         ctx.lineTo(ax + ux * lead, ay + uy * lead);

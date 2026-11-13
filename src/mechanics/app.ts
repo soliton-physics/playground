@@ -2,7 +2,7 @@ import { closePopover, popover, slider, toast } from '../controls';
 import { mechanics_catalogue } from '../engine';
 import { icon, type IconName } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, el, formatNumber, formatSize, formatTime } from '../ui';
+import { clamp, el, formatNumber, formatSize, formatTime, layoutPx } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
 import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox } from './editor';
@@ -83,7 +83,9 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     fit: () => fit(),
     speed: (value) => (session.speed = value),
   });
-  main.append(info, hint, banner, scaleChip, answers.root, editor.rail, properties, inspector.root, dock.root);
+  // One column, so a long note about the scale pushes the answers up instead of covering them.
+  const notes = el('div', { class: 'stage-notes overlay' }, [answers.root, scaleChip]);
+  main.append(info, hint, banner, notes, editor.rail, properties, inspector.root, dock.root);
 
   // ---------------------------------------------------------------- loading worlds
 
@@ -91,14 +93,14 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     const wide = main.clientWidth >= 1180;
     const phone = main.clientWidth <= 700;
     renderer.camera.insets = embedded
-      ? { left: 8, right: 8, top: 8, bottom: 52 }
+      ? { left: 8, right: 8, top: 8, bottom: layoutPx(52) }
       : {
-          left: sandbox ? 64 : wide ? 344 : 16,
+          left: sandbox ? layoutPx(64) : wide ? layoutPx(344) : 16,
           right: inspector.collapsed || phone ? 16 : inspector.root.offsetWidth + 24,
           top: wide || sandbox ? 16 : info.offsetHeight + 24,
-          bottom: 84,
+          bottom: layoutPx(84),
         };
-    renderer.axis = { left: sandbox && !phone ? 70 : 8, clearTop: embedded ? 0 : info.offsetTop + info.offsetHeight };
+    renderer.axis = { left: sandbox && !phone ? layoutPx(70) : 8, clearTop: embedded ? 0 : info.offsetTop + info.offsetHeight };
   }
 
   /** The scene's suggested view, widened if the things in it reach further sideways than its height implies. */
@@ -728,12 +730,14 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   });
 
   // Until the user has moved the camera or the run has started, a resize reframes the scene.
-  new ResizeObserver(() =>
+  const reframe = () =>
     requestAnimationFrame(() => {
       insets();
       if (session.steps === 0 && renderer.camera.following) renderer.camera.fit(framing());
-    }),
-  ).observe(main);
+    });
+  new ResizeObserver(reframe).observe(main);
+  // Projector mode changes the size of every panel the stage has to stay clear of.
+  window.addEventListener('themechange', reframe);
 
   // ---------------------------------------------------------------- the frame loop
 
@@ -749,7 +753,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     if (sandbox && !session.running) editor.overlay(painter, pointer);
     if (drag?.kind === 'marquee') {
       const [a, b] = [drag.from, drag.to];
-      painter.dashed([a, [b[0], a[1]], b, [a[0], b[1]], a], '#94a3b8');
+      painter.dashed([a, [b[0], a[1]], b, [a[0], b[1]], a], '--force-other');
     }
   }
 

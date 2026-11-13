@@ -1,7 +1,7 @@
 import { iconButton, slider } from '../controls';
 import type { IconName } from '../icons';
 import { el, formatNumber } from '../ui';
-import { VELOCITY_COLOR, scales, type Painter } from './stage/renderer';
+import { KNOB_COLOR, scales, type Painter } from './stage/renderer';
 import type { AnchorSpec, BodySpec, ConstraintSpec, ForceSpec, RopeNodeSpec, SceneFile, Vec } from './types';
 
 export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
@@ -732,8 +732,8 @@ export class Editor {
   }
 
   overlay(painter: Painter, pointer: Vec | undefined): void {
-    if (this.pending && pointer) painter.dashed([this.pending.at, pointer], '#94a3b8');
-    const guide = '#38d6f5';
+    if (this.pending && pointer) painter.dashed([this.pending.at, pointer], '--force-other');
+    const guide = KNOB_COLOR;
     const chosen = this.pickedLink?.kind === 'constraint' ? this.scene.constraints?.[this.pickedLink.index] : this.pickedLink ? this.scene.forces?.[this.pickedLink.index] : undefined;
     if (chosen && !('gravitation' in chosen)) {
       const { points } = this.linkPath(chosen as ConstraintSpec);
@@ -765,17 +765,17 @@ export class Editor {
     for (const constraint of this.scene.constraints ?? []) {
       if (!('slot' in constraint)) continue;
       const [a, b] = this.track(constraint.slot);
-      painter.dashed([a!, b!], '#94a3b8');
-      painter.label('track', a![0], a![1], '#94a3b8');
+      painter.dashed([a!, b!], '--force-other');
+      painter.label('track', a![0], a![1], '--force-other');
     }
     const tip = this.velocityTip();
     const spec = this.selected === undefined ? undefined : this.scene.bodies[this.selected];
     if (tip && spec && this.tool === 'select') {
       const [vx, vy] = spec.velocity ?? [0, 0];
       const speed = Math.hypot(vx, vy);
-      if (speed < 1e-9) painter.dashed([spec.position ?? [0, 0], tip], VELOCITY_COLOR);
-      painter.knob(tip[0], tip[1], VELOCITY_COLOR);
-      painter.label(speed < 1e-9 ? 'drag to launch' : `${formatNumber(speed)} m/s`, tip[0], tip[1] + 0.25 * this.unit, VELOCITY_COLOR);
+      if (speed < 1e-9) painter.dashed([spec.position ?? [0, 0], tip], KNOB_COLOR);
+      painter.knob(tip[0], tip[1], KNOB_COLOR);
+      painter.label(speed < 1e-9 ? 'drag to launch' : `${formatNumber(speed)} m/s`, tip[0], tip[1] + 0.25 * this.unit, KNOB_COLOR);
     }
   }
 
