@@ -4,16 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="A physics playground: grab things, throw them, build your own worlds. Computed live by the Soliton Physics engine in WebAssembly." />
-    <meta name="theme-color" content="#0f1424" />
+    <meta name="theme-color" content="#e4e6ea" />
     <title>Soliton Playground</title>
     <link rel="icon" href="./favicon.svg" />
     <script>
       try {
         const asked = new URLSearchParams(location.search).get('theme');
         const saved = localStorage.getItem('soliton-theme');
-        document.documentElement.dataset.theme = asked === 'light' || asked === 'dark' ? asked : (saved ?? 'dark');
+        document.documentElement.dataset.theme = asked === 'light' || asked === 'dark' ? asked : (saved ?? 'light');
       } catch {
-        document.documentElement.dataset.theme = 'dark';
+        document.documentElement.dataset.theme = 'light';
       }
     </script>
   </head>

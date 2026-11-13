@@ -47,20 +47,47 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function currentTheme(): 'light' | 'dark' {
-  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+export type Theme = 'light' | 'dark';
+
+export function currentTheme(): Theme {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+
+function applyTheme(theme: Theme): void {
+  document.documentElement.dataset.theme = theme;
+  themeCache.clear();
+  window.dispatchEvent(new Event('themechange'));
 }
 
 export function toggleTheme(): void {
   const next = currentTheme() === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
   try {
     localStorage.setItem('soliton-theme', next);
   } catch {
     /* storage unavailable */
   }
-  themeCache.clear();
-  window.dispatchEvent(new Event('themechange'));
+  applyTheme(next);
+}
+
+export function presenting(): boolean {
+  return 'present' in document.documentElement.dataset;
+}
+
+/**
+ * Projector mode: everything larger and heavier, on the light theme, because a projector washes out a dark one.
+ * The theme the viewer had chosen comes back when they leave.
+ */
+export function setPresenting(on: boolean): void {
+  const root = document.documentElement;
+  if (on === presenting()) return;
+  if (on) {
+    root.dataset.present = currentTheme();
+    applyTheme('light');
+  } else {
+    const before = root.dataset.present === 'dark' ? 'dark' : 'light';
+    delete root.dataset.present;
+    applyTheme(before);
+  }
 }
 
 const themeCache = new Map<string, string>();
@@ -73,6 +100,36 @@ export function cssVar(name: string): string {
     themeCache.set(name, value);
   }
   return value;
+}
+
+/** A colour for a canvas: a token such as `--force-gravity` is looked up in the theme, anything else is used as it is. */
+export function paint(color: string): string {
+  return color.startsWith('--') ? cssVar(color) : color;
+}
+
+/** The same colour for an element's style. */
+export function cssColor(color: string): string {
+  return color.startsWith('--') ? `var(${color})` : color;
+}
+
+/** How much larger than usual a canvas draws its text and lines: more than 1 on a projector. */
+export function stageScale(): number {
+  return Number(cssVar('--stage-scale')) || 1;
+}
+
+/** A length from the layout, given in pixels at the usual text size, as it is now that the text may be larger. */
+export function layoutPx(px: number): number {
+  let size = Number(themeCache.get('font-size'));
+  if (!size) {
+    size = parseFloat(getComputedStyle(document.documentElement).fontSize) || 14;
+    themeCache.set('font-size', String(size));
+  }
+  return (px * size) / 14;
+}
+
+/** A canvas font of `size` pixels at the usual scale. */
+export function stageFont(size: number, weight = 400): string {
+  return `${weight} ${Math.round(size * stageScale() * 10) / 10}px Inter, ui-sans-serif, system-ui, sans-serif`;
 }
 
 /** A time on the clock: seconds for a pendulum, minutes or hours for an orbit. */

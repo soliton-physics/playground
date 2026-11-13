@@ -1,63 +1,120 @@
+/*
+ * Light is the default: a soft grey page, the way a classroom screen is usually set. Colours that carry meaning
+ * on the stage (one per force, one per wave part) are tokens, so each theme can step them for its own surface.
+ */
 :root {
-  --bg: #070a14;
-  --surface: #0f1424;
-  --surface-2: #161c30;
-  --glass: rgba(15, 20, 36, 0.78);
-  --border: rgba(148, 163, 184, 0.16);
-  --border-strong: rgba(148, 163, 184, 0.3);
-  --text: #e6eaf2;
-  --muted: #8d98ad;
-  --accent: #38d6f5;
-  --accent-ink: #04222b;
-  --accent-soft: rgba(56, 214, 245, 0.16);
-  --danger: #f87171;
-  --good: #4ade80;
-  --shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  --bg: #e4e6ea;
+  --surface: #ffffff;
+  --surface-2: #eef0f3;
+  --glass: rgba(255, 255, 255, 0.92);
+  --border: rgba(17, 24, 39, 0.14);
+  --border-strong: rgba(17, 24, 39, 0.28);
+  --text: #111827;
+  --muted: #4b5563;
+  --accent: #0b6e8a;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(11, 110, 138, 0.14);
+  --danger: #b91c1c;
+  --good: #166534;
+  --shadow: 0 8px 26px rgba(17, 24, 39, 0.16);
 
-  --canvas-bg: #080c18;
-  --canvas-grid: rgba(148, 163, 184, 0.07);
-  --canvas-grid-major: rgba(148, 163, 184, 0.14);
-  --canvas-axis: rgba(148, 163, 184, 0.42);
-  --canvas-text: #7c8799;
-  --canvas-static: #1b2338;
-  --canvas-static-edge: #55627c;
-  --canvas-rope: #c9d3e3;
-  --canvas-body: #38d6f5;
-  --canvas-body-fill: rgba(56, 214, 245, 0.2);
+  --canvas-bg: #f1f2f4;
+  --canvas-grid: rgba(17, 24, 39, 0.07);
+  --canvas-grid-major: rgba(17, 24, 39, 0.14);
+  --canvas-axis: rgba(17, 24, 39, 0.5);
+  --canvas-text: #4b5563;
+  --canvas-static: #d5d9df;
+  --canvas-static-edge: #6b7280;
+  --canvas-rope: #374151;
+  --canvas-body: #1f2937;
+  --canvas-body-fill: rgba(55, 65, 81, 0.22);
+
+  /* Chosen as a set: each pair stays apart for red-green and blue-yellow colour blindness, and each clears 3:1. */
+  --force-gravity: #854d0e;
+  --force-normal: #0e7490;
+  --force-friction: #7f1d1d;
+  --force-tension: #1e3a8a;
+  --force-applied: #ea580c;
+  --force-spring: #c026d3;
+  --force-other: #6b7280;
+  --motion: #111827;
+
+  --series-1: #2a78d6;
+  --series-2: #c2410c;
+  --series-3: #008300;
+  --series-4: #a16207;
+  --series-5: #be185d;
+  --probe-1: #c2410c;
+  --probe-2: #6d28d9;
+  --probe-ink: #ffffff;
 
   --radius: 14px;
   --radius-small: 9px;
-  --bar: 48px;
-  color-scheme: dark;
+  --bar: 3.4rem;
+  /* Multiplies every size drawn on a canvas: text, line widths, arrow heads. */
+  --stage-scale: 1;
+  color-scheme: light;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
+  font-size: 15px;
 }
 
-:root[data-theme='light'] {
-  --bg: #eef1f6;
-  --surface: #ffffff;
-  --surface-2: #f3f5f9;
-  --glass: rgba(255, 255, 255, 0.84);
-  --border: rgba(15, 23, 42, 0.1);
-  --border-strong: rgba(15, 23, 42, 0.2);
-  --text: #101827;
-  --muted: #5d6b82;
-  --accent: #0787a6;
-  --accent-ink: #ffffff;
-  --accent-soft: rgba(7, 135, 166, 0.13);
-  --danger: #dc2626;
-  --good: #15803d;
-  --shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+:root[data-theme='dark'] {
+  --bg: #121417;
+  --surface: #1b1e23;
+  --surface-2: #24282f;
+  --glass: rgba(27, 30, 35, 0.92);
+  --border: rgba(203, 213, 225, 0.18);
+  --border-strong: rgba(203, 213, 225, 0.34);
+  --text: #f3f4f6;
+  --muted: #b3bac6;
+  --accent: #5cc8e6;
+  --accent-ink: #06222b;
+  --accent-soft: rgba(92, 200, 230, 0.18);
+  --danger: #f87171;
+  --good: #4ade80;
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
 
-  --canvas-bg: #fbfcfe;
-  --canvas-grid: rgba(15, 23, 42, 0.05);
-  --canvas-grid-major: rgba(15, 23, 42, 0.1);
-  --canvas-axis: rgba(15, 23, 42, 0.38);
-  --canvas-text: #64748b;
-  --canvas-static: #e3e8f0;
-  --canvas-static-edge: #8a97ab;
-  --canvas-rope: #334155;
-  --canvas-body: #0787a6;
-  --canvas-body-fill: rgba(7, 135, 166, 0.16);
-  color-scheme: light;
+  --canvas-bg: #16181c;
+  --canvas-grid: rgba(203, 213, 225, 0.08);
+  --canvas-grid-major: rgba(203, 213, 225, 0.16);
+  --canvas-axis: rgba(203, 213, 225, 0.5);
+  --canvas-text: #b3bac6;
+  --canvas-static: #2a2e36;
+  --canvas-static-edge: #8b94a3;
+  --canvas-rope: #cbd5e1;
+  --canvas-body: #e5e7eb;
+  --canvas-body-fill: rgba(203, 213, 225, 0.2);
+
+  --force-gravity: #fde047;
+  --force-normal: #34d399;
+  --force-friction: #ef4444;
+  --force-tension: #818cf8;
+  --force-applied: #fb923c;
+  --force-spring: #f0abfc;
+  --force-other: #9ca3af;
+  --motion: #f3f4f6;
+
+  --series-1: #5b9dee;
+  --series-2: #f08a4b;
+  --series-3: #35b98a;
+  --series-4: #e0b020;
+  --series-5: #e879a6;
+  --probe-1: #fbbf24;
+  --probe-2: #c4b5fd;
+  --probe-ink: #111827;
+  color-scheme: dark;
+}
+
+/* For a projector: everything larger and heavier. The light theme is switched on with it. */
+:root[data-present] {
+  --stage-scale: 1.45;
+  --canvas-bg: #ffffff;
+  --canvas-grid: rgba(17, 24, 39, 0.09);
+  --canvas-grid-major: rgba(17, 24, 39, 0.2);
+  --canvas-axis: rgba(17, 24, 39, 0.7);
+  --canvas-text: #1f2937;
+  --muted: #374151;
+  --glass: #ffffff;
+  --border: rgba(17, 24, 39, 0.3);
+  font-size: 19px;
 }

@@ -1,6 +1,6 @@
 import { iconButton } from './controls';
 import { icon } from './icons';
-import { el, toggleTheme } from './ui';
+import { el, presenting, setPresenting, toggleTheme } from './ui';
 
 export type Mode = 'mechanics' | 'waves';
 
@@ -42,6 +42,7 @@ export function buildShell(active: Mode): Shell {
     el('div', { class: 'topbar-right' }, [
       shareButton,
       el('a', { class: 'text-button', href: docs, title: 'Read the docs' }, [icon('docs', 16), el('span', { class: 'wide-only', text: 'Docs' })]),
+      iconButton('present', 'For a projector: bigger and bolder ( T )', () => setPresenting(!presenting())),
       iconButton('theme', 'Light or dark', toggleTheme),
     ]),
   ]);
