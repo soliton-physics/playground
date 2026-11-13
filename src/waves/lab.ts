@@ -4,7 +4,7 @@ import { el, formatDuration, formatQuantity } from '../ui';
 import type { Formula } from './formulas';
 import type { Fact } from './lessons';
 import { commonFrequency, commonWavelength, resultant, waveSpeed, type Component, type Sine } from './model';
-import { partColor, type Resolved } from './scene';
+import { partToken, type Resolved } from './scene';
 
 /** A wave of the reader's own making: any number of sine waves and pulses on one line, added together. */
 export interface Lab {
@@ -145,7 +145,7 @@ export function labEditor(lab: Lab, changed: (rebuilt: boolean) => void): HTMLEl
         changed(true);
       });
       const swatch = el('span', { class: 'swatch' });
-      swatch.style.background = partColor(i);
+      swatch.style.background = `var(${partToken(i)})`;
       const head = el('div', { class: 'lab-head' }, [swatch, el('b', { text: c.kind === 'sine' ? `Wave ${i + 1}` : `Pulse ${i + 1}` }), remove]);
       const controls =
         c.kind === 'sine'

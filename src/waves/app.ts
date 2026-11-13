@@ -1,7 +1,7 @@
 import { choice, closePopover, iconButton, popover, slider, toast, toggleButton } from '../controls';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
-import { cssVar, el, formatDuration, formatNumber, formatQuantity } from '../ui';
+import { cssVar, el, layoutPx, formatDuration, formatNumber, formatQuantity } from '../ui';
 import { openWaveGallery, type WaveChoice } from './gallery';
 import { decodeLab, emptyLab, encodeLab, labEditor, labFrom, resolveLab, savedLab, saveLab, type Lab } from './lab';
 import { defaults, findLesson, lessons, type Lesson, type Values } from './lessons';
@@ -13,8 +13,8 @@ import { resolve, SolitonScene, TextbookScene, type Reading, type Resolved, type
 type Open = { kind: 'lesson'; lesson: Lesson; values: Values } | { kind: 'lab'; lab: Lab } | { kind: 'soliton'; preset: Preset };
 
 const PROBES = [
-  { label: '1', color: '#fbbf24' },
-  { label: '2', color: '#f472b6' },
+  { label: '1', color: '--probe-1' },
+  { label: '2', color: '--probe-2' },
 ];
 
 export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: boolean, shell: Shell): void {
@@ -82,10 +82,11 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
   // on a phone may cover the wave, but never takes more than half the height from it.
   const clearPanel = () => {
     const beside = main.clientWidth > 900;
-    plot.right = !embedded && beside ? 384 : 16;
-    plot.bottom = embedded || beside ? 92 : Math.min(panel.offsetHeight + 92, main.clientHeight / 2);
+    plot.right = !embedded && beside ? layoutPx(384) : 16;
+    plot.bottom = embedded || beside ? layoutPx(92) : Math.min(panel.offsetHeight + layoutPx(92), main.clientHeight / 2);
   };
   for (const watched of [main, panel]) new ResizeObserver(clearPanel).observe(watched);
+  window.addEventListener('themechange', clearPanel);
 
   /**
    * Typesets the formulas. The typesetter is fetched the first time it is wanted, so it costs nothing to the
@@ -262,7 +263,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
     const readings = probes.map((x) => scene!.probe(x));
     const cards = readings.map((reading, i) => {
       const tag = el('span', { class: 'probe-tag', text: PROBES[i]!.label });
-      tag.style.background = PROBES[i]!.color;
+      tag.style.background = `var(${PROBES[i]!.color})`;
       const remove = el('button', { type: 'button', class: 'icon-button small', title: 'Remove this point', 'aria-label': `Remove point ${PROBES[i]!.label}` }, [icon('close', 14)]);
       // Readings are rewritten several times a second, so a click would lose its button between down and up.
       remove.addEventListener('pointerdown', () => {
@@ -276,7 +277,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
       if (reading.history) {
         const history = el('canvas', { class: 'probe-history' });
         card.append(history, el('small', { class: 'formula-note', text: `This point over the last ${formatDuration(reading.history.span)}; now is at the right.` }));
-        requestAnimationFrame(() => sparkline(history, [{ values: reading.history!.values, color: PROBES[i]!.color, width: 1.75 }], reading.history!.limit));
+        requestAnimationFrame(() => sparkline(history, [{ values: reading.history!.values, color: cssVar(PROBES[i]!.color), width: 1.75 }], reading.history!.limit));
       }
       return card;
     });

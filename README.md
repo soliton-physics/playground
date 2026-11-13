@@ -52,7 +52,8 @@ place the playground does its own arithmetic and does not ask the engine. Reflec
 Formulas are typeset with KaTeX, fetched only when the wave mode is opened.
 
 Add `&embed` for a compact view suitable for iframes, which is how the [docs](https://github.com/soliton-physics/docs)
-embed live simulations, and `&theme=light` or `&theme=dark` to fix the theme.
+embed live simulations, and `&theme=light` or `&theme=dark` to fix the theme. Add `&present` to open in projector mode: larger text, heavier lines, light
+theme. The screen button in the top bar, or `T`, switches it on and off.
 
 | Key | Does |
 | --- | --- |
@@ -92,7 +93,7 @@ which rebuilds the WebAssembly package with `wasm-pack` and copies it into `engi
 src/
   main.ts, shell.ts        entry and the top bar
   controls.ts, icons.ts    sliders, popovers, toasts, the icon set
-  styles/                  design tokens (dark and light) and the stylesheet
+  styles/                  design tokens (light, dark, projector) and the stylesheet
   mechanics/
     app.ts                 ties everything together: loading worlds, the pointer, the frame loop
     session.ts             one world and its clock: play, step, scrub, the hand

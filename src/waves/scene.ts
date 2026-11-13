@@ -97,9 +97,9 @@ export function resolve(lesson: Lesson, values: Values): Resolved {
 const SAMPLES = 900;
 /** One cycle of the quickest part takes this long on screen at normal speed. */
 const SECONDS_PER_CYCLE = 3;
-const PART_COLORS = ['rgba(167, 139, 250, 0.8)', 'rgba(251, 191, 36, 0.8)', 'rgba(244, 114, 182, 0.8)', 'rgba(74, 222, 128, 0.8)', 'rgba(248, 113, 113, 0.8)'];
-
-export const partColor = (index: number) => PART_COLORS[index % PART_COLORS.length]!;
+/** The theme token for the colour of one part of a wave. */
+export const partToken = (index: number) => `--series-${(index % 5) + 1}`;
+export const partColor = (index: number) => cssVar(partToken(index));
 
 const degrees = (radians: number) => `${formatNumber((radians * 180) / Math.PI)}° (${(radians / Math.PI).toFixed(2)}π rad)`;
 
@@ -183,7 +183,7 @@ export class TextbookScene implements WaveScene {
 
   series(showParts: boolean): Series[] {
     const { parts } = this.spec;
-    const each = showParts && parts.length > 1 ? parts.map((c, i) => ({ values: this.sample([c]), color: partColor(i), width: 1.25 })) : [];
+    const each = showParts && parts.length > 1 ? parts.map((c, i) => ({ values: this.sample([c]), color: partColor(i), width: 1.75 })) : [];
     return [...each, { values: this.sample(parts), color: cssVar('--accent'), width: 2.5, fill: cssVar('--accent-soft') }];
   }
 
@@ -301,7 +301,7 @@ export class SolitonScene implements WaveScene {
     const fill = cssVar('--accent-soft');
     if (this.preset.model === 'kdv') return [{ values: this.sim.real(), color: accent, width: 2.5, fill }];
     return [
-      { values: this.sim.real(), color: 'rgba(167, 139, 250, 0.6)', width: 1.25 },
+      { values: this.sim.real(), color: cssVar('--series-2'), width: 1.75 },
       { values: this.sim.magnitude(), color: accent, width: 2.5, fill },
     ];
   }

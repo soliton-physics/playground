@@ -1,4 +1,4 @@
-import { cssVar } from '../ui';
+import { cssVar, paint, stageFont, stageScale } from '../ui';
 import type { Mark } from './lessons';
 import type { Series } from './scene';
 
@@ -24,10 +24,11 @@ export interface Frame {
   layerGain: number;
 }
 
-const MARGIN = { left: 56, top: 30 };
-const STRIP = 58;
-const FONT = '11px Inter, ui-sans-serif, system-ui, sans-serif';
-const LABEL_FONT = '600 12px Inter, ui-sans-serif, system-ui, sans-serif';
+/** Space for the axis numbers and, under a sound wave, the strip of air layers; all grow with the stage scale. */
+const margin = () => ({ left: 58 * stageScale(), top: 32 * stageScale() });
+const stripHeight = () => 58 * stageScale();
+const axisFont = () => stageFont(11.5);
+const labelFont = () => stageFont(12.5, 600);
 
 /** The wave against position, with a fixed vertical range so heights can be read off and compared. */
 export class LinePlot {
@@ -51,39 +52,41 @@ export class LinePlot {
   }
 
   private get plotWidth(): number {
-    return this.width - MARGIN.left - this.right;
+    return this.width - margin().left - this.right;
   }
 
   private get plotHeight(): number {
-    return this.height - MARGIN.top - this.bottom - this.strip;
+    // The two rows of axis text under the plot grow with the stage scale; `bottom` allows for them at the usual size.
+    return this.height - margin().top - this.bottom - 31 * (stageScale() - 1) - this.strip;
   }
 
   /** The field coordinates under a canvas pixel. */
   toField(px: number, py: number): [number, number] {
-    return [this.x0 + ((px - MARGIN.left) / this.plotWidth) * (this.x1 - this.x0), this.y1 - ((py - MARGIN.top) / this.plotHeight) * (this.y1 - this.y0)];
+    return [this.x0 + ((px - margin().left) / this.plotWidth) * (this.x1 - this.x0), this.y1 - ((py - margin().top) / this.plotHeight) * (this.y1 - this.y0)];
   }
 
   toPixelX(x: number): number {
-    return MARGIN.left + ((x - this.x0) / (this.x1 - this.x0)) * this.plotWidth;
+    return margin().left + ((x - this.x0) / (this.x1 - this.x0)) * this.plotWidth;
   }
 
   draw(frame: Frame): void {
     const { context, width, height } = this;
     const { x, series, range } = frame;
-    this.strip = frame.medium === 'air' ? STRIP : 0;
+    const k = stageScale();
+    this.strip = frame.medium === 'air' ? stripHeight() : 0;
     [this.x0, this.x1] = [x[0] ?? 0, x[x.length - 1] ?? 1];
     [this.y0, this.y1] = range;
     const { x0, x1, y0, y1, plotHeight } = this;
     const toX = (v: number) => this.toPixelX(v);
-    const toY = (v: number) => MARGIN.top + ((y1 - v) / (y1 - y0)) * plotHeight;
-    const floor = MARGIN.top + plotHeight;
+    const toY = (v: number) => margin().top + ((y1 - v) / (y1 - y0)) * plotHeight;
+    const floor = margin().top + plotHeight;
     const text = cssVar('--canvas-text');
 
     context.fillStyle = cssVar('--canvas-bg');
     context.fillRect(0, 0, width, height);
     context.lineWidth = 1;
     context.fillStyle = text;
-    context.font = FONT;
+    context.font = axisFont();
     context.textAlign = 'right';
     context.textBaseline = 'alphabetic';
     context.setLineDash([]);
@@ -92,30 +95,30 @@ export class LinePlot {
       const y = Math.round(toY(tick)) + 0.5;
       context.strokeStyle = tick === 0 ? cssVar('--canvas-axis') : cssVar('--canvas-grid-major');
       context.beginPath();
-      context.moveTo(MARGIN.left, y);
+      context.moveTo(margin().left, y);
       context.lineTo(width - this.right, y);
       context.stroke();
-      context.fillText(tick.toFixed(ySteps.decimals), MARGIN.left - 8, y + 4);
+      context.fillText(tick.toFixed(ySteps.decimals), margin().left - 8, y + 4 * k);
     }
     context.textAlign = 'center';
     const xSteps = ticks(x0, x1, 10);
-    const labelRow = floor + this.strip + 16;
+    const labelRow = floor + this.strip + 16 * k;
     for (const tick of xSteps.values) {
       const px = Math.round(toX(tick)) + 0.5;
       context.strokeStyle = cssVar('--canvas-grid');
       context.beginPath();
-      context.moveTo(px, MARGIN.top);
+      context.moveTo(px, margin().top);
       context.lineTo(px, floor);
       context.stroke();
       context.fillText(tick.toFixed(xSteps.decimals), px, labelRow);
     }
     if (frame.yUnit) {
       context.textAlign = 'left';
-      context.fillText(`displacement (${frame.yUnit})`, MARGIN.left, MARGIN.top - 12);
+      context.fillText(`displacement (${frame.yUnit})`, margin().left, margin().top - 12 * k);
     }
     if (frame.xUnit) {
       context.textAlign = 'right';
-      context.fillText(`position (${frame.xUnit})`, width - this.right, labelRow + 15);
+      context.fillText(`position (${frame.xUnit})`, width - this.right, labelRow + 15 * k);
     }
 
     const sum = series[series.length - 1]?.values;
@@ -145,7 +148,7 @@ export class LinePlot {
       }
       trace();
       context.strokeStyle = color;
-      context.lineWidth = lineWidth;
+      context.lineWidth = lineWidth * stageScale();
       context.lineJoin = 'round';
       context.stroke();
     }
@@ -157,7 +160,7 @@ export class LinePlot {
       for (let i = 0; i <= count; i++) {
         const position = x0 + ((x1 - x0) * i) / count;
         context.beginPath();
-        context.arc(toX(position), toY(at(position)), 3, 0, 2 * Math.PI);
+        context.arc(toX(position), toY(at(position)), 3 * k, 0, 2 * Math.PI);
         context.fill();
       }
     }
@@ -165,10 +168,10 @@ export class LinePlot {
     // Layers of air: each is drawn shifted along the wave by its displacement, so they crowd and thin out.
     if (frame.medium === 'air') {
       const top = floor + 10;
-      const bottom = floor + STRIP - 14;
+      const bottom = floor + stripHeight() - 14;
       const count = Math.max(40, Math.round(this.plotWidth / 9));
       context.strokeStyle = cssVar('--accent');
-      context.lineWidth = 1.5;
+      context.lineWidth = 1.5 * stageScale();
       context.globalAlpha = 0.75;
       context.beginPath();
       for (let i = 0; i <= count; i++) {
@@ -182,7 +185,7 @@ export class LinePlot {
       const ends = frame.marks.filter((m) => m.kind === 'end');
       if (ends.length) {
         context.strokeStyle = text;
-        context.lineWidth = 2;
+        context.lineWidth = 2 * stageScale();
         context.beginPath();
         context.moveTo(toX(x0), top - 3);
         context.lineTo(toX(x1), top - 3);
@@ -201,36 +204,36 @@ export class LinePlot {
 
     for (const probe of frame.probes) {
       const px = Math.round(toX(probe.x)) + 0.5;
-      context.strokeStyle = probe.color;
+      context.strokeStyle = paint(probe.color);
       context.lineWidth = 1;
       context.setLineDash([4, 4]);
       context.beginPath();
-      context.moveTo(px, MARGIN.top);
+      context.moveTo(px, margin().top);
       context.lineTo(px, floor + this.strip);
       context.stroke();
       context.setLineDash([]);
-      context.fillStyle = probe.color;
+      context.fillStyle = paint(probe.color);
       context.beginPath();
-      context.arc(px, toY(probe.y), 5.5, 0, 2 * Math.PI);
+      context.arc(px, toY(probe.y), 5.5 * k, 0, 2 * Math.PI);
       context.fill();
       context.strokeStyle = cssVar('--canvas-bg');
-      context.lineWidth = 2;
+      context.lineWidth = 2 * stageScale();
       context.stroke();
       context.beginPath();
-      context.roundRect(px - 10, MARGIN.top - 20, 20, 18, 5);
+      context.roundRect(px - 10 * k, margin().top - 20 * k, 20 * k, 18 * k, 5);
       context.fill();
-      context.fillStyle = '#0a0e1a';
-      context.font = LABEL_FONT;
+      context.fillStyle = cssVar('--probe-ink');
+      context.font = labelFont();
       context.textAlign = 'center';
-      context.fillText(probe.label, px, MARGIN.top - 7);
+      context.fillText(probe.label, px, margin().top - 7 * k);
     }
   }
 
   private mark(mark: Mark, toX: (v: number) => number, toY: (v: number) => number, floor: number, at: (x: number) => number): void {
     const { context } = this;
     const ink = cssVar('--text');
-    context.font = LABEL_FONT;
-    context.lineWidth = 1.5;
+    context.font = labelFont();
+    context.lineWidth = 1.5 * stageScale();
     context.setLineDash([]);
     if (mark.kind === 'span') {
       const [a, b, y] = [toX(mark.from), toX(mark.to), toY(mark.at)];
@@ -262,7 +265,7 @@ export class LinePlot {
       context.fillText(mark.label, px + 8, (base + tip) / 2 + 4);
     } else if (mark.kind === 'point') {
       const px = toX(mark.x);
-      const color = mark.tone === 'node' ? cssVar('--muted') : '#fbbf24';
+      const color = cssVar(mark.tone === 'node' ? '--muted' : '--text');
       context.fillStyle = color;
       if (mark.label === 'N') {
         context.beginPath();
@@ -275,7 +278,7 @@ export class LinePlot {
       const px = toX(mark.x);
       const [top, bottom] = [toY(0) - 46, toY(0) + 46];
       context.strokeStyle = cssVar('--canvas-text');
-      context.lineWidth = 3;
+      context.lineWidth = 3 * stageScale();
       context.beginPath();
       context.moveTo(px, top);
       context.lineTo(px, bottom);
@@ -291,13 +294,13 @@ export class LinePlot {
     } else if (mark.type === 'free') {
       const px = toX(mark.x);
       context.strokeStyle = cssVar('--canvas-text');
-      context.lineWidth = 2;
+      context.lineWidth = 2 * stageScale();
       context.beginPath();
-      context.moveTo(px, MARGIN.top + 10);
+      context.moveTo(px, margin().top + 10);
       context.lineTo(px, floor - 10);
       context.stroke();
       context.strokeStyle = cssVar('--accent');
-      context.lineWidth = 2.5;
+      context.lineWidth = 2.5 * stageScale();
       context.beginPath();
       context.arc(px, toY(at(mark.x)), 7, 0, 2 * Math.PI);
       context.stroke();
