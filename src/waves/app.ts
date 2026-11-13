@@ -7,7 +7,7 @@ import { decodeLab, emptyLab, encodeLab, labEditor, labFrom, resolveLab, savedLa
 import { defaults, findLesson, lessons, type Lesson, type Values } from './lessons';
 import { LinePlot, sparkline } from './line';
 import { findPreset, presets, type Preset } from './presets';
-import { resolve, SolitonScene, TextbookScene, type Reading, type Resolved, type WaveScene } from './scene';
+import { resolve, sceneOf, SolitonScene, TextbookScene, type Reading, type Resolved, type WaveScene } from './scene';
 
 /** What is open: a lesson with its parameters, the reader's own lab, or a soliton the engine integrates. */
 type Open = { kind: 'lesson'; lesson: Lesson; values: Values } | { kind: 'lab'; lab: Lab } | { kind: 'soliton'; preset: Preset };
@@ -137,7 +137,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
     const spec = resolved();
     const from = keepTime && scene && spec?.duration === undefined ? scene.time() : 0;
     scene?.dispose();
-    scene = spec ? new TextbookScene(spec, from) : new SolitonScene((open as { preset: Preset }).preset);
+    scene = open.kind === 'lesson' ? sceneOf(open.lesson, open.values, from) : spec ? new TextbookScene(spec, from) : new SolitonScene((open as { preset: Preset }).preset);
     const [low, high] = [scene.x[0]!, scene.x[scene.x.length - 1]!];
     probes = probes.filter((x) => x >= low && x <= high);
     if (!keepTime || spec?.duration !== undefined) {
@@ -212,10 +212,15 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
     actions.replaceChildren(
       ...(open.kind === 'lesson'
         ? [
-            action('remix', 'Remix', () => {
-              show({ kind: 'lab', lab: labFrom(resolved()!) });
-              toast('This is now your copy, in the wave lab. Change the waves, add more.');
-            }),
+            // The lab is a string or a column of air; light has no copy there.
+            ...(open.lesson.medium === 'light'
+              ? []
+              : [
+                  action('remix', 'Remix', () => {
+                    show({ kind: 'lab', lab: labFrom(resolved()!) });
+                    toast('This is now your copy, in the wave lab. Change the waves, add more.');
+                  }),
+                ]),
             action('restart', 'Reset', () => show({ kind: 'lesson', lesson: (open as { lesson: Lesson }).lesson, values: defaults((open as { lesson: Lesson }).lesson) })),
           ]
         : open.kind === 'lab'
@@ -256,7 +261,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
   function renderProbes(): void {
     if (!scene || embedded) return;
     if (probes.length === 0) {
-      probeBox.replaceChildren(el('p', { class: 'probe-hint' }, [icon('cursor', 14), 'Click anywhere on the wave to read that point: displacement, velocity, amplitude and phase. Click a second point to compare the two.']));
+      probeBox.replaceChildren(el('p', { class: 'probe-hint' }, [icon('cursor', 14), scene.medium === 'capacitor' ? 'Click anywhere on the graph to read that moment.' : scene.medium === 'light' ? 'Click anywhere on the wave to read the two fields at that point. Click a second point to compare the two.' : 'Click anywhere on the wave to read that point: displacement, velocity, amplitude and phase. Click a second point to compare the two.']));
       return;
     }
     const unit = scene.xUnit;
@@ -400,13 +405,17 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
         probes: probes.map((x, i) => ({ x, y: scene!.probe(x).y, ...PROBES[i]! })),
         medium: scene.medium,
         layerGain: scene.layerGain,
+        xLabel: scene.xLabel,
+        yLabel: scene.yLabel,
+        companion: scene.medium === 'light' ? scene.companion?.() : undefined,
+        picture: scene.picture?.(),
       });
       const [time, pace] = scene.clock().split(' · ');
       clockTime.textContent = time!;
       clockPace.textContent = (pace ? ` · ${pace}` : '') + (ended ? ' · ended' : '');
       if (now - lastReadout > 200) {
         lastReadout = now;
-        if (scene instanceof SolitonScene) renderFacts();
+        if (scene instanceof SolitonScene || scene.liveFacts) renderFacts();
         if (probes.length && running) renderProbes();
       }
     }

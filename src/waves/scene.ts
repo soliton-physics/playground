@@ -1,5 +1,6 @@
 import { WaveSimulation } from '../engine';
-import { cssVar, formatNumber, formatQuantity } from '../ui';
+import { cssVar, formatNumber, formatPrefixed, formatQuantity } from '../ui';
+import type { CapacitorPicture } from './capacitor';
 import { formulasFor, type FormulaGroup } from './formulas';
 import type { Fact, Lesson, Mark, Values } from './lessons';
 import { acceleration, commonFrequency, commonWavelength, displacement, naturalTime, oscillationAt, total, velocity, type Component } from './model';
@@ -10,6 +11,8 @@ export interface Series {
   color: string;
   width: number;
   fill?: string;
+  /** Drawn pale, as a band behind another line. */
+  faint?: boolean;
 }
 
 /** What a clicked point says about itself. */
@@ -36,7 +39,16 @@ export interface WaveScene {
   readonly factsTitle: string;
   /** One wavelength shared by everything on the plot, if there is one. */
   readonly wavelength?: number;
-  readonly medium: 'string' | 'air' | 'field';
+  /** What the axes measure, when it is not displacement against position. */
+  readonly xLabel?: string;
+  readonly yLabel?: string;
+  /** The numbers under "worth knowing" change as time passes. */
+  readonly liveFacts?: boolean;
+  readonly medium: 'string' | 'air' | 'field' | 'light' | 'capacitor';
+  /** For light: the magnetic field, times the speed of the wave so that it is in the units of the electric field. */
+  companion?(): Float64Array;
+  /** For a charging capacitor: what to draw under the graph. */
+  picture?(): CapacitorPicture;
   readonly layerGain: number;
   /** How many waves are added together here, and whether they are worth showing one by one from the start. */
   readonly partCount: number;
@@ -67,8 +79,11 @@ export interface Resolved {
   facts: Fact[];
   marks(t: number): Mark[];
   formulas: FormulaGroup[];
-  medium: 'string' | 'air';
+  medium: 'string' | 'air' | 'light';
   yUnit: string;
+  xUnit?: string;
+  /** Speed of light here, m/s, for the magnetic field of a light wave. */
+  lightSpeed?: number;
   showParts: boolean;
   duration?: number;
 }
@@ -78,7 +93,7 @@ export const CHAPTER = 'Class 11 · Waves';
 export function resolve(lesson: Lesson, values: Values): Resolved {
   return {
     id: lesson.id,
-    group: CHAPTER,
+    group: lesson.chapter ?? CHAPTER,
     title: lesson.title,
     description: lesson.description,
     domain: lesson.domain(values),
@@ -89,10 +104,15 @@ export function resolve(lesson: Lesson, values: Values): Resolved {
     formulas: [{ title: 'Formulas', formulas: lesson.formulas }],
     medium: lesson.medium,
     yUnit: lesson.yUnit,
+    xUnit: lesson.xUnit?.(values),
+    lightSpeed: lesson.lightSpeed?.(values),
     showParts: lesson.showParts ?? false,
     duration: lesson.duration?.(values),
   };
 }
+
+/** The scene a lesson opens as: a wave worked out from its formula, unless the lesson brings its own. */
+export const sceneOf = (lesson: Lesson, values: Values, startAt = 0): WaveScene => lesson.build?.(values, startAt) ?? new TextbookScene(resolve(lesson, values), startAt);
 
 const SAMPLES = 900;
 /** One cycle of the quickest part takes this long on screen at normal speed. */
@@ -106,7 +126,8 @@ const degrees = (radians: number) => `${formatNumber((radians * 180) / Math.PI)}
 export class TextbookScene implements WaveScene {
   readonly x: Float64Array;
   readonly range: [number, number];
-  readonly xUnit = 'm';
+  readonly xUnit: string;
+  readonly yLabel?: string;
   readonly factsTitle = 'Worth knowing';
   readonly wavelength?: number;
   /** Layers of air are drawn this many metres off their place per unit of displacement: enough to see them crowd, never enough to cross. */
@@ -120,6 +141,8 @@ export class TextbookScene implements WaveScene {
     this.x = Float64Array.from({ length: SAMPLES }, (_, i) => from + ((to - from) * i) / (SAMPLES - 1));
     const limit = Math.max(spec.height, 1e-12) * 1.6;
     this.range = [-limit, limit];
+    this.xUnit = spec.xUnit ?? 'm';
+    this.yLabel = spec.medium === 'light' ? 'electric field, E' : undefined;
     this.pace = naturalTime(spec.parts, to - from) / SECONDS_PER_CYCLE;
     this.wavelength = commonWavelength(spec.parts);
     const steepest = spec.parts.reduce((sum, c) => sum + Math.abs(c.amplitude) * (c.kind === 'sine' ? (2 * Math.PI) / c.wavelength : 0.86 / c.width), 0);
@@ -158,7 +181,9 @@ export class TextbookScene implements WaveScene {
 
   clock(): string {
     const quick = this.pace < 0.05;
-    const time = quick ? `${(this.t * 1000).toFixed(2)} ms` : `${this.t.toFixed(2)} s`;
+    // Light goes by in nanoseconds or less; sound in milliseconds.
+    const time = this.pace < 1e-5 ? formatPrefixed(this.t, 's') : quick ? `${(this.t * 1000).toFixed(2)} ms` : `${this.t.toFixed(2)} s`;
+    if (this.pace < 1e-5) return `t = ${time} · slowed ${slowdown(1 / this.pace)} times`;
     if (this.pace < 0.8) return `t = ${time} · ${formatNumber(1 / this.pace, 2)}× slower`;
     if (this.pace > 1.25) return `t = ${time} · ${formatNumber(this.pace, 2)}× faster`;
     return `t = ${time}`;
@@ -199,15 +224,29 @@ export class TextbookScene implements WaveScene {
     return this.spec.marks(this.t);
   }
 
+  /** `cB`: each part's electric field, turned over for a part travelling backwards, since E × B points the way it goes. */
+  companion(): Float64Array {
+    return this.x.map((x) => this.spec.parts.reduce((sum, c) => sum + c.direction * displacement(c, x, this.t), 0));
+  }
+
   probe(x: number): Reading {
     const { parts, yUnit, medium } = this.spec;
     const what = medium === 'air' ? 'the air' : 'the string';
     const y = total(displacement, parts, x, this.t);
-    const rows: Fact[] = [
-      { label: 'Displacement', value: formatQuantity(y, yUnit) },
-      { label: `Velocity of ${what} here`, value: formatQuantity(total(velocity, parts, x, this.t), `${yUnit}/s`) },
-      { label: 'Acceleration', value: formatQuantity(total(acceleration, parts, x, this.t), `${yUnit}/s²`) },
-    ];
+    const magnetic = parts.reduce((sum, c) => sum + c.direction * displacement(c, x, this.t), 0) / (this.spec.lightSpeed ?? 1);
+    const rows: Fact[] =
+      medium !== 'light'
+        ? [
+            { label: 'Displacement', value: formatQuantity(y, yUnit) },
+            { label: `Velocity of ${what} here`, value: formatQuantity(total(velocity, parts, x, this.t), `${yUnit}/s`) },
+            { label: 'Acceleration', value: formatQuantity(total(acceleration, parts, x, this.t), `${yUnit}/s²`) },
+          ]
+        : yUnit
+          ? [
+              { label: 'Electric field, E', value: formatQuantity(y, yUnit) },
+              { label: 'Magnetic field, B', value: formatPrefixed(magnetic, 'T') },
+            ]
+          : [{ label: 'Electric field, as a share of its greatest', value: formatNumber(y) }];
     const swing = oscillationAt(parts, x, this.t);
     if (swing) {
       rows.push({ label: 'Amplitude here', value: formatQuantity(swing.amplitude, yUnit) });
@@ -234,6 +273,13 @@ export class TextbookScene implements WaveScene {
   }
 
   dispose(): void {}
+}
+
+/** A large factor in words a class can say: "30 million", not 3.0e7. */
+export function slowdown(factor: number): string {
+  const names: [number, string][] = [[1e18, 'million million million'], [1e15, 'thousand million million'], [1e12, 'million million'], [1e9, 'thousand million'], [1e6, 'million'], [1e3, 'thousand']];
+  const [scale, name] = names.find(([s]) => factor >= s) ?? [1, ''];
+  return `${formatNumber(factor / scale, 2)} ${name}`.trim();
 }
 
 const interpolate = (values: Float64Array, x: Float64Array, at: number): number => {

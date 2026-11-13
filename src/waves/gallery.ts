@@ -2,10 +2,10 @@ import { WaveSimulation } from '../engine';
 import { icon } from '../icons';
 import { cssVar, el } from '../ui';
 import { resolveLab, type Lab } from './lab';
-import { defaults, lessons } from './lessons';
+import { defaults, lessons, LIGHT_CHAPTER, type Lesson } from './lessons';
 import { sparkline } from './line';
 import { presets, type Preset } from './presets';
-import { CHAPTER, resolve, TextbookScene, type Resolved } from './scene';
+import { CHAPTER, resolve, sceneOf, TextbookScene, type Resolved } from './scene';
 
 export type WaveChoice = { lesson: string } | { preset: string } | { lab: 'new' | 'saved' };
 
@@ -14,6 +14,15 @@ function drawTextbook(canvas: HTMLCanvasElement, spec: Resolved): void {
   const scene = new TextbookScene(spec);
   scene.advance(spec.duration === undefined ? 1 : (spec.duration / scene.pace) * 0.3, 1);
   sparkline(canvas, scene.series(spec.showParts).map(({ values, color, width }) => ({ values, color, width: Math.min(width, 2) })), scene.range[1]);
+}
+
+/** A lesson's card: its wave, or for a lesson with a scene of its own, that scene's curve part of the way through. */
+function drawLesson(canvas: HTMLCanvasElement, lesson: Lesson): void {
+  if (!lesson.build) return drawTextbook(canvas, resolve(lesson, defaults(lesson)));
+  const scene = lesson.build(defaults(lesson), 0);
+  const limit = Math.max(Math.abs(scene.range[0]), Math.abs(scene.range[1]));
+  sparkline(canvas, scene.series(false).filter((s) => !s.faint).map(({ values, color }) => ({ values, color, width: 2 })), limit);
+  scene.dispose();
 }
 
 function drawSoliton(canvas: HTMLCanvasElement, preset: Preset): void {
@@ -59,7 +68,10 @@ export function openWaveGallery(current: string, saved: Lab | undefined, choose:
     const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
     const matches = (...text: string[]) => words.every((w) => text.join(' ').toLowerCase().includes(w));
     const groups: [string, HTMLButtonElement[]][] = [
-      [CHAPTER, lessons.filter((l) => matches(l.title, l.description, CHAPTER)).map((l) => card(l.id, l.title, l.description, { lesson: l.id }, (c) => drawTextbook(c, resolve(l, defaults(l)))))],
+      ...[CHAPTER, LIGHT_CHAPTER].map((chapter): [string, HTMLButtonElement[]] => [
+        chapter,
+        lessons.filter((l) => (l.chapter ?? CHAPTER) === chapter && matches(l.title, l.description, chapter)).map((l) => card(l.id, l.title, l.description, { lesson: l.id }, (c) => drawLesson(c, l))),
+      ]),
       [
         'Build your own',
         [

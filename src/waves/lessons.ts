@@ -1,6 +1,8 @@
-import { formatDuration, formatQuantity } from '../ui';
+import { formatDuration, formatNumber, formatPrefixed, formatQuantity, prefixFor } from '../ui';
+import { CapacitorScene } from './capacitor';
 import type { Formula } from './formulas';
 import { resultant, type Component, type Pulse, type Sine } from './model';
+import type { WaveScene } from './scene';
 
 /** Something the reader can change: a slider, or a choice between a few named values. */
 export interface Param {
@@ -28,7 +30,10 @@ export type Mark =
   | { kind: 'span'; from: number; to: number; at: number; label: string }
   | { kind: 'rise'; x: number; to: number; label: string }
   | { kind: 'point'; x: number; label: string; tone: 'node' | 'antinode' }
-  | { kind: 'end'; x: number; type: 'fixed' | 'free' | 'closed' | 'open' };
+  | { kind: 'end'; x: number; type: 'fixed' | 'free' | 'closed' | 'open' }
+  | { kind: 'now'; x: number }
+  | { kind: 'spectrum'; power: number; bands: { from: number; name: string }[] }
+  | { kind: 'heading'; direction: 1 | -1; label: string };
 
 export interface Lesson {
   id: string;
@@ -43,8 +48,19 @@ export interface Lesson {
   facts(p: Values): Fact[];
   marks?(p: Values, t: number): Mark[];
   formulas: Formula[];
-  /** What the wave travels in. Air is drawn as layers that move along the wave; a string as beads that move across. */
-  medium: 'string' | 'air';
+  /** The chapter it belongs to, when that is not class 11's waves. */
+  chapter?: string;
+  /**
+   * What the wave travels in. Air is drawn as layers that move along the wave; a string as beads that move across.
+   * Light needs nothing to travel in: its displacement is the electric field, and the magnetic field is drawn with it.
+   */
+  medium: 'string' | 'air' | 'light';
+  /** Unit of position, when metres would be the wrong size. */
+  xUnit?(p: Values): string;
+  /** The speed light has here, in m/s, for the magnetic field that goes with the electric one. */
+  lightSpeed?(p: Values): number;
+  /** A scene of its own, for a lesson that is not a wave along a line. */
+  build?(p: Values, startAt: number): WaveScene;
   /** Unit of displacement: a string moves centimetres, air a few thousandths of a millimetre. */
   yUnit: string;
   /** Draw each part faintly behind their sum. */
@@ -70,13 +86,13 @@ function firstCrest(c: Sine, from: number, t: number): number {
   return from + ((((x - from) % c.wavelength) + c.wavelength) % c.wavelength);
 }
 
-function crestMarks(c: Sine, [from, to]: [number, number], t: number, top: number): Mark[] {
+function crestMarks(c: Sine, [from, to]: [number, number], t: number, top: number, height = 'A'): Mark[] {
   let crest = firstCrest(c, from, t);
   if (crest + c.wavelength > to) crest -= c.wavelength;
   if (crest < from || c.amplitude <= 0) return [];
   return [
     { kind: 'span', from: crest, to: crest + c.wavelength, at: top, label: `λ = ${q(c.wavelength, 'm')}` },
-    { kind: 'rise', x: crest, to: c.amplitude, label: 'A' },
+    { kind: 'rise', x: crest, to: c.amplitude, label: height },
   ];
 }
 
@@ -422,7 +438,181 @@ const pipe = (closed: boolean): Lesson => {
   };
 };
 
-export const lessons: Lesson[] = [travelling, longitudinal, onString, superposition, crossing, reflection(false), reflection(true), standing, pipe(true), pipe(false), beats];
+// ---------------------------------------------------------------- class 12: electromagnetic waves
+
+export const LIGHT_CHAPTER = 'Class 12 · Electromagnetic waves';
+/** Speed of light in vacuum, m/s, and the two constants it is made of. */
+const C = 299_792_458;
+const MU_0 = 4e-7 * Math.PI;
+const EPSILON_0 = 1 / (MU_0 * C * C);
+const prefixed = formatPrefixed;
+
+const fieldAmplitude: Param = { id: 'amplitude', label: 'Electric field at the crest, E₀', unit: 'V/m', min: 10, max: 300, step: 5, value: 120, hardMin: 0, hardMax: 1e6 };
+const megahertz: Param = { id: 'frequency', label: 'Frequency', unit: 'MHz', min: 50, max: 300, step: 5, value: 100, hardMin: 1, hardMax: 3000 };
+const MEDIA = [
+  { label: 'empty space', value: 1 },
+  { label: 'water', value: 1.33 },
+  { label: 'glass', value: 1.5 },
+];
+
+const lightFacts = (amplitude: number, frequency: number, index: number): Fact[] => {
+  const speed = C / index;
+  // In a transparent medium ε is n² times ε₀, so the same E₀ carries n times the energy across each square metre.
+  const intensity = 0.5 * EPSILON_0 * index * C * amplitude * amplitude;
+  return [
+    { label: index === 1 ? 'Speed, c = 1/√(μ₀ε₀)' : 'Speed, v = c/n', value: q(speed, 'm/s') },
+    { label: 'Wavelength, λ = v/f', value: prefixed(speed / frequency, 'm') },
+    { label: 'Magnetic field at the crest, B₀ = E₀/v', value: prefixed(amplitude / speed, 'T') },
+    { label: 'Intensity, ½ε v E₀²', value: prefixed(intensity, 'W/m²') },
+    { label: 'Pressure on a surface that absorbs it, I/v', value: prefixed(intensity / speed, 'Pa') },
+  ];
+};
+
+const lightWave: Lesson = {
+  id: 'electromagnetic-wave',
+  chapter: LIGHT_CHAPTER,
+  title: 'An electromagnetic wave',
+  description:
+    'A changing electric field makes a magnetic field, and a changing magnetic field makes an electric one: the pair keeps itself going and travels. The two are at right angles to each other and to the way the wave goes, and they rise and fall together.',
+  params: [megahertz, fieldAmplitude, { id: 'index', label: 'Travelling through', unit: '', min: 1, max: 1.5, step: 0.01, value: 1, options: MEDIA }],
+  domain: () => [0, 12],
+  parts: (p) => [sine(p.amplitude!, C / p.index! / (p.frequency! * 1e6), p.frequency! * 1e6)],
+  height: (p) => p.amplitude!,
+  facts: (p) => lightFacts(p.amplitude!, p.frequency! * 1e6, p.index!),
+  marks(p, t) {
+    const [c] = this.parts(p) as [Sine];
+    return [...crestMarks(c, this.domain(p), t, p.amplitude! * 1.25, 'E₀'), { kind: 'heading', direction: 1, label: p.index === 1 ? 'c' : 'v = c/n' }];
+  },
+  formulas: [
+    { label: 'The two fields', tex: String.raw`E_y = E_0 \sin(kx - \omega t), \qquad B_z = B_0 \sin(kx - \omega t)`, note: 'In step, at right angles to each other and to x. E × B points the way the wave travels.' },
+    { label: 'How big each is', tex: String.raw`\frac{E_0}{B_0} = c`, note: 'In volts per metre and teslas the magnetic field looks tiny; the two carry equal energy.' },
+    { label: 'Speed', tex: String.raw`c = \frac{1}{\sqrt{\mu_0 \varepsilon_0}} = 3.00 \times 10^{8}\ \text{m/s}, \qquad v = \frac{1}{\sqrt{\mu \varepsilon}} = \frac{c}{n}`, note: 'Two constants measured with coils and capacitors give the speed of light. That is how Maxwell knew what light is.' },
+    { label: 'Energy', tex: String.raw`u = \tfrac12 \varepsilon_0 E^2 + \frac{B^2}{2\mu_0}, \qquad I = \tfrac12\, \varepsilon_0\, c\, E_0^2, \qquad p = \frac{U}{c}`, note: 'The wave carries energy and momentum, so it pushes on what it hits.' },
+  ],
+  medium: 'light',
+  yUnit: 'V/m',
+  lightSpeed: (p) => C / p.index!,
+};
+
+const lightStanding: Lesson = {
+  id: 'electromagnetic-standing-wave',
+  chapter: LIGHT_CHAPTER,
+  title: 'Radio waves off a metal sheet',
+  description:
+    'A metal sheet sends the wave straight back, and the two make a standing wave. Hertz found the nodes with a small loop of wire, measured the wavelength, and from it the speed. The electric field must vanish at the metal; the magnetic field is greatest there.',
+  params: [megahertz, fieldAmplitude],
+  domain: () => [0, 12],
+  // Reflection turns the electric field over, so the two cancel at the sheet at x = 12 m.
+  parts: (p) => {
+    const lambda = C / (p.frequency! * 1e6);
+    const phase = (-TAU * 12) / lambda;
+    return [sine(p.amplitude!, lambda, p.frequency! * 1e6, phase, 1), sine(p.amplitude!, lambda, p.frequency! * 1e6, phase + Math.PI, -1)];
+  },
+  height: (p) => 2 * p.amplitude!,
+  facts: (p) => {
+    const lambda = C / (p.frequency! * 1e6);
+    return [
+      { label: 'Wavelength, λ = c/f', value: q(lambda, 'm') },
+      { label: 'From one node to the next, λ/2', value: q(lambda / 2, 'm') },
+      { label: 'Speed found from them, f × 2 × (node to node)', value: q(C, 'm/s') },
+      { label: 'Electric field at an antinode, 2E₀', value: q(2 * p.amplitude!, 'V/m') },
+      { label: 'Magnetic field at the sheet, 2E₀/c', value: prefixed((2 * p.amplitude!) / C, 'T') },
+    ];
+  },
+  marks(p) {
+    const lambda = C / (p.frequency! * 1e6);
+    return [...stationaryMarks(lambda, (-TAU * 12) / lambda, this.domain(p)), { kind: 'end', x: 12, type: 'fixed' }];
+  },
+  formulas: [
+    { label: 'Electric field', tex: String.raw`E_y = 2E_0\, \sin k(x - L)\, \cos \omega t`, note: 'Zero at the metal, x = L, and every half wavelength back from it.' },
+    { label: 'Magnetic field', tex: String.raw`B_z = -\frac{2E_0}{c}\, \cos k(x - L)\, \sin \omega t`, note: 'Greatest where the electric field is zero, and a quarter of a period later. In a standing wave the two are out of step in place and in time.' },
+    { label: 'What Hertz measured', tex: String.raw`c = f\lambda = f \times 2\,(\text{node to node})` },
+  ],
+  medium: 'light',
+  yUnit: 'V/m',
+  showParts: false,
+  lightSpeed: () => C,
+};
+
+/** The spectrum, from long radio waves to gamma rays: where each band starts, in hertz, and what it is. */
+const BANDS: { from: number; name: string; made: string; used: string }[] = [
+  { from: 0, name: 'Radio waves', made: 'charges driven up and down an aerial', used: 'radio and television, mobile phones' },
+  { from: 1e9, name: 'Microwaves', made: 'klystrons and magnetrons', used: 'radar, ovens, satellite links' },
+  { from: 3e11, name: 'Infrared', made: 'warm bodies; molecules vibrating', used: 'heaters, remote controls, night vision' },
+  { from: 4e14, name: 'Visible light', made: 'electrons changing level in atoms', used: 'seeing: red at this end, violet at the other' },
+  { from: 7.7e14, name: 'Ultraviolet', made: 'very hot bodies, the Sun, special lamps', used: 'killing germs; absorbed by the ozone layer' },
+  { from: 3e16, name: 'X-rays', made: 'fast electrons stopped by a metal target', used: 'pictures of bones, studying crystals' },
+  { from: 3e19, name: 'Gamma rays', made: 'nuclei, in radioactive decay', used: 'treating tumours' },
+];
+const bandOf = (frequency: number) => [...BANDS].reverse().find((b) => frequency >= b.from)!;
+const PLANCK_EV = 4.135_667_696e-15;
+/** The wavelength in the unit that suits it: 589 for sodium light, to go with an axis in nm. */
+const shownWavelength = (p: Values) => {
+  const lambda = C / 10 ** p.power!;
+  return lambda / prefixFor(lambda)[0];
+};
+
+const spectrum: Lesson = {
+  id: 'electromagnetic-spectrum',
+  chapter: LIGHT_CHAPTER,
+  title: 'The electromagnetic spectrum',
+  description:
+    'Radio waves, light and X-rays are the same thing at different frequencies, all travelling at c in empty space. Slide the frequency up through twenty powers of ten and watch the wavelength shrink from kilometres to less than an atom.',
+  params: [{ id: 'power', label: 'Frequency, as a power of ten: 10ˣ Hz', unit: '', min: 4, max: 22, step: 0.05, value: 14.7 }],
+  // Six wavelengths, whatever their size: it is the unit on the axis that changes.
+  domain: (p) => [0, 6 * shownWavelength(p)],
+  parts: (p) => [sine(1, shownWavelength(p), 10 ** p.power!)],
+  height: () => 1,
+  facts: (p) => {
+    const frequency = 10 ** p.power!;
+    const band = bandOf(frequency);
+    return [
+      { label: 'Band', value: band.name },
+      { label: 'Frequency', value: frequency >= 1e15 ? `${formatNumber(frequency)} Hz` : prefixed(frequency, 'Hz') },
+      { label: 'Wavelength, λ = c/f', value: prefixed(C / frequency, 'm') },
+      { label: 'Energy of one photon, hf', value: prefixed(PLANCK_EV * frequency, 'eV') },
+      { label: 'Made by', value: band.made },
+      { label: 'Used for', value: band.used },
+    ];
+  },
+  marks: (p) => [{ kind: 'spectrum', power: p.power!, bands: BANDS }],
+  formulas: [
+    { label: 'One speed for all of it', tex: String.raw`c = f\lambda`, note: 'In empty space every band travels at c, so a higher frequency always means a shorter wavelength.' },
+    { label: 'The bands, by wavelength', tex: String.raw`\underset{>\,0.1\ \text{m}}{\text{radio}} \;\; \underset{1\ \text{mm}}{\text{microwave}} \;\; \underset{700\ \text{nm}}{\text{infrared}} \;\; \underset{400\ \text{nm}}{\text{visible}} \;\; \underset{1\ \text{nm}}{\text{ultraviolet}} \;\; \underset{10^{-3}\ \text{nm}}{\text{X-rays}} \;\; \gamma`, note: 'The edges are conventions, and neighbouring bands overlap.' },
+  ],
+  medium: 'light',
+  yUnit: '',
+  xUnit: (p) => `${prefixFor(C / 10 ** p.power!)[1]}m`,
+  lightSpeed: () => C,
+};
+const displacementCurrent: Lesson = {
+  id: 'displacement-current',
+  chapter: LIGHT_CHAPTER,
+  title: 'Displacement current',
+  description:
+    'While a capacitor charges, current flows in the wires but no charge crosses the gap. What there is in the gap is an electric field that is growing, and Maxwell saw that it must count as a current too: it makes the same magnetic field, and it is exactly as large as the current in the wires.',
+  params: [
+    { id: 'voltage', label: 'Battery', unit: 'V', min: 1, max: 24, step: 0.5, value: 12, hardMin: 0.1, hardMax: 1000 },
+    { id: 'resistance', label: 'Resistance', unit: 'MΩ', min: 0.1, max: 5, step: 0.1, value: 1, hardMin: 0.001, hardMax: 100 },
+    { id: 'radius', label: 'Radius of the plates', unit: 'cm', min: 2, max: 20, step: 0.5, value: 10, hardMin: 0.5, hardMax: 100 },
+    { id: 'gap', label: 'Gap between the plates', unit: 'mm', min: 0.5, max: 5, step: 0.1, value: 1, hardMin: 0.05, hardMax: 50 },
+  ],
+  domain: () => [0, 1],
+  parts: () => [],
+  height: () => 1,
+  facts: () => [],
+  formulas: [
+    { label: 'Charging through a resistance', tex: String.raw`q = CV\left(1 - e^{-t/RC}\right), \qquad i_c = \frac{dq}{dt} = \frac{V}{R}\, e^{-t/RC}` },
+    { label: 'Displacement current', tex: String.raw`i_d = \varepsilon_0\, \frac{d\Phi_E}{dt} = \varepsilon_0 A\, \frac{dE}{dt} = \frac{dq}{dt} = i_c`, note: 'Between the plates E = q/ε₀A, so the growing field is worth exactly the current that feeds it.' },
+    { label: 'The law, completed', tex: String.raw`\oint \vec B \cdot d\vec l = \mu_0 \left( i_c + \varepsilon_0\, \frac{d\Phi_E}{dt} \right)`, note: 'Ampère’s law with Maxwell’s term. Without it the law gives two answers for the same loop.' },
+    { label: 'Magnetic field round the gap', tex: String.raw`B = \frac{\mu_0\, i_d}{2\pi R}\ \text{at the rim}, \qquad B = \frac{\mu_0\, i_d\, r}{2\pi R^2}\ \text{inside}` },
+  ],
+  medium: 'light',
+  yUnit: 'μA',
+  build: (p, startAt) => new CapacitorScene({ voltage: p.voltage!, resistance: p.resistance! * 1e6, radius: p.radius! * 0.01, gap: p.gap! * 0.001 }, displacementCurrent, startAt),
+};
+
+export const lessons: Lesson[] = [travelling, longitudinal, onString, superposition, crossing, reflection(false), reflection(true), standing, pipe(true), pipe(false), beats, displacementCurrent, lightWave, lightStanding, spectrum];
 
 export const findLesson = (id: string | null) => lessons.find((lesson) => lesson.id === id);
 

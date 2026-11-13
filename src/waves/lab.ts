@@ -30,7 +30,7 @@ export const emptyLab = (): Lab => ({
 /** A lab holding the parts of something else, to take apart and add to. */
 export const labFrom = (source: Resolved): Lab => ({
   length: source.domain[1] - source.domain[0],
-  medium: source.medium,
+  medium: source.medium === 'air' ? 'air' : 'string',
   yUnit: source.yUnit,
   parts: source.parts.map((c) => (c.kind === 'pulse' ? { ...c, centre: c.centre - source.domain[0] } : { ...c })),
 });
