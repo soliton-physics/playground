@@ -11,7 +11,7 @@ Live at [soliton-playground.vercel.app](https://soliton-playground.vercel.app/).
 ## What you can do
 
 **Play a scenario** (`?mode=mechanics&scenario=<id>`). The NCERT class 11 catalogue, from free fall to the simple
-pendulum. Press `/` to open the gallery.
+pendulum, and class 12's charges and fields, Gauss's law, and magnets and matter. Press `/` to open the gallery.
 
 - Drag the knobs on the stage before you press play: the launch arrow, the top of the incline, the pendulum bob.
   The same values are in the Parameters panel when you want an exact number.
@@ -20,6 +20,11 @@ pendulum. Press `/` to open the gallery.
 - Scrub the timeline to go back. A run you took part in replays exactly, hand included.
 - The inspector on the right has the free-body diagram, the energy ledger, graphs and the event log.
 - Textbook answers sit at the bottom left, with what the engine measures beside them.
+- In a scene with charges or fields, positive charges are red with a plus and negative ones blue with a minus;
+  electric fields are arrows, magnetic fields dots (out of the page) or crosses (into it). Move the pointer over the
+  stage to read the field and the potential there. The field button in the dock hides all of it.
+- A bar magnet is red at its north pole and blue at its south. The small needles across the stage are compasses,
+  red end along the field; they fade where the field is weak, which is how a neutral point shows.
 
 **Build your own** (`?mode=mechanics&sandbox`). Choose Remix on any scenario, or start from bare ground.
 
@@ -32,12 +37,15 @@ pendulum. Press `/` to open the gallery.
 - Undo and redo, autosave in the browser, Save and Open as JSON, and Share for a link that carries the whole scene.
 - Editing while a run is paused carries on from that moment.
 
-**Waves** (`?mode=waves&preset=<id>`), in three groups.
+**Waves** (`?mode=waves&preset=<id>`), in four groups.
 
 - **Class 11 · Waves.** The NCERT chapter: a travelling wave, a sound wave, the speed of a wave on a string, two waves
   adding, two pulses crossing, reflection at a fixed and at a free end, standing waves on a string, air columns closed
   and open, beats. Each has sliders, the numbers worth knowing (wavelength, period, speed, k, ω…), and its formulas.
   A lesson's parameters go in the link: `?mode=waves&preset=standing-wave&harmonic=5`.
+- **Class 12 · Electromagnetic waves.** Displacement current in a charging capacitor, the travelling wave of E and
+  B (in empty space, water or glass), standing radio waves off a metal sheet, and the spectrum from radio to gamma
+  rays. The electric field is the graph; the magnetic field is drawn with it on a slanting axis.
 - **Reading a point.** Click anywhere on a wave: displacement, the velocity and acceleration of the medium there, the
   amplitude and phase of that point, and its own history as a small graph. Drag it along. A second click adds a
   second point and gives the distance and phase difference between them. Escape clears them.
