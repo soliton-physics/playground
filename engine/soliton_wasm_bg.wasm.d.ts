@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_mechanicsworld_free: (a: number, b: number) => void;
+export const __wbg_opticsbench_free: (a: number, b: number) => void;
 export const __wbg_wavesimulation_free: (a: number, b: number) => void;
 export const mechanics_catalogue: () => [number, number, number];
 export const mechanicsworld_bodies: (a: number) => [number, number, number];
@@ -41,6 +42,19 @@ export const mechanicsworld_step: (a: number, b: number) => number;
 export const mechanicsworld_time: (a: number) => number;
 export const mechanicsworld_title: (a: number) => [number, number];
 export const mechanicsworld_view: (a: number) => [number, number, number];
+export const optics_catalogue: () => [number, number, number];
+export const opticsbench_answers: (a: number) => [number, number, number];
+export const opticsbench_axis: (a: number) => [number, number, number];
+export const opticsbench_elements: (a: number) => [number, number, number];
+export const opticsbench_from_scene: (a: number, b: number) => [number, number, number];
+export const opticsbench_index_at: (a: number, b: number, c: number) => number;
+export const opticsbench_marks: (a: number) => [number, number, number];
+export const opticsbench_new: (a: number, b: number, c: any) => [number, number, number];
+export const opticsbench_objects: (a: number) => [number, number, number];
+export const opticsbench_rays: (a: number) => [number, number, number];
+export const opticsbench_scene_json: (a: number) => [number, number];
+export const opticsbench_title: (a: number) => [number, number];
+export const opticsbench_view: (a: number) => [number, number, number];
 export const wavesimulation_add_kdv_soliton: (a: number, b: number, c: number) => void;
 export const wavesimulation_add_nls_soliton: (a: number, b: number, c: number, d: number) => void;
 export const wavesimulation_clear: (a: number) => void;

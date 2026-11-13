@@ -136,6 +136,44 @@ export class MechanicsWorld {
     view(): any;
 }
 
+export class OpticsBench {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * `[{ name, value, measured }]`: the textbook's answer and what the traced rays give.
+     */
+    answers(): any;
+    /**
+     * Two points on the principal axis, or `undefined`.
+     */
+    axis(): any;
+    elements(): any;
+    static from_scene(json: string): OpticsBench;
+    /**
+     * The refractive index at a point.
+     */
+    index_at(x: number, y: number): number;
+    /**
+     * Named points: `[{ at, label }]`.
+     */
+    marks(): any;
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     */
+    constructor(id: string, params: any);
+    /**
+     * Each object with its paraxial image.
+     */
+    objects(): any;
+    rays(): any;
+    scene_json(): string;
+    title(): string;
+    /**
+     * `{ center, half_width, half_height }`, or `undefined` for a scene that suggests none.
+     */
+    view(): any;
+}
+
 /**
  * A running simulation of one of the supported wave equations.
  */
@@ -173,11 +211,17 @@ export class WaveSimulation {
  */
 export function mechanics_catalogue(): any;
 
+/**
+ * The optics scenarios with their parameter schemas.
+ */
+export function optics_catalogue(): any;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_mechanicsworld_free: (a: number, b: number) => void;
+    readonly __wbg_opticsbench_free: (a: number, b: number) => void;
     readonly __wbg_wavesimulation_free: (a: number, b: number) => void;
     readonly mechanics_catalogue: () => [number, number, number];
     readonly mechanicsworld_bodies: (a: number) => [number, number, number];
@@ -217,6 +261,19 @@ export interface InitOutput {
     readonly mechanicsworld_time: (a: number) => number;
     readonly mechanicsworld_title: (a: number) => [number, number];
     readonly mechanicsworld_view: (a: number) => [number, number, number];
+    readonly optics_catalogue: () => [number, number, number];
+    readonly opticsbench_answers: (a: number) => [number, number, number];
+    readonly opticsbench_axis: (a: number) => [number, number, number];
+    readonly opticsbench_elements: (a: number) => [number, number, number];
+    readonly opticsbench_from_scene: (a: number, b: number) => [number, number, number];
+    readonly opticsbench_index_at: (a: number, b: number, c: number) => number;
+    readonly opticsbench_marks: (a: number) => [number, number, number];
+    readonly opticsbench_new: (a: number, b: number, c: any) => [number, number, number];
+    readonly opticsbench_objects: (a: number) => [number, number, number];
+    readonly opticsbench_rays: (a: number) => [number, number, number];
+    readonly opticsbench_scene_json: (a: number) => [number, number];
+    readonly opticsbench_title: (a: number) => [number, number];
+    readonly opticsbench_view: (a: number) => [number, number, number];
     readonly wavesimulation_add_kdv_soliton: (a: number, b: number, c: number) => void;
     readonly wavesimulation_add_nls_soliton: (a: number, b: number, c: number, d: number) => void;
     readonly wavesimulation_clear: (a: number) => void;

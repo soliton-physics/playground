@@ -441,6 +441,170 @@ export class MechanicsWorld {
 }
 if (Symbol.dispose) MechanicsWorld.prototype[Symbol.dispose] = MechanicsWorld.prototype.free;
 
+export class OpticsBench {
+    static __wrap(ptr) {
+        const obj = Object.create(OpticsBench.prototype);
+        obj.__wbg_ptr = ptr;
+        OpticsBenchFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OpticsBenchFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_opticsbench_free(ptr, 0);
+    }
+    /**
+     * `[{ name, value, measured }]`: the textbook's answer and what the traced rays give.
+     * @returns {any}
+     */
+    answers() {
+        const ret = wasm.opticsbench_answers(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Two points on the principal axis, or `undefined`.
+     * @returns {any}
+     */
+    axis() {
+        const ret = wasm.opticsbench_axis(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {any}
+     */
+    elements() {
+        const ret = wasm.opticsbench_elements(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @param {string} json
+     * @returns {OpticsBench}
+     */
+    static from_scene(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.opticsbench_from_scene(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return OpticsBench.__wrap(ret[0]);
+    }
+    /**
+     * The refractive index at a point.
+     * @param {number} x
+     * @param {number} y
+     * @returns {number}
+     */
+    index_at(x, y) {
+        const ret = wasm.opticsbench_index_at(this.__wbg_ptr, x, y);
+        return ret;
+    }
+    /**
+     * Named points: `[{ at, label }]`.
+     * @returns {any}
+     */
+    marks() {
+        const ret = wasm.opticsbench_marks(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     * @param {string} id
+     * @param {any} params
+     */
+    constructor(id, params) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.opticsbench_new(ptr0, len0, params);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        OpticsBenchFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Each object with its paraxial image.
+     * @returns {any}
+     */
+    objects() {
+        const ret = wasm.opticsbench_objects(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {any}
+     */
+    rays() {
+        const ret = wasm.opticsbench_rays(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {string}
+     */
+    scene_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.opticsbench_scene_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    title() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.opticsbench_title(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * `{ center, half_width, half_height }`, or `undefined` for a scene that suggests none.
+     * @returns {any}
+     */
+    view() {
+        const ret = wasm.opticsbench_view(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+}
+if (Symbol.dispose) OpticsBench.prototype[Symbol.dispose] = OpticsBench.prototype.free;
+
 /**
  * A running simulation of one of the supported wave equations.
  */
@@ -595,6 +759,18 @@ if (Symbol.dispose) WaveSimulation.prototype[Symbol.dispose] = WaveSimulation.pr
  */
 export function mechanics_catalogue() {
     const ret = wasm.mechanics_catalogue();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * The optics scenarios with their parameter schemas.
+ * @returns {any}
+ */
+export function optics_catalogue() {
+    const ret = wasm.optics_catalogue();
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -794,6 +970,9 @@ function __wbg_get_imports() {
 const MechanicsWorldFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_mechanicsworld_free(ptr, 1));
+const OpticsBenchFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_opticsbench_free(ptr, 1));
 const WaveSimulationFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wavesimulation_free(ptr, 1));
