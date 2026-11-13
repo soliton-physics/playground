@@ -15,6 +15,10 @@ export class MechanicsWorld {
      * The movable body under a world point, or the nearest one within `slop` metres.
      */
     body_at(x: number, y: number, slop: number): number | undefined;
+    /**
+     * The fixed wires, sheets and shells of charge in the scene, for drawing.
+     */
+    distributions(): any;
     drag_to(x: number, y: number): void;
     dt(): number;
     energy(): any;
@@ -24,9 +28,38 @@ export class MechanicsWorld {
     events(): any;
     exact(): any;
     /**
+     * `[Ex, Ey, V, Bz, Bx, By]` at a point: electric field in N/C, potential in volts, magnetic field out of
+     * the page and then in the plane, in tesla. The potential leaves out any field that has none (one held
+     * between plates, or alternating).
+     */
+    field_at(x: number, y: number): Float64Array;
+    /**
+     * Field lines of the charges, `per_charge` from the largest, followed until they end on a charge or run
+     * `reach` from `(cx, cy)`. Points as `x, y` pairs, each line closed by a pair of `NaN`s.
+     */
+    field_lines(per_charge: number, cx: number, cy: number, reach: number): Float64Array;
+    /**
+     * The same at the centre of a body, leaving out the field of the body's own magnet: what a compass or a
+     * sample placed there is in.
+     */
+    field_on(body: number): Float64Array;
+    /**
+     * The uniform electric and magnetic fields in the scene, for drawing.
+     */
+    fields(): any;
+    /**
      * `{ time, reason }` once the problem has ended, otherwise `null`.
      */
     finished(): any;
+    /**
+     * `[Bx, By]` in tesla at a point, of the fixed magnets and the background alone: the field a compass put
+     * there would line up with.
+     */
+    fixed_field_at(x: number, y: number): Float64Array;
+    /**
+     * The electric flux out of a sphere centred at `(cx, cy)` in the page, N·m²/C, summed over its surface.
+     */
+    flux_through(cx: number, cy: number, radius: number): number;
     focus(): number;
     /**
      * The free-body diagram of one body at the current state.
@@ -49,6 +82,10 @@ export class MechanicsWorld {
      * The problem's time window, when the scene has one.
      */
     horizon(): number | undefined;
+    /**
+     * Lines of the magnetic field of the fixed bar magnets, from north poles round to south, in the same form.
+     */
+    magnetic_field_lines(per_pole: number, cx: number, cy: number, reach: number): Float64Array;
     /**
      * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
      */
@@ -145,18 +182,26 @@ export interface InitOutput {
     readonly mechanics_catalogue: () => [number, number, number];
     readonly mechanicsworld_bodies: (a: number) => [number, number, number];
     readonly mechanicsworld_body_at: (a: number, b: number, c: number, d: number) => number;
+    readonly mechanicsworld_distributions: (a: number) => [number, number, number];
     readonly mechanicsworld_drag_to: (a: number, b: number, c: number) => void;
     readonly mechanicsworld_dt: (a: number) => number;
     readonly mechanicsworld_energy: (a: number) => [number, number, number];
     readonly mechanicsworld_events: (a: number) => [number, number, number];
     readonly mechanicsworld_exact: (a: number) => [number, number, number];
+    readonly mechanicsworld_field_at: (a: number, b: number, c: number) => any;
+    readonly mechanicsworld_field_lines: (a: number, b: number, c: number, d: number, e: number) => any;
+    readonly mechanicsworld_field_on: (a: number, b: number) => any;
+    readonly mechanicsworld_fields: (a: number) => [number, number, number];
     readonly mechanicsworld_finished: (a: number) => [number, number, number];
+    readonly mechanicsworld_fixed_field_at: (a: number, b: number, c: number) => any;
+    readonly mechanicsworld_flux_through: (a: number, b: number, c: number, d: number) => number;
     readonly mechanicsworld_focus: (a: number) => number;
     readonly mechanicsworld_forces: (a: number, b: number) => [number, number, number];
     readonly mechanicsworld_from_scene: (a: number, b: number, c: number) => [number, number, number];
     readonly mechanicsworld_grab: (a: number, b: number, c: number, d: number) => number;
     readonly mechanicsworld_grabbed: (a: number) => [number, number, number];
     readonly mechanicsworld_horizon: (a: number) => [number, number];
+    readonly mechanicsworld_magnetic_field_lines: (a: number, b: number, c: number, d: number, e: number) => any;
     readonly mechanicsworld_new: (a: number, b: number, c: any, d: number) => [number, number, number];
     readonly mechanicsworld_playback: (a: number) => number;
     readonly mechanicsworld_release: (a: number) => void;

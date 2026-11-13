@@ -43,6 +43,17 @@ export class MechanicsWorld {
         return ret === Number.MAX_SAFE_INTEGER ? undefined : ret;
     }
     /**
+     * The fixed wires, sheets and shells of charge in the scene, for drawing.
+     * @returns {any}
+     */
+    distributions() {
+        const ret = wasm.mechanicsworld_distributions(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * @param {number} x
      * @param {number} y
      */
@@ -88,6 +99,52 @@ export class MechanicsWorld {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * `[Ex, Ey, V, Bz, Bx, By]` at a point: electric field in N/C, potential in volts, magnetic field out of
+     * the page and then in the plane, in tesla. The potential leaves out any field that has none (one held
+     * between plates, or alternating).
+     * @param {number} x
+     * @param {number} y
+     * @returns {Float64Array}
+     */
+    field_at(x, y) {
+        const ret = wasm.mechanicsworld_field_at(this.__wbg_ptr, x, y);
+        return ret;
+    }
+    /**
+     * Field lines of the charges, `per_charge` from the largest, followed until they end on a charge or run
+     * `reach` from `(cx, cy)`. Points as `x, y` pairs, each line closed by a pair of `NaN`s.
+     * @param {number} per_charge
+     * @param {number} cx
+     * @param {number} cy
+     * @param {number} reach
+     * @returns {Float64Array}
+     */
+    field_lines(per_charge, cx, cy, reach) {
+        const ret = wasm.mechanicsworld_field_lines(this.__wbg_ptr, per_charge, cx, cy, reach);
+        return ret;
+    }
+    /**
+     * The same at the centre of a body, leaving out the field of the body's own magnet: what a compass or a
+     * sample placed there is in.
+     * @param {number} body
+     * @returns {Float64Array}
+     */
+    field_on(body) {
+        const ret = wasm.mechanicsworld_field_on(this.__wbg_ptr, body);
+        return ret;
+    }
+    /**
+     * The uniform electric and magnetic fields in the scene, for drawing.
+     * @returns {any}
+     */
+    fields() {
+        const ret = wasm.mechanicsworld_fields(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * `{ time, reason }` once the problem has ended, otherwise `null`.
      * @returns {any}
      */
@@ -97,6 +154,28 @@ export class MechanicsWorld {
             throw takeFromExternrefTable0(ret[1]);
         }
         return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `[Bx, By]` in tesla at a point, of the fixed magnets and the background alone: the field a compass put
+     * there would line up with.
+     * @param {number} x
+     * @param {number} y
+     * @returns {Float64Array}
+     */
+    fixed_field_at(x, y) {
+        const ret = wasm.mechanicsworld_fixed_field_at(this.__wbg_ptr, x, y);
+        return ret;
+    }
+    /**
+     * The electric flux out of a sphere centred at `(cx, cy)` in the page, N·m²/C, summed over its surface.
+     * @param {number} cx
+     * @param {number} cy
+     * @param {number} radius
+     * @returns {number}
+     */
+    flux_through(cx, cy, radius) {
+        const ret = wasm.mechanicsworld_flux_through(this.__wbg_ptr, cx, cy, radius);
+        return ret;
     }
     /**
      * @returns {number}
@@ -163,6 +242,18 @@ export class MechanicsWorld {
     horizon() {
         const ret = wasm.mechanicsworld_horizon(this.__wbg_ptr);
         return ret[0] === 0 ? undefined : ret[1];
+    }
+    /**
+     * Lines of the magnetic field of the fixed bar magnets, from north poles round to south, in the same form.
+     * @param {number} per_pole
+     * @param {number} cx
+     * @param {number} cy
+     * @param {number} reach
+     * @returns {Float64Array}
+     */
+    magnetic_field_lines(per_pole, cx, cy, reach) {
+        const ret = wasm.mechanicsworld_magnetic_field_lines(this.__wbg_ptr, per_pole, cx, cy, reach);
+        return ret;
     }
     /**
      * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
