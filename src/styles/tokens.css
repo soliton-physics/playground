@@ -36,8 +36,17 @@
   --force-tension: #1e3a8a;
   --force-applied: #ea580c;
   --force-spring: #c026d3;
+  --force-electric: #e11d48;
+  --force-magnetic: #9333ea;
   --force-other: #6b7280;
   --motion: #111827;
+  /* The textbook's own: red for positive charge, blue for negative. Each also carries its sign. */
+  --charge-positive: #b91c1c;
+  --charge-negative: #1d4ed8;
+  /* A magnet's poles, the way magnets are painted: north red, south blue, each lettered. */
+  --pole-north: #b91c1c;
+  --pole-south: #1d4ed8;
+  --pole-ink: #ffffff;
 
   --series-1: #2a78d6;
   --series-2: #c2410c;
@@ -91,8 +100,15 @@
   --force-tension: #818cf8;
   --force-applied: #fb923c;
   --force-spring: #f0abfc;
+  --force-electric: #f472b6;
+  --force-magnetic: #c084fc;
   --force-other: #9ca3af;
   --motion: #f3f4f6;
+  --charge-positive: #f87171;
+  --charge-negative: #60a5fa;
+  --pole-north: #dc2626;
+  --pole-south: #2563eb;
+  --pole-ink: #ffffff;
 
   --series-1: #5b9dee;
   --series-2: #f08a4b;

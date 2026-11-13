@@ -38,6 +38,20 @@ export function formatQuantity(value: number, unit: string, digits = 3): string 
   return unit ? `${formatNumber(value, digits)} ${unit}` : formatNumber(value, digits);
 }
 
+const PREFIXES: [number, string][] = [[1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'k'], [1, ''], [1e-3, 'm'], [1e-6, 'μ'], [1e-9, 'n'], [1e-12, 'p'], [1e-15, 'f']];
+
+/** A quantity with the metric prefix that keeps its number between 1 and 1000: 12 000 N/C reads 12.0 kN/C. */
+export function formatPrefixed(value: number, unit: string): string {
+  const [scale, prefix] = prefixFor(value);
+  return `${formatNumber(value / scale)} ${prefix}${unit}`;
+}
+
+/** The scale and letter of the metric prefix that suits a value: `[1e-6, 'μ']` for 25 millionths. */
+export function prefixFor(value: number): [number, string] {
+  const size = Math.abs(value);
+  return PREFIXES.find(([s]) => size >= s) ?? (size === 0 ? [1, ''] : PREFIXES[PREFIXES.length - 1]!);
+}
+
 /** A length of time: milliseconds when it is too short for seconds to say much. */
 export function formatDuration(seconds: number): string {
   return Math.abs(seconds) < 0.1 && seconds !== 0 ? `${formatNumber(seconds * 1000)} ms` : `${formatNumber(seconds)} s`;

@@ -27,7 +27,40 @@ export interface BodyInfo {
   label: string;
   kind: 'particle' | 'rigid' | 'static';
   mass: number;
+  /** Electric charge in coulombs; zero for a body with none. */
+  charge: number;
+  /** `[moment, length]` of a bar magnet, A·m² and m, north towards the body's x axis; null for anything else. */
+  magnet: [number, number] | null;
+  /** Moment taken on per tesla: positive for a paramagnet, negative for a diamagnet. */
+  polarisability: number;
   shape: ShapeInfo;
+}
+
+/**
+ * A fixed wire, sheet or shell of charge. `at` is where the wire meets the page, a point on the sheet, or the
+ * centre of the shell; `amount` is C/m, C/m² or C.
+ */
+export interface DistributionInfo {
+  kind: 'wire' | 'sheet' | 'shell';
+  at: [number, number];
+  normal: [number, number];
+  radius: number;
+  amount: number;
+}
+
+/** A closed surface the flux is totalled through: a sphere, drawn as its circle in the page. */
+export interface SurfaceSpec {
+  centre: Vec;
+  radius: number;
+}
+
+/** A uniform field: electric in N/C as it is now, or magnetic in tesla out of the page. */
+export interface FieldInfo {
+  kind: 'electric' | 'magnetic';
+  electric: [number, number];
+  magnetic: number;
+  /** Opposite corners of the rectangle it is confined to, or null when it fills the plane. */
+  region: [[number, number], [number, number]] | null;
 }
 
 export interface ForceInfo {
@@ -105,6 +138,9 @@ export interface BodySpec {
   friction?: Vec;
   restitution?: number;
   inertia?: number;
+  charge?: number;
+  magnet?: { moment: number; length: number };
+  magnetisable?: { susceptibility: number; volume: number };
 }
 
 export type AnchorSpec = { fixed: Vec } | { body: { id: string; local?: Vec } };
@@ -129,7 +165,21 @@ export type ForceSpec =
   | { linear_drag: { body: string; coefficient: number } }
   | { quadratic_drag: { body: string; coefficient: number } }
   | { driving: { body: string; amplitude: Vec; angular_frequency: number; phase?: number } }
-  | { gravitation: { constant: number; fixed?: { at: Vec; mass: number }[] } };
+  | { gravitation: { constant: number; fixed?: { at: Vec; mass: number }[] } }
+  | { electrostatics: { constant?: number; fixed?: DistributionSpec[] } }
+  | { magnetostatics: { constant?: number; background?: Vec } }
+  | { electric_field: { field: Vec; region?: RegionSpec; angular_frequency?: number; phase?: number } }
+  | { magnetic_field: { strength: number; region?: RegionSpec } };
+
+export type DistributionSpec =
+  | { wire: { at: Vec; density: number } }
+  | { sheet: { point: Vec; normal: Vec; density: number } }
+  | { shell: { centre: Vec; radius: number; charge: number } };
+
+export interface RegionSpec {
+  min: Vec;
+  max: Vec;
+}
 
 export interface SceneFile {
   schema: 1;
@@ -146,4 +196,5 @@ export interface SceneFile {
   view?: View;
   finish?: { when: Record<string, unknown>; hold?: number }[];
   playback?: number;
+  surface?: SurfaceSpec;
 }

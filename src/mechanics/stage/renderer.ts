@@ -1,5 +1,5 @@
-import { clamp, cssVar, formatLength, formatNumber, paint, stageFont, stageScale } from '../../ui';
-import { STATE_STRIDE, type BodyInfo, type ForceInfo, type GrabInfo, type SketchInfo } from '../types';
+import { clamp, cssVar, formatLength, formatNumber, formatPrefixed, paint, stageFont, stageScale } from '../../ui';
+import { STATE_STRIDE, type BodyInfo, type DistributionInfo, type FieldInfo, type ForceInfo, type GrabInfo, type SketchInfo, type SurfaceSpec } from '../types';
 import { Camera, type Box } from './camera';
 
 export interface Frame {
@@ -13,6 +13,18 @@ export interface Frame {
   showVelocity: boolean;
   showAcceleration: boolean;
   showTrail: boolean;
+  /** Uniform electric and magnetic fields to draw behind everything. */
+  fields?: FieldInfo[];
+  /** Field lines of the charges: `x, y` pairs, each line closed by a pair of NaNs. */
+  fieldLines?: Float64Array;
+  /** Lines of the magnetic field of bar magnets, in the same form. */
+  magneticLines?: Float64Array;
+  /** The magnetic field in the plane at a point, T: a lattice of compass needles is drawn from it. */
+  needles?: (x: number, y: number) => [number, number];
+  /** Fixed wires, sheets and shells of charge. */
+  distributions?: DistributionInfo[];
+  /** A closed surface the flux is totalled through. */
+  surface?: SurfaceSpec;
   grab?: GrabInfo | null;
   /** Bodies drawn with a selection ring, for the sandbox. */
   selected?: number[];
@@ -30,6 +42,8 @@ const FORCE_TOKENS: Record<string, string> = {
   applied: '--force-applied',
   driving: '--force-applied',
   spring: '--force-spring',
+  electric: '--force-electric',
+  magnetic: '--force-magnetic',
 };
 
 /** The theme token for a force's colour: the same one wherever that force is drawn or listed. */
@@ -100,6 +114,8 @@ export class Renderer implements Painter {
   private height = 0;
   private trail: [number, number][] = [];
   private labels: Rect[] = [];
+  /** The largest each electric field has been, for drawing one that alternates. */
+  private strongest = new Map<string, number>();
   /** Where the metre labels down the left edge go, and the height below which they are clear of the panels. */
   axis = { left: 8, clearTop: 0 };
 
@@ -144,6 +160,11 @@ export class Renderer implements Painter {
     ctx.fillStyle = cssVar('--canvas-bg');
     ctx.fillRect(0, 0, this.width, this.height);
     this.drawGrid();
+    for (const field of frame.fields ?? []) this.drawField(field);
+    if (frame.needles) this.drawNeedles(frame.needles);
+    if (frame.fieldLines) this.drawFieldLines(frame.fieldLines, '--force-electric');
+    if (frame.magneticLines) this.drawFieldLines(frame.magneticLines, '--force-magnetic');
+    for (const distribution of frame.distributions ?? []) this.drawDistribution(distribution);
 
     bodies.forEach((body, i) => body.kind === 'static' && this.drawBody(body, state, i, false, frame.selected?.includes(i)));
     for (const sketch of frame.sketches) this.drawSketch(sketch);
@@ -172,6 +193,7 @@ export class Renderer implements Painter {
       this.dashed([point, target], forceColor('applied'));
       this.knob(target[0], target[1], forceColor('applied'), true);
     }
+    if (frame.surface) this.drawSurface(frame.surface);
     frame.overlay?.(this);
     if (!frame.plain) this.drawAxisLabels();
   }
@@ -397,6 +419,12 @@ export class Renderer implements Painter {
     ctx.lineWidth = (focused ? 3 : 1.75) * stageScale();
     ctx.strokeStyle = edge;
     ctx.fillStyle = isStatic ? cssVar('--canvas-static') : cssVar('--canvas-body-fill');
+    const charge = body.charge ? cssVar(body.charge > 0 ? '--charge-positive' : '--charge-negative') : undefined;
+    if (charge) {
+      ctx.strokeStyle = charge;
+      ctx.fillStyle = cssVar('--canvas-bg');
+      ctx.lineWidth = (focused ? 3.5 : 2.5) * stageScale();
+    }
     const shape = body.shape;
 
     if (shape.kind === 'halfplane') {
@@ -438,7 +466,8 @@ export class Renderer implements Painter {
     let ringRadius = 0;
     const [sx, sy] = this.camera.toScreen(x, y);
     if (shape.kind === 'circle') {
-      const r = Math.max(shape.radius * this.camera.scale, isStatic ? 2 : 5);
+      // A charge is drawn large enough to carry its sign, whatever its real size.
+      const r = Math.max(shape.radius * this.camera.scale, charge ? 9 * stageScale() : isStatic ? 2 : 5);
       ringRadius = r;
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -458,6 +487,21 @@ export class Renderer implements Painter {
       this.path(points);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
+      if (body.magnet) this.drawPoles(shape.vertices, [x, y], angle, body.magnet[0] >= 0, focused);
+    }
+    if (charge) {
+      // The sign, so that the colour is never the only thing that tells the two kinds apart.
+      const arm = Math.min(Math.max(ringRadius * 0.5, 4 * stageScale()), 12 * stageScale());
+      ctx.strokeStyle = charge;
+      ctx.lineWidth = 2.25 * stageScale();
+      ctx.beginPath();
+      ctx.moveTo(sx - arm, sy);
+      ctx.lineTo(sx + arm, sy);
+      if (body.charge > 0) {
+        ctx.moveTo(sx, sy - arm);
+        ctx.lineTo(sx, sy + arm);
+      }
       ctx.stroke();
     }
     if (selected) {
@@ -545,6 +589,374 @@ export class Renderer implements Painter {
     }
   }
 
+  /**
+   * A uniform field. Electric: faint arrows along it and, when it is confined, the pair of plates that hold it,
+   * positive where the arrows start. Magnetic: the tips of arrows coming out of the page as dots, their tails
+   * going in as crosses.
+   */
+  private drawField(field: FieldInfo): void {
+    const { ctx } = this;
+    const k = stageScale();
+    const bounds = this.camera.bounds;
+    const [min, max] = field.region ?? [[bounds.left, bounds.bottom], [bounds.right, bounds.top]];
+    const [x0, y1] = this.camera.toScreen(min[0], min[1]);
+    const [x1, y0] = this.camera.toScreen(max[0], max[1]);
+    const color = cssVar(field.kind === 'electric' ? '--force-electric' : '--force-magnetic');
+    ctx.save();
+    if (field.region) {
+      ctx.globalAlpha = 0.07;
+      ctx.fillStyle = color;
+      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    }
+    ctx.beginPath();
+    ctx.rect(x0, y0, x1 - x0, y1 - y0);
+    ctx.clip();
+    // Marks sit on a lattice fixed to the world, so they stay put as the view pans.
+    // A field that fills the plane is drawn sparsely, as a backdrop; one between plates is the subject.
+    const spacing = (field.region ? 52 : 84) * k;
+    const step = spacing / this.camera.scale;
+    // Magnetic marks sit between the electric arrows where the two fields cross.
+    const shift = field.kind === 'magnetic' ? 0 : 0.5;
+    const marks: [number, number][] = [];
+    for (let x = (Math.floor(Math.max(min[0], bounds.left) / step) + shift) * step; x < Math.min(max[0], bounds.right); x += step) {
+      for (let y = (Math.floor(Math.max(min[1], bounds.bottom) / step) + shift) * step; y < Math.min(max[1], bounds.top); y += step) {
+        marks.push(this.camera.toScreen(x, y));
+      }
+    }
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1.5 * k;
+    ctx.lineCap = 'round';
+    if (field.kind === 'magnetic') {
+      ctx.globalAlpha = 0.6;
+      const r = 5 * k;
+      for (const [sx, sy] of marks) {
+        ctx.beginPath();
+        if (field.magnetic > 0) {
+          ctx.arc(sx, sy, r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1.6 * k, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (field.magnetic < 0) {
+          ctx.moveTo(sx - r * 0.7, sy - r * 0.7);
+          ctx.lineTo(sx + r * 0.7, sy + r * 0.7);
+          ctx.moveTo(sx + r * 0.7, sy - r * 0.7);
+          ctx.lineTo(sx - r * 0.7, sy + r * 0.7);
+          ctx.stroke();
+        }
+      }
+    } else {
+      const [ex, ey] = field.electric;
+      const size = Math.hypot(ex, ey);
+      // An alternating field is drawn against the largest it has been, so the arrows swell and reverse.
+      const key = JSON.stringify(field.region);
+      const largest = Math.max(this.strongest.get(key) ?? 0, size);
+      this.strongest.set(key, largest);
+      if (size > 1e-9 * largest && largest > 0) {
+        const [ux, uy] = [ex / size, -ey / size];
+        const half = 0.36 * spacing * Math.max(size / largest, 0.25);
+        ctx.globalAlpha = (field.region ? 0.25 : 0.15) + 0.4 * (size / largest);
+        ctx.beginPath();
+        for (const [sx, sy] of marks) {
+          const [tx, ty] = [sx + ux * half, sy + uy * half];
+          ctx.moveTo(sx - ux * half, sy - uy * half);
+          ctx.lineTo(tx, ty);
+          ctx.moveTo(tx - ux * 6 * k - uy * 3.5 * k, ty - uy * 6 * k + ux * 3.5 * k);
+          ctx.lineTo(tx, ty);
+          ctx.lineTo(tx - ux * 6 * k + uy * 3.5 * k, ty - uy * 6 * k - ux * 3.5 * k);
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    if (field.kind === 'electric' && field.region) this.drawPlates(field, [x0, y0, x1, y1]);
+  }
+
+  /** The plates either side of a confined electric field, the positive one where the field starts. */
+  private drawPlates(field: FieldInfo, [x0, y0, x1, y1]: [number, number, number, number]): void {
+    const { ctx } = this;
+    const k = stageScale();
+    const [ex, ey] = field.electric;
+    const upright = Math.abs(ey) >= Math.abs(ex);
+    // Screen y runs downward: a field pointing up the page starts at the lower plate.
+    const startsAtFirst = upright ? ey < 0 : ex > 0;
+    const plates: [number, number, number, number][] = upright ? [[x0, y0, x1, y0], [x0, y1, x1, y1]] : [[x0, y0, x0, y1], [x1, y0, x1, y1]];
+    const alive = Math.hypot(ex, ey) > 0;
+    plates.forEach(([ax, ay, bx, by], index) => {
+      const positive = (index === 0) === startsAtFirst;
+      ctx.strokeStyle = alive ? cssVar(positive ? '--charge-positive' : '--charge-negative') : cssVar('--canvas-static-edge');
+      ctx.lineWidth = 4 * k;
+      ctx.lineCap = 'butt';
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      if (!alive) return;
+      const outward = index === 0 ? -1 : 1;
+      const [mx, my] = [(ax + bx) / 2 + (upright ? 0 : outward * 13 * k), (ay + by) / 2 + (upright ? outward * 13 * k : 0)];
+      ctx.font = stageFont(15, 700);
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(positive ? '+' : '−', mx, my);
+      ctx.textBaseline = 'alphabetic';
+    });
+  }
+
+  /**
+   * A bar magnet, painted the way magnets are: the north half one colour and the south the other, each with its
+   * letter when there is room. A compass needle is the same thing, too small for letters.
+   */
+  private drawPoles(vertices: [number, number][], [x, y]: [number, number], angle: number, northAhead: boolean, focused: boolean): void {
+    const { ctx } = this;
+    const k = stageScale();
+    const halfLength = Math.max(...vertices.map(([vx]) => Math.abs(vx)));
+    const halfWidth = Math.max(...vertices.map(([, vy]) => Math.abs(vy)));
+    const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+    const place = (lx: number, ly: number): [number, number] => this.camera.toScreen(x + lx * cos - ly * sin, y + lx * sin + ly * cos);
+    const half = (from: number, to: number, north: boolean) => {
+      ctx.fillStyle = cssVar(north ? '--pole-north' : '--pole-south');
+      ctx.beginPath();
+      [[from, -halfWidth], [to, -halfWidth], [to, halfWidth], [from, halfWidth]].forEach(([lx, ly], i) => {
+        const [sx, sy] = place(lx!, ly!);
+        i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+      });
+      ctx.closePath();
+      ctx.fill();
+      const size = Math.min(2 * halfWidth * this.camera.scale * 0.72, halfLength * this.camera.scale * 0.8, 17 * k);
+      if (size < 9 * k) return;
+      const [sx, sy] = place((from + to) / 2, 0);
+      ctx.fillStyle = cssVar('--pole-ink');
+      ctx.font = stageFont(size / k, 700);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(north ? 'N' : 'S', sx, sy + size * 0.04);
+      ctx.textBaseline = 'alphabetic';
+    };
+    half(0, halfLength, northAhead);
+    half(-halfLength, 0, !northAhead);
+    ctx.strokeStyle = cssVar('--canvas-body');
+    ctx.lineWidth = (focused ? 2.5 : 1.25) * k;
+    this.path(vertices.map(([vx, vy]) => [x + vx * cos - vy * sin, y + vx * sin + vy * cos] as [number, number]));
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  /**
+   * A lattice of small compass needles, each lying along the field where it sits. Where the field is weak beside
+   * the rest the needle is drawn short and faint: at a neutral point there is nothing to turn it.
+   */
+  private drawNeedles(field: (x: number, y: number) => [number, number]): void {
+    const { ctx } = this;
+    const k = stageScale();
+    const bounds = this.camera.bounds;
+    const spacing = 62 * k;
+    const step = spacing / this.camera.scale;
+    const needles: { at: [number, number]; b: [number, number]; size: number }[] = [];
+    for (let x = (Math.floor(bounds.left / step) + 0.5) * step; x < bounds.right; x += step) {
+      for (let y = (Math.floor(bounds.bottom / step) + 0.5) * step; y < bounds.top; y += step) {
+        const b = field(x, y);
+        needles.push({ at: this.camera.toScreen(x, y), b, size: Math.hypot(b[0], b[1]) });
+      }
+    }
+    const sizes = needles.map((n) => n.size).sort((a, b) => a - b);
+    const typical = sizes[sizes.length >> 1] ?? 0;
+    if (!(typical > 0)) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.4 * k;
+    for (const { at, b, size } of needles) {
+      if (!(size > 0)) continue;
+      const strength = Math.min(1, size / typical);
+      const half = 0.3 * spacing * (0.3 + 0.7 * strength);
+      const [ux, uy] = [(b[0] / size) * half, (-b[1] / size) * half];
+      ctx.globalAlpha = 0.12 + 0.4 * strength;
+      ctx.strokeStyle = cssVar('--pole-south');
+      ctx.beginPath();
+      ctx.moveTo(at[0] - ux, at[1] - uy);
+      ctx.lineTo(at[0], at[1]);
+      ctx.stroke();
+      ctx.strokeStyle = cssVar('--pole-north');
+      ctx.beginPath();
+      ctx.moveTo(at[0], at[1]);
+      ctx.lineTo(at[0] + ux, at[1] + uy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** A fixed spread of charge: a wire seen end on, a sheet seen edge on with the field either side, or a shell. */
+  private drawDistribution(d: DistributionInfo): void {
+    const { ctx } = this;
+    const k = stageScale();
+    const positive = d.amount >= 0;
+    const color = cssVar(positive ? '--charge-positive' : '--charge-negative');
+    const [sx, sy] = this.camera.toScreen(d.at[0], d.at[1]);
+    const sign = (x: number, y: number, arm: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x - arm, y);
+      ctx.lineTo(x + arm, y);
+      if (positive) {
+        ctx.moveTo(x, y - arm);
+        ctx.lineTo(x, y + arm);
+      }
+      ctx.stroke();
+    };
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = cssVar('--canvas-bg');
+    ctx.lineCap = 'round';
+    if (d.kind === 'wire') {
+      const r = 11 * k;
+      ctx.lineWidth = 3 * k;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.lineWidth = 2.25 * k;
+      sign(sx, sy, 5.5 * k);
+      this.caption('wire, seen end on', sx, sy + r + 15 * k);
+      // Arrow labels keep clear of the wire and its caption.
+      this.labels.push({ x: sx - 62 * k, y: sy - r - 4 * k, w: 124 * k, h: 2 * r + 26 * k });
+    } else if (d.kind === 'shell') {
+      const r = d.radius * this.camera.scale;
+      ctx.lineWidth = 3.5 * k;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 2 * k;
+      for (let i = 0; i < 12; i++) {
+        const a = (Math.PI * 2 * (i + 0.5)) / 12;
+        sign(sx + (r + 12 * k) * Math.cos(a), sy + (r + 12 * k) * Math.sin(a), 4.5 * k);
+      }
+    } else {
+      const bounds = this.camera.bounds;
+      const reach = Math.hypot(bounds.right - bounds.left, bounds.top - bounds.bottom);
+      const [nx, ny] = d.normal;
+      const [tx, ty] = [-ny, nx];
+      const spacing = 84 * k;
+      const step = spacing / this.camera.scale;
+      // The field either side: the same everywhere, away from a positive sheet.
+      ctx.save();
+      ctx.strokeStyle = cssVar('--force-electric');
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 1.5 * k;
+      const half = 0.3 * spacing;
+      ctx.beginPath();
+      for (let x = (Math.floor(bounds.left / step) + 0.5) * step; x < bounds.right; x += step) {
+        for (let y = (Math.floor(bounds.bottom / step) + 0.5) * step; y < bounds.top; y += step) {
+          const side = (x - d.at[0]) * nx + (y - d.at[1]) * ny;
+          if (Math.abs(side) < 0.45 * step) continue;
+          const way = Math.sign(side) * (positive ? 1 : -1);
+          const [ux, uy] = [nx * way, -ny * way];
+          const [mx, my] = this.camera.toScreen(x, y);
+          const [hx, hy] = [mx + ux * half, my + uy * half];
+          ctx.moveTo(mx - ux * half, my - uy * half);
+          ctx.lineTo(hx, hy);
+          ctx.moveTo(hx - ux * 6 * k - uy * 3.5 * k, hy - uy * 6 * k + ux * 3.5 * k);
+          ctx.lineTo(hx, hy);
+          ctx.lineTo(hx - ux * 6 * k + uy * 3.5 * k, hy - uy * 6 * k - ux * 3.5 * k);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+      const [ax, ay] = this.camera.toScreen(d.at[0] - tx * reach, d.at[1] - ty * reach);
+      const [bx, by] = this.camera.toScreen(d.at[0] + tx * reach, d.at[1] + ty * reach);
+      ctx.lineCap = 'butt';
+      ctx.lineWidth = 5 * k;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 2 * k;
+      const gap = 46 * k;
+      for (let along = -Math.ceil((reach * this.camera.scale) / gap) * gap; along < reach * this.camera.scale; along += gap) {
+        // Screen y runs downward, so the tangent's y turns over; the signs sit just off the sheet.
+        sign(sx + tx * along + nx * 12 * k, sy - ty * along - ny * 12 * k, 4 * k);
+      }
+    }
+    ctx.restore();
+  }
+
+  /** A closed surface for Gauss's law: a sphere, of which the page shows the circle. */
+  private drawSurface(surface: SurfaceSpec): void {
+    const { ctx } = this;
+    const k = stageScale();
+    const [sx, sy] = this.camera.toScreen(surface.centre[0], surface.centre[1]);
+    const r = surface.radius * this.camera.scale;
+    ctx.save();
+    ctx.strokeStyle = cssVar('--text');
+    ctx.fillStyle = cssVar('--text');
+    ctx.globalAlpha = 0.06;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.9;
+    ctx.lineWidth = 2 * k;
+    ctx.setLineDash([8 * k, 6 * k]);
+    ctx.stroke();
+    ctx.restore();
+    this.caption('closed surface', sx, sy - r - 8 * k);
+  }
+
+  /** A few words naming something drawn on the stage. */
+  private caption(text: string, sx: number, sy: number): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.font = stageFont(12.5, 600);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.lineWidth = 4 * stageScale();
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = cssVar('--canvas-bg');
+    ctx.strokeText(text, sx, sy);
+    ctx.fillStyle = cssVar('--canvas-text');
+    ctx.fillText(text, sx, sy);
+    ctx.restore();
+  }
+
+  private drawFieldLines(flat: Float64Array, token: string): void {
+    const { ctx } = this;
+    const k = stageScale();
+    ctx.save();
+    ctx.strokeStyle = cssVar(token);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.4 * k;
+    ctx.lineJoin = 'round';
+    let start = 0;
+    for (let i = 0; i <= flat.length; i += 2) {
+      if (i < flat.length && !Number.isNaN(flat[i]!)) continue;
+      const count = (i - start) / 2;
+      if (count >= 2) {
+        ctx.beginPath();
+        for (let j = 0; j < count; j++) {
+          const [sx, sy] = this.camera.toScreen(flat[start + 2 * j]!, flat[start + 2 * j + 1]!);
+          j === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+        // One arrowhead a third of the way along says which way the field points.
+        const at = Math.max(1, Math.floor(count * 0.35));
+        const [ax, ay] = this.camera.toScreen(flat[start + 2 * at - 2]!, flat[start + 2 * at - 1]!);
+        const [bx, by] = this.camera.toScreen(flat[start + 2 * at]!, flat[start + 2 * at + 1]!);
+        const length = Math.hypot(bx - ax, by - ay);
+        if (length > 0) {
+          const [ux, uy] = [(bx - ax) / length, (by - ay) / length];
+          ctx.beginPath();
+          ctx.moveTo(bx + ux * 5 * k, by + uy * 5 * k);
+          ctx.lineTo(bx - ux * 5 * k - uy * 4.5 * k, by - uy * 5 * k + ux * 4.5 * k);
+          ctx.lineTo(bx - ux * 5 * k + uy * 4.5 * k, by - uy * 5 * k - ux * 4.5 * k);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      start = i + 2;
+    }
+    ctx.restore();
+  }
+
   private drawForces(forces: ForceInfo[]): void {
     const steady = forces.filter((f) => !f.impulsive);
     const largest = Math.max(1e-9, ...steady.map((f) => Math.hypot(f.force[0], f.force[1])));
@@ -553,7 +965,7 @@ export class Renderer implements Painter {
     for (const f of steady) {
       const magnitude = Math.hypot(f.force[0], f.force[1]);
       if (magnitude < 1e-6 * largest) continue;
-      this.arrow(f.point[0], f.point[1], f.force[0], f.force[1], scale, forceColor(f.label), `${f.label} ${formatNumber(magnitude)} N`);
+      this.arrow(f.point[0], f.point[1], f.force[0], f.force[1], scale, forceColor(f.label), `${f.label} ${magnitude < 0.1 ? formatPrefixed(magnitude, 'N') : `${formatNumber(magnitude)} N`}`);
     }
   }
 

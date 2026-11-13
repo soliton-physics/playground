@@ -2,15 +2,17 @@ import { el, formatNumber } from '../ui';
 import type { Session } from './session';
 import { STATE_STRIDE, type ForceInfo } from './types';
 
+type Measure = (session: Session, forces: ForceInfo[], state: Float64Array) => number | undefined;
+
 interface Chip {
   name: string;
   unit: string;
   predicted: number;
   measured: HTMLSpanElement;
-  measure?: (session: Session, forces: ForceInfo[], state: Float64Array) => number | undefined;
+  measure?: Measure;
+  /** Can be read before anything has moved: a field at a point, a flux through a surface. */
+  still?: boolean;
 }
-
-type Measure = NonNullable<Chip['measure']>;
 
 /**
  * The recorded sample to read a steady quantity from: the present while the problem is running, and just before
@@ -248,13 +250,184 @@ const atTheEnd = (quantity: string, scale = 1): Measure => (s) => {
   return Math.abs(s.world.series(s.focus, quantity)[sampleAt(s.world.series_time(), end)]!) * scale;
 };
 
+// ---- class 12: charges and fields ----
+
+/** A force on the focused body at the very start, before anything has moved. */
+const forceAtStart = (label: string): Measure => (s) => {
+  const flat = s.world.series_force(s.focus, label);
+  return s.steps > 0 && flat.length >= 2 ? Math.hypot(flat[0]!, flat[1]!) : undefined;
+};
+
+/** The electric field, N/C, where the focused body is. */
+const electricFieldHere: Measure = (s) => {
+  const [ex, ey] = s.world.field_on(s.focus);
+  return Math.hypot(ex!, ey!);
+};
+
+const potentialHere: Measure = (s) => s.world.field_on(s.focus)[2];
+
+/** The magnetic field in the plane, T, at the compass if the scene has one and at the focused body if not, leaving out the body's own. */
+const magneticFieldHere: Measure = (s) => {
+  const compass = s.bodies.findIndex((b) => b.label === 'compass');
+  const values = s.world.field_on(compass < 0 ? s.focus : compass);
+  return Math.hypot(values[4]!, values[5]!);
+};
+
+/** The magnetic field in the plane, T, at the place the focused body started from. */
+const magneticFieldAtStart: Measure = (s, _f, state) => {
+  const [xs, ys] = [s.world.series(s.focus, 'x'), s.world.series(s.focus, 'y')];
+  const [x, y] = xs.length ? [xs[0]!, ys[0]!] : [state[s.focus * STATE_STRIDE]!, state[s.focus * STATE_STRIDE + 1]!];
+  const values = s.world.field_at(x, y);
+  return Math.hypot(values[4]!, values[5]!);
+};
+
+/** The flux out of the scene's closed surface, summed by the engine over the sphere. */
+const fluxThroughSurface: Measure = (s) => (s.surface ? s.world.flux_through(s.surface.centre[0], s.surface.centre[1], s.surface.radius) : undefined);
+
+/** When a force with this label first acts on the focused body: the moment it leaves a region with no field. */
+const timeFirstFelt = (label: string): Measure => (s) => {
+  const flat = s.world.series_force(s.focus, label);
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    if (flat[i] !== 0 || flat[i + 1] !== 0) return i > 0 ? s.world.series_time()[i / 2] : undefined;
+  }
+  return undefined;
+};
+
+/** The period of something that turns to and fro where it is, from the moments its spin reverses the same way. */
+const spinPeriod: Measure = (s) => {
+  const [times, spin] = [s.world.series_time(), s.world.series(s.focus, 'omega')];
+  const turns: number[] = [];
+  for (let i = 1; i < spin.length; i++) {
+    if (spin[i - 1]! > 0 && spin[i]! <= 0) turns.push(times[i - 1]! + ((times[i]! - times[i - 1]!) * spin[i - 1]!) / (spin[i - 1]! - spin[i]!));
+  }
+  return turns.length >= 2 ? (turns[turns.length - 1]! - turns[0]!) / (turns.length - 1) : undefined;
+};
+
+const fastestSpin: Measure = (s) => {
+  const spin = s.world.series(s.focus, 'omega');
+  // The answer is the speed through the middle of the swing, which has to have been reached.
+  let [fastest, turned] = [0, false];
+  for (let i = 1; i < spin.length; i++) {
+    fastest = Math.max(fastest, Math.abs(spin[i]!));
+    turned ||= Math.abs(spin[i]!) < Math.abs(spin[i - 1]!);
+  }
+  return turned ? fastest : undefined;
+};
+
+const STILL = new Set<Measure>([electricFieldHere, potentialHere, magneticFieldHere, magneticFieldAtStart, fluxThroughSurface]);
+
+const accelerationAtStart: Measure = (s) => (s.steps > 0 ? Math.hypot(s.world.series(s.focus, 'ax')[0]!, s.world.series(s.focus, 'ay')[0]!) : undefined);
+
+/** The first time a force with this label acts on the focused body, as on entering a field. */
+const forceOnEntering = (label: string): Measure => (s) => {
+  const flat = s.world.series_force(s.focus, label);
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    const size = Math.hypot(flat[i]!, flat[i + 1]!);
+    if (size > 0) return size;
+  }
+  return undefined;
+};
+
+/** Distance of the focused body from a named one at each recorded sample. */
+function distancesFrom(s: Session, body: string): Float64Array | undefined {
+  const other = index(s, body);
+  if (other < 0) return undefined;
+  const [x, y] = [s.world.series(s.focus, 'x'), s.world.series(s.focus, 'y')];
+  const [ox, oy] = [s.world.series(other, 'x'), s.world.series(other, 'y')];
+  return x.map((v, i) => Math.hypot(v - ox[i]!, y[i]! - oy[i]!));
+}
+
+/** The speed of the focused body when it is first `factor` times as far from a named body as it began. */
+const speedAtMultiple = (body: string, factor: number): Measure => (s) => {
+  const distance = distancesFrom(s, body);
+  const at = distance?.findIndex((d) => d >= factor * distance[0]!) ?? -1;
+  return at < 0 ? undefined : s.world.series(s.focus, 'speed')[at];
+};
+
+/** The nearest the focused body has come to a named one, once it is on its way out again. */
+const nearestTo = (body: string): Measure => (s) => {
+  const distance = distancesFrom(s, body);
+  if (!distance || distance.length < 3) return undefined;
+  const least = distance.reduce((best, d) => Math.min(best, d), Infinity);
+  return distance[distance.length - 1]! > least * (1 + 1e-6) ? least : undefined;
+};
+
+/** The largest angle a hanging body has swung from straight below the origin, in degrees. */
+const widestSwing: Measure = (s) => {
+  const [x, y] = [s.world.series(s.focus, 'x'), s.world.series(s.focus, 'y')];
+  let widest = 0;
+  for (let i = 0; i < x.length; i++) widest = Math.max(widest, Math.abs(Math.atan2(x[i]!, -y[i]!)));
+  return s.steps > 0 ? (widest * 180) / Math.PI : undefined;
+};
+
+/** Half the height of the path so far, once the body has come back up from its lowest point: a circle's radius. */
+const halfHeight: Measure = (s) => {
+  const y = s.world.series(s.focus, 'y');
+  const [low, high] = [y.reduce((a, v) => Math.min(a, v), Infinity), peak(y)];
+  return y.length > 2 && y[y.length - 1]! > low + 0.05 * (high - low) && y.indexOf(low) > 0 ? (high - low) / 2 : undefined;
+};
+
+const upwardAcceleration: Measure = (s) => s.world.series(s.focus, 'ay')[steadySample(s)];
+
+/** The sideways acceleration of the focused body when a field first takes hold of it. */
+const sidewaysOnEntering: Measure = (s) => s.world.series(s.focus, 'ay').find((a) => a !== 0);
+
+/** The work done on the system from outside so far: by the supply that keeps a pair of plates charged. */
+const workFromOutside: Measure = (s) => (s.finishes.length ? (s.world.energy() as { external_work: number }).external_work : undefined);
+
 /** What one of an answer's units is in the SI units the engine records. */
 // A scale shows kilograms for the newtons pressed on it: the one answer in kg that is measured is that reading.
-const UNIT_SCALE: Record<string, number> = { km: 1000, 'km/s': 1000, min: 60, h: 3600, kg: 9.8 };
+const UNIT_SCALE: Record<string, number> = {
+  km: 1000,
+  'km/s': 1000,
+  min: 60,
+  h: 3600,
+  kg: 9.8,
+  mN: 1e-3,
+  μN: 1e-6,
+  mJ: 1e-3,
+  μJ: 1e-6,
+  'kN/C': 1000,
+  kV: 1000,
+  'kN·m²/C': 1000,
+  mT: 1e-3,
+  μT: 1e-6,
+  'mm/s²': 1e-3,
+};
 
 /** How a textbook answer can be read off the running engine, when it can. Thresholds and conditions cannot. */
 function measureFor(name: string): Chip['measure'] {
   const n = name.toLowerCase();
+  if (n.startsWith('force at the start')) return (s, f, state) => forceAtStart(s.magnets ? 'magnetic' : 'electric')(s, f, state);
+  if (n.startsWith('force on the test charge')) return forceAtStart('electric');
+  if (n.startsWith('field at the test charge') || n.startsWith('field at the bead')) return electricFieldHere;
+  if (n.startsWith('potential at the test charge')) return potentialHere;
+  if (n.startsWith('field at the compass')) return magneticFieldHere;
+  if (n.startsWith('field at the sample')) return magneticFieldAtStart;
+  if (n.startsWith('flux out of the surface')) return fluxThroughSurface;
+  if (n.startsWith('force on the bead')) return forceOf('electric');
+  if (n.startsWith('speed that keeps a circle')) return speedNow;
+  if (n.startsWith('time to go through and come back')) return period;
+  if (n.startsWith('time it spends inside')) return timeFirstFelt('electric');
+  if (n.startsWith('period of small swings of the needle')) return spinPeriod;
+  if (n.startsWith('fastest it turns')) return fastestSpin;
+  if (n.startsWith('acceleration at the start')) return accelerationAtStart;
+  if (n.startsWith('speed at twice the separation')) return speedAtMultiple('fixed charge', 2);
+  if (n.startsWith('furthest it swings')) return widestSwing;
+  if (n.startsWith('electric force, upward')) return forceOnEntering('electric');
+  if (n.startsWith('electric force')) return forceOf('electric');
+  if (n.startsWith('magnetic force at this speed')) return forceOnEntering('magnetic');
+  if (n.startsWith('magnetic force')) return forceOf('magnetic');
+  if (n.startsWith('force on each end')) return forceOf('electric');
+  if (n.startsWith('weight (')) return forceOf('gravity');
+  if (n.startsWith('acceleration, upward')) return upwardAcceleration;
+  if (n.startsWith('sideways acceleration')) return sidewaysOnEntering;
+  if (n.startsWith('where it meets the screen')) return atImpact('y');
+  if (n.startsWith('closest distance')) return nearestTo('fixed charge');
+  if (n.startsWith('speed on leaving') || n.startsWith('most speed the magnet')) return atTheEnd('speed');
+  if (n.startsWith('kinetic energy gained')) return workFromOutside;
+  if (n.startsWith('radius of the circle')) return halfHeight;
+  if (n.startsWith('time for one turn') || n.startsWith('period of small swings (')) return period;
   if (n.startsWith('acceleration') || n.startsWith('deceleration') || n.startsWith('centripetal acceleration')) return acceleration;
   if (n.startsWith('stopping distance')) return travelled;
   if (n.startsWith('time to stop')) return cameToRest;
@@ -320,7 +493,8 @@ export class Answers {
       const name = parts ? parts[1]! : answer.name;
       const unit = parts ? parts[2]! : '';
       const measured = el('span', { class: 'measured' });
-      this.chips.push({ name, unit, predicted: answer.value, measured, measure: measureFor(answer.name) });
+      const measure = measureFor(answer.name);
+      this.chips.push({ name, unit, predicted: answer.value, measured, measure, still: measure !== undefined && STILL.has(measure) });
       nodes.push(
         el('div', { class: 'answer glass', title: 'The textbook value, and what the engine measures' }, [
           el('span', { class: 'name', text: name }),
@@ -337,11 +511,11 @@ export class Answers {
       const raw = session.live ? undefined : chip.measure?.(session, forces, state);
       const value = raw === undefined ? undefined : raw / (UNIT_SCALE[chip.unit] ?? 1);
       // Once a hand has pulled on the system it is no longer the textbook's problem, and nothing measured is its answer.
-      if (value === undefined || !Number.isFinite(value) || session.steps === 0 || session.live) {
+      if (value === undefined || !Number.isFinite(value) || (session.steps === 0 && !chip.still) || session.live) {
         chip.measured.textContent = '';
         continue;
       }
-      const agrees = Math.abs(value - chip.predicted) <= 0.01 * Math.max(Math.abs(chip.predicted), 0.01);
+      const agrees = Math.abs(value - chip.predicted) <= 0.01 * Math.max(Math.abs(chip.predicted), chip.still ? 1 : 0.01);
       chip.measured.textContent = `${agrees ? '✓ ' : ''}measured ${formatNumber(value)}`;
       chip.measured.classList.toggle('agrees', agrees);
     }

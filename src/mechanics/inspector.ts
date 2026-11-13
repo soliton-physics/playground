@@ -1,5 +1,5 @@
 import { iconButton } from '../controls';
-import { cssColor, el, formatNumber, formatQuantity, formatTime } from '../ui';
+import { cssColor, el, formatNumber, formatPrefixed, formatQuantity, formatTime, prefixFor } from '../ui';
 import { Graph, type GraphSeries } from './graph';
 import type { Session } from './session';
 import { forceColor } from './stage/renderer';
@@ -88,7 +88,9 @@ export class Inspector {
     if (!body) return;
     const i = session.focus * STATE_STRIDE;
     const speed = Math.hypot(state[i + 3]!, state[i + 4]!);
-    this.summary.textContent = `${formatQuantity(body.mass, 'kg')} · ${formatQuantity(speed, 'm/s')}`;
+    const mass = body.mass >= 0.1 ? formatQuantity(body.mass, 'kg') : formatPrefixed(body.mass * 1000, 'g');
+    const charge = body.charge ? ` · ${body.charge > 0 ? '+' : ''}${formatPrefixed(body.charge, 'C')}` : '';
+    this.summary.textContent = `${mass}${charge} · ${formatQuantity(speed, 'm/s')}`;
     if (this.collapsed) return;
     if (this.tab === 'forces') this.renderForces(session, forces, state);
     else if (this.tab === 'energy') this.renderEnergy(session);
@@ -103,14 +105,19 @@ export class Inspector {
     const row = (label: Node | string, magnitude: string, components: string, total = false) =>
       el('tr', total ? { class: 'total' } : {}, [el('td', {}, [label]), el('td', { class: 'num', text: magnitude }), el('td', { class: 'num muted', text: components })]);
     const pair = (x: number, y: number) => `(${formatNumber(x, 2)}, ${formatNumber(y, 2)})`;
+    // Seen from above there is no gravity in the plane, and a row of zeros for it says nothing.
+    const shown = forces.filter((f) => f.label !== 'gravity' || Math.hypot(f.force[0], f.force[1]) > 0);
+    // The forces on a charged bead are millionths of a newton: the whole table takes the prefix of its largest.
+    const largest = shown.reduce((most, f) => Math.max(most, Math.hypot(f.force[0], f.force[1]) * (f.impulsive ? dt : 1)), 0);
+    const [unit, prefix] = largest > 0 && largest < 0.1 ? prefixFor(largest) : [1, ''];
     const table = el('table', { class: 'table' }, [
       // An impact delivers an impulse, not a force: shown in N·s so a landing does not read as a 14 kN push.
-      ...forces.map((f) => {
-        const scale = f.impulsive ? dt : 1;
+      ...shown.map((f) => {
+        const scale = (f.impulsive ? dt : 1) / unit;
         const name = el('span', {}, [el('span', { class: 'swatch', style: `background:${cssColor(forceColor(f.label))}` }), f.impulsive ? `${f.label} impulse` : f.label]);
-        return row(name, formatQuantity(Math.hypot(f.force[0], f.force[1]) * scale, f.impulsive ? 'N·s' : 'N'), pair(f.force[0] * scale, f.force[1] * scale));
+        return row(name, formatQuantity(Math.hypot(f.force[0], f.force[1]) * scale, `${prefix}${f.impulsive ? 'N·s' : 'N'}`), pair(f.force[0] * scale, f.force[1] * scale));
       }),
-      row('net force', formatQuantity(Math.hypot(net[0], net[1]), 'N'), pair(net[0], net[1]), true),
+      row('net force', formatQuantity(Math.hypot(net[0], net[1]) / unit, `${prefix}N`), pair(net[0] / unit, net[1] / unit), true),
     ]);
     const rows: [string, string][] = [
       ['position', `${pair(state[i]!, state[i + 1]!)} m`],
@@ -197,7 +204,7 @@ export class Inspector {
         { label: 'dissipated', color: ENERGY_COLORS.dissipated, values: world.series_energy('dissipated') },
       ];
     } else {
-      series = ['normal', 'friction', 'tension', 'spring', 'applied']
+      series = ['normal', 'friction', 'tension', 'spring', 'applied', 'electric', 'magnetic']
         .map((label) => {
           const flat = world.series_force(b, label);
           const x = pick(flat, 0);

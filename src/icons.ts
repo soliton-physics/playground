@@ -8,6 +8,7 @@ const paths = {
   forces: '<path d="M12 20V5M6.5 10.5 12 5l5.5 5.5"/>',
   velocity: '<path d="M4 12h15M13.5 6.5 19 12l-5.5 5.5"/>',
   acceleration: '<path d="M3 12h9M8 7l5 5-5 5M13 7l5 5-5 5"/>',
+  field: '<path d="M3 7c5-3 13-3 18 0M3 12h18M3 17c5 3 13 3 18 0"/><path d="m11 4 2.5 1-2.5 1.2M11 10.8l2.5 1.2-2.5 1.2M11 17.8l2.5 1.2-2.5 1"/>',
   trail: '<path d="M3 17c3-9 6 3 9-4s5-6 9-7" stroke-dasharray="2.5 3"/>',
   sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',

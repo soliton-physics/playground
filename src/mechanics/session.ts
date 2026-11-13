@@ -1,5 +1,5 @@
 import { MechanicsWorld } from '../engine';
-import type { BodyInfo, EventInfo, ExactInfo, FinishInfo, GrabInfo, ScenarioSpec, View } from './types';
+import type { BodyInfo, DistributionInfo, EventInfo, ExactInfo, FieldInfo, FinishInfo, GrabInfo, ScenarioSpec, SceneFile, SurfaceSpec, View } from './types';
 
 export type Source =
   | { kind: 'scenario'; spec: ScenarioSpec; params: Record<string, number> }
@@ -31,6 +31,16 @@ export class Session {
   speed = 1;
   /** The scene's own pace: seconds of simulation per second of watching. One, except for scenes that take hours. */
   playback = 1;
+  /** Charges act on one another by Coulomb's law, so there are field lines to draw. */
+  coulomb = false;
+  /** Bar magnets act here, so there are magnetic field lines and compass needles to draw. */
+  magnets = false;
+  /** Fixed wires, sheets and shells of charge. */
+  distributions: DistributionInfo[] = [];
+  /** A closed surface the scene totals the flux through. */
+  surface?: SurfaceSpec;
+  /** There is an electric or magnetic field of some kind to show and to read. */
+  fieldful = false;
   steps = 0;
   /** The furthest step this run has reached; the timeline can scrub up to here. */
   reached = 0;
@@ -65,6 +75,12 @@ export class Session {
     this.view = world.view() as View;
     this.exact = world.exact() as ExactInfo[];
     this.horizon = world.horizon() ?? 0;
+    const scene = JSON.parse(world.scene_json()) as SceneFile;
+    this.coulomb = (scene.forces ?? []).some((f) => 'electrostatics' in f);
+    this.magnets = (scene.forces ?? []).some((f) => 'magnetostatics' in f);
+    this.distributions = world.distributions() as DistributionInfo[];
+    this.surface = scene.surface;
+    this.fieldful = this.coulomb || this.magnets || (world.fields() as FieldInfo[]).length > 0;
     this.events = world.events() as EventInfo[];
     this.finishes = [];
     this.steps = 0;

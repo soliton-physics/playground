@@ -401,6 +401,10 @@ input[type='range']::-moz-range-thumb {
   pointer-events: none;
 }
 
+.stage-notes.beside-rail {
+  left: 4.857rem;
+}
+
 .stage-notes > * {
   position: static;
   pointer-events: auto;

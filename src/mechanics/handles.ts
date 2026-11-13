@@ -45,6 +45,13 @@ function inclineTop(length: number): Handle {
   };
 }
 
+const CM = 0.01;
+
+/** The compass of the magnet scenarios, carried about by its own knob. */
+function compassAt(): Handle {
+  return { label: (p) => `compass at (${p.x}, ${p.y}) cm`, color: KNOB_COLOR, position: (p) => [CM * p.x!, CM * p.y!], drag: (at) => ({ x: at[0] / CM, y: at[1] / CM }) };
+}
+
 // The Earth of the gravitation scenarios, for placing their knobs.
 const EARTH_RADIUS = 6.371e6;
 const EARTH_MU = 6.674e-11 * 5.972e24;
@@ -77,6 +84,27 @@ function pulledOut(param: string, rest: number): Handle {
 }
 
 export const HANDLES: Record<string, Handle[]> = {
+  'field-of-two-charges': [{ label: (p) => `test charge at (${p.x}, ${p.y}) m`, color: KNOB_COLOR, position: (p) => [p.x!, p.y!], drag: (at) => ({ x: at[0], y: at[1] }) }],
+  'gauss-law': [
+    { label: (p) => `surface at (${p.x}, ${p.y}) m`, color: KNOB_COLOR, position: (p) => [p.x!, p.y!], drag: (at) => ({ x: at[0], y: at[1] }) },
+    { label: (p) => `radius ${p.radius} m`, color: BODY, position: (p) => [p.x! + p.radius!, p.y!], drag: (at, p) => ({ radius: Math.hypot(at[0] - p.x!, at[1] - p.y!) }) },
+  ],
+  'charged-wire': [{ label: (p) => `${p.radius} m from the wire`, color: BODY, position: (p) => [p.radius!, 0], drag: (at) => ({ radius: Math.hypot(at[0], at[1]) }) }],
+  'charged-sheet': [{ label: (p) => `${p.distance} m from the sheet`, color: BODY, position: (p) => [p.distance!, 0], drag: (at) => ({ distance: at[0] }) }],
+  'charged-shell': [{ label: (p) => `radius ${p.radius} m`, color: BODY, position: (p) => [0, -p.radius!], drag: (at) => ({ radius: Math.hypot(at[0], at[1]) }) }],
+  'bar-magnet-field': [compassAt()],
+  'neutral-point': [compassAt()],
+  'compass-needle': [
+    {
+      label: (p) => `let go ${p.angle}° from the field`,
+      color: BODY,
+      position: (p) => [0.5 * CM * p.length! * Math.sin(rad(p.angle!)), 0.5 * CM * p.length! * Math.cos(rad(p.angle!))],
+      drag: (at) => ({ angle: Math.abs(deg(Math.atan2(at[0], at[1]))) }),
+    },
+  ],
+  'magnetic-materials': [{ label: (p) => `${p.gap} cm from the pole`, color: BODY, position: (p) => [0.0125 + CM * p.gap!, 0], drag: (at) => ({ gap: (at[0] - 0.0125) / CM }) }],
+  'charge-between-plates': [speedAlong('speed', [-0.6, 0], 1)],
+  'velocity-selector': [speedAlong('speed', [-0.6, 0], 1)],
   'stopping-distance': [speedAlong('speed', [0, 0.25], 1)],
   'projectile-on-incline': [
     {

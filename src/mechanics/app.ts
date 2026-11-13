@@ -2,7 +2,7 @@ import { closePopover, popover, slider, toast } from '../controls';
 import { mechanics_catalogue } from '../engine';
 import { icon, type IconName } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, el, formatNumber, formatSize, formatTime, layoutPx } from '../ui';
+import { clamp, el, formatNumber, formatPrefixed, formatSize, formatTime, layoutPx } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
 import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox } from './editor';
@@ -12,7 +12,7 @@ import { Inspector } from './inspector';
 import { Session, type Source } from './session';
 import { downloadScene, loadSandbox, saveSandbox, sceneFromUrl, shareLink } from './share';
 import { Renderer, aggregateForces, fitArrows, scales, type Frame, type Painter } from './stage/renderer';
-import { STATE_STRIDE, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
+import { STATE_STRIDE, type FieldInfo, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
 
 const GRAVITIES: [string, number][] = [
   ['Earth  9.8 m/s²', 9.8],
@@ -43,11 +43,12 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   const hint = el('div', { class: 'hint glass overlay', hidden: true });
   const banner = el('p', { class: 'banner glass overlay', hidden: true });
   const scaleChip = el('p', { class: 'scale-chip glass overlay', title: 'The scale of the stage at this zoom' });
+  const fieldChip = el('p', { class: 'scale-chip glass overlay', title: 'The field where the pointer is', hidden: true });
   const properties = el('div', { class: 'glass overlay', hidden: true, style: 'left:64px;bottom:84px' });
   main.append(canvas);
 
   const renderer = new Renderer(canvas);
-  const view: ViewOptions = { forces: true, velocity: true, acceleration: false, trail: true };
+  const view: ViewOptions = { forces: true, velocity: true, acceleration: false, trail: true, field: true };
   let session!: Session;
   let sandbox = false;
   let spec: ScenarioSpec = catalogue[0]!;
@@ -84,7 +85,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     speed: (value) => (session.speed = value),
   });
   // One column, so a long note about the scale pushes the answers up instead of covering them.
-  const notes = el('div', { class: 'stage-notes overlay' }, [answers.root, scaleChip]);
+  const notes = el('div', { class: 'stage-notes overlay' }, [answers.root, fieldChip, scaleChip]);
   main.append(info, hint, banner, notes, editor.rail, properties, inspector.root, dock.root);
 
   // ---------------------------------------------------------------- loading worlds
@@ -234,6 +235,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     editor.rail.hidden = !sandbox;
     // A remixed scene is no longer the textbook's problem, so its answers no longer apply.
     answers.root.hidden = sandbox;
+    notes.classList.toggle('beside-rail', sandbox);
     properties.hidden = true;
     propertiesKey = '';
     hint.hidden = true;
@@ -393,6 +395,22 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     if (scaleChip.dataset.key === key) return;
     scaleChip.dataset.key = key;
     scaleChip.replaceChildren(el('span', { text: parts[0]! }), ...(parts[1] ? [el('b', { text: parts[1] })] : []));
+  }
+
+  /** The field under the pointer, in scenes that have one: what a test charge put there would feel. */
+  function refreshField(): void {
+    const show = session.fieldful && pointer !== undefined && !embedded;
+    fieldChip.hidden = !show;
+    if (!show) return;
+    const [ex, ey, potential, magnetic, bx, by] = session.world.field_at(pointer![0], pointer![1]);
+    const electric = Math.hypot(ex!, ey!);
+    const inPlane = Math.hypot(bx!, by!);
+    // A scene with only a magnet in it has no electric field worth reporting as zero.
+    const parts = electric > 0 || (magnetic === 0 && !session.magnets) ? [`E = ${formatPrefixed(electric, 'N/C')}`] : [];
+    if (potential !== 0) parts.push(`V = ${formatPrefixed(potential!, 'V')}`);
+    if (magnetic !== 0) parts.push(`B = ${formatNumber(Math.abs(magnetic!))} T ${magnetic! > 0 ? 'out of' : 'into'} the page`);
+    if (session.magnets) parts.push(`B = ${formatPrefixed(inPlane, 'T')}`);
+    fieldChip.replaceChildren(el('span', { text: 'At the pointer' }), el('b', { text: parts.join(' · ') }));
   }
 
   function refreshProperties(): void {
@@ -759,6 +777,19 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   let last = performance.now();
   let lastPanels = 0;
+  /** Field lines of the charges as they are now, out to a little beyond the edge of the stage. */
+  function fieldLines(magnetic = false): Float64Array {
+    const { left, right, top, bottom } = renderer.camera.bounds;
+    const [x, y, reach] = [(left + right) / 2, (top + bottom) / 2, 0.75 * Math.hypot(right - left, top - bottom)];
+    return magnetic ? session.world.magnetic_field_lines(14, x, y, reach) : session.world.field_lines(16, x, y, reach);
+  }
+
+  /** The field of the fixed magnets at a point, for the lattice of compass needles. */
+  const needleField = (x: number, y: number): [number, number] => {
+    const [bx, by] = session.world.fixed_field_at(x, y);
+    return [bx!, by!];
+  };
+
   function loop(now: number): void {
     const elapsed = Math.min(0.1, (now - last) / 1000);
     last = now;
@@ -776,6 +807,12 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       showVelocity: view.velocity,
       showAcceleration: view.acceleration,
       showTrail: view.trail,
+      fields: view.field && session.fieldful ? (session.world.fields() as FieldInfo[]) : undefined,
+      fieldLines: view.field && session.coulomb ? fieldLines() : undefined,
+      magneticLines: view.field && session.magnets ? fieldLines(true) : undefined,
+      needles: view.field && session.magnets ? needleField : undefined,
+      distributions: session.distributions.length ? session.distributions : undefined,
+      surface: session.surface,
       grab: session.grabbed(),
       selected: sandbox && !session.running ? editor.selection : undefined,
       overlay,
@@ -788,6 +825,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       answers.update(session, forces, state);
       refreshProperties();
       refreshScale();
+      refreshField();
     }
     requestAnimationFrame(loop);
   }

@@ -8,6 +8,7 @@ export interface ViewOptions {
   velocity: boolean;
   acceleration: boolean;
   trail: boolean;
+  field: boolean;
 }
 
 export interface DockHandlers {
@@ -33,6 +34,7 @@ export class Dock {
   private readonly clock = el('output', { class: 'clock' });
   private readonly speedChip: HTMLButtonElement;
   private readonly timeline: HTMLDivElement;
+  private readonly fieldToggle: HTMLButtonElement;
   private playing: boolean | undefined;
   private tickKey = '';
   private span = 1;
@@ -52,6 +54,9 @@ export class Dock {
     const toggles = (['forces', 'velocity', 'acceleration', 'trail'] as const).map((key) =>
       toggleButton(key, `Show ${key}`, view[key], (on) => (view[key] = on)),
     );
+    this.fieldToggle = toggleButton('field', 'Show the field', view.field, (on) => (view.field = on));
+    this.fieldToggle.hidden = true;
+    toggles.push(this.fieldToggle);
     toggles.forEach((t) => t.classList.add('wide-only'));
 
     this.root = el('div', { class: 'dock glass overlay' }, [
@@ -102,6 +107,7 @@ export class Dock {
   }
 
   update(session: Session): void {
+    this.fieldToggle.hidden = !session.fieldful;
     if (this.playing !== session.running) {
       this.playing = session.running;
       this.play.replaceChildren(icon(session.running ? 'pause' : 'play', 20));
