@@ -35,6 +35,17 @@ compression, free expansion, mixing, the Carnot cycle.
 - Four graphs: the molecules counted by speed against Maxwell's curve, the path on a P–V diagram, temperature against
   time, and how much of each gas is in the left half of the box.
 - Each textbook answer has beside it what the molecules have given so far; it settles as the run goes on.
+- Beyond the textbook, in the same tab: finding π with random points, a crowd of random walkers, the Ising model of
+  a magnet, and cooling it through its phase transition against Onsager's exact curve.
+
+**Solve a circuit** (`?mode=circuits&scenario=<id>`). Class 12 current electricity, capacitors, the inductor and
+alternating current: from Ohm's law to the potentiometer, charging through a resistance, and the series LCR circuit.
+
+- The diagram uses the textbook's symbols. Press play and charges drift round it the way the current flows, faster
+  where there is more.
+- The side panel lists the voltage across and the current through every component. A circuit followed in time has
+  graphs of voltage and current; an alternating one has its waves and its phasors.
+- On the metre bridge and the potentiometer, drag the jockey along the wire to find the balance point.
 
 **Trace rays** (`?mode=optics&scenario=<id>`). The class 12 chapter on ray optics: spherical mirrors, refraction and
 total internal reflection, lenses, the prism, the telescope and the microscope.
@@ -56,7 +67,7 @@ total internal reflection, lenses, the prism, the telescope and the microscope.
 - Undo and redo, autosave in the browser, Save and Open as JSON, and Share for a link that carries the whole scene.
 - Editing while a run is paused carries on from that moment.
 
-**Waves** (`?mode=waves&preset=<id>`), in four groups.
+**Waves** (`?mode=waves&preset=<id>`), in five groups.
 
 - **Class 11 · Waves.** The NCERT chapter: a travelling wave, a sound wave, the speed of a wave on a string, two waves
   adding, two pulses crossing, reflection at a fixed and at a free end, standing waves on a string, air columns closed
@@ -65,6 +76,8 @@ total internal reflection, lenses, the prism, the telescope and the microscope.
 - **Class 12 · Electromagnetic waves.** Displacement current in a charging capacitor, the travelling wave of E and
   B (in empty space, water or glass), standing radio waves off a metal sheet, and the spectrum from radio to gamma
   rays. The electric field is the graph; the magnetic field is drawn with it on a slanting axis.
+- **Class 12 · Wave optics.** Young's double slit, diffraction at a single slit, and polarisation with Malus's law.
+  Each is a steady pattern: the graph is the brightness, and under it the screen as it would look.
 - **Reading a point.** Click anywhere on a wave: displacement, the velocity and acceleration of the medium there, the
   amplitude and phase of that point, and its own history as a small graph. Drag it along. A second click adds a
   second point and gives the distance and phase difference between them. Escape clears them.
@@ -133,6 +146,7 @@ src/
   waves/                   the wave mode
   optics/                  the optics bench: renderer, handles, gallery
   thermal/                 the gas: stage, graphs, gallery
+  circuits/                circuit diagrams: schematic, gallery
     model.ts               sine waves and pulses as closed forms; the motion of one point
     lessons.ts             the class 11 lessons: parameters, parts, facts, marks, formulas
     lab.ts                 the wave lab: its state, its link, its editor

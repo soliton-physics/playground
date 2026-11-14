@@ -130,14 +130,14 @@ button {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-/* Four tabs and a title do not fit a narrow bar, or a projector's large type: the other tabs keep their icons. */
-@media (max-width: 1320px) {
+/* Five tabs and a title do not fit a narrow bar, or a projector's large type: the other tabs keep their icons. */
+@media (max-width: 1500px) {
   .mode-tab:not(.active) span {
     display: none;
   }
 }
 
-@media (max-width: 1800px) {
+@media (max-width: 2100px) {
   :root[data-present] .mode-tab:not(.active) span {
     display: none;
   }
@@ -1424,5 +1424,16 @@ body.embed .banner {
 }
 
 .thermal-stage[hidden] {
+  display: none;
+}
+
+/* ---------- circuits ---------- */
+
+.circuit-readout {
+  grid-template-columns: minmax(0, 1fr) auto;
+  flex: none;
+}
+
+.thermal-plot[hidden] {
   display: none;
 }
