@@ -1,5 +1,203 @@
 /* @ts-self-types="./soliton_wasm.d.ts" */
 
+export class CircuitBench {
+    static __wrap(ptr) {
+        const obj = Object.create(CircuitBench.prototype);
+        obj.__wbg_ptr = ptr;
+        CircuitBenchFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        CircuitBenchFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_circuitbench_free(ptr, 0);
+    }
+    /**
+     * Moves time on by this many seconds of the circuit.
+     * @param {number} seconds
+     */
+    advance(seconds) {
+        const ret = wasm.circuitbench_advance(this.__wbg_ptr, seconds);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
+     * `steady`, `transient` or `alternating`.
+     * @returns {string}
+     */
+    analysis() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.circuitbench_analysis(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * `[{ name, value, measured }]`: the textbook's answers and what the solved circuit gives.
+     * @returns {any}
+     */
+    answers() {
+        const ret = wasm.circuitbench_answers(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * How long a circuit followed in time runs for, s; zero for any other.
+     * @returns {number}
+     */
+    duration() {
+        const ret = wasm.circuitbench_duration(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * True once a circuit followed in time has run its course.
+     * @returns {boolean}
+     */
+    finished() {
+        const ret = wasm.circuitbench_finished(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * The frequency of the alternating sources, Hz; zero when there are none.
+     * @returns {number}
+     */
+    frequency() {
+        const ret = wasm.circuitbench_frequency(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} json
+     * @returns {CircuitBench}
+     */
+    static from_scene(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.circuitbench_from_scene(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return CircuitBench.__wrap(ret[0]);
+    }
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     * @param {string} id
+     * @param {any} params
+     */
+    constructor(id, params) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.circuitbench_new(ptr0, len0, params);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        CircuitBenchFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * The complex amplitudes of each component's alternating voltage and current, as
+     * `Re V, Im V, Re I, Im I`; empty for a circuit not solved that way. Each quantity is the imaginary part
+     * of its amplitude times `e^{iωt}`.
+     * @returns {Float64Array}
+     */
+    phasors() {
+        const ret = wasm.circuitbench_phasors(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Seconds of the circuit to show in one second of watching.
+     * @returns {number}
+     */
+    playback() {
+        const ret = wasm.circuitbench_playback(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * `voltage, current` for each component now: volts with its `a` above its `b`, amperes from `a` to `b`.
+     * @returns {Float64Array}
+     */
+    readings() {
+        const ret = wasm.circuitbench_readings(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * The circuit as data: junctions and where they are drawn, components, how it is solved.
+     * @returns {string}
+     */
+    scene_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.circuitbench_scene_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * One component's `voltage` or `current` at every step so far.
+     * @param {number} element
+     * @param {string} quantity
+     * @returns {Float64Array}
+     */
+    series(element, quantity) {
+        const val2 = +element;
+        const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.circuitbench_series(this.__wbg_ptr, val2, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * The times of every step so far, for a circuit followed in time.
+     * @returns {Float64Array}
+     */
+    series_time() {
+        const ret = wasm.circuitbench_series_time(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    time() {
+        const ret = wasm.circuitbench_time(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {string}
+     */
+    title() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.circuitbench_title(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) CircuitBench.prototype[Symbol.dispose] = CircuitBench.prototype.free;
+
 /**
  * A running mechanics scenario, built from the catalogue with chosen parameters.
  */
@@ -605,6 +803,214 @@ export class OpticsBench {
 }
 if (Symbol.dispose) OpticsBench.prototype[Symbol.dispose] = OpticsBench.prototype.free;
 
+export class StatRun {
+    static __wrap(ptr) {
+        const obj = Object.create(StatRun.prototype);
+        obj.__wbg_ptr = ptr;
+        StatRunFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        StatRunFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_statrun_free(ptr, 0);
+    }
+    /**
+     * One step is a sweep of the lattice, a batch of darts, or a step of every walker.
+     * @param {number} steps
+     */
+    advance(steps) {
+        wasm.statrun_advance(this.__wbg_ptr, steps);
+    }
+    /**
+     * `[{ name, value, measured, within }]`.
+     * @returns {any}
+     */
+    answers() {
+        const ret = wasm.statrun_answers(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * The critical temperature of the square lattice, `2/ln(1 + √2)`.
+     * @returns {number}
+     */
+    static critical_temperature() {
+        const ret = wasm.statrun_critical_temperature();
+        return ret;
+    }
+    /**
+     * The most recent darts as `x, y, inside` triples.
+     * @returns {Float64Array}
+     */
+    darts() {
+        const ret = wasm.statrun_darts(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {boolean}
+     */
+    finished() {
+        const ret = wasm.statrun_finished(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @param {string} json
+     * @returns {StatRun}
+     */
+    static from_scene(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.statrun_from_scene(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return StatRun.__wrap(ret[0]);
+    }
+    /**
+     * The thinned record for graphs, as `step, first, second` triples: magnetisation and energy for a
+     * lattice, the estimate and its expected error for darts, the walkers' distance and `√steps` for a walk.
+     * @returns {Float64Array}
+     */
+    history() {
+        const ret = wasm.statrun_history(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * `ising`, `sweep`, `darts` or `walk`.
+     * @returns {string}
+     */
+    kind() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.statrun_kind(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     * @param {string} id
+     * @param {any} params
+     */
+    constructor(id, params) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.statrun_new(ptr0, len0, params);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        StatRunFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {any}
+     */
+    now() {
+        const ret = wasm.statrun_now(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Onsager's exact results for an infinite lattice, at `count` temperatures from `from` to `to`, as
+     * `temperature, magnetisation, energy` triples.
+     * @param {number} from
+     * @param {number} to
+     * @param {number} count
+     * @returns {Float64Array}
+     */
+    static onsager(from, to, count) {
+        const ret = wasm.statrun_onsager(from, to, count);
+        return ret;
+    }
+    /**
+     * Steps to make in one second of watching.
+     * @returns {number}
+     */
+    playback() {
+        const ret = wasm.statrun_playback(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * The temperatures a sweep has measured so far, as
+     * `temperature, magnetisation, energy, specific heat, susceptibility` for each.
+     * @returns {Float64Array}
+     */
+    points() {
+        const ret = wasm.statrun_points(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {string}
+     */
+    scene_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.statrun_scene_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Spins along a side of the lattice; zero when there is none.
+     * @returns {number}
+     */
+    size() {
+        const ret = wasm.statrun_size(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * The spins row by row, each `+1` or `−1`.
+     * @returns {Int8Array}
+     */
+    spins() {
+        const ret = wasm.statrun_spins(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {string}
+     */
+    title() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.statrun_title(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Where each walker is, as `x, y` pairs in steps from the start.
+     * @returns {Int32Array}
+     */
+    walkers() {
+        const ret = wasm.statrun_walkers(this.__wbg_ptr);
+        return ret;
+    }
+}
+if (Symbol.dispose) StatRun.prototype[Symbol.dispose] = StatRun.prototype.free;
+
 export class ThermalGas {
     static __wrap(ptr) {
         const obj = Object.create(ThermalGas.prototype);
@@ -1017,6 +1423,18 @@ export class WaveSimulation {
 if (Symbol.dispose) WaveSimulation.prototype[Symbol.dispose] = WaveSimulation.prototype.free;
 
 /**
+ * The circuit scenarios with their parameter schemas.
+ * @returns {any}
+ */
+export function circuits_catalogue() {
+    const ret = wasm.circuits_catalogue();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * The scenario catalogue with parameter schemas, for building the picker and the sliders.
  * @returns {any}
  */
@@ -1034,6 +1452,18 @@ export function mechanics_catalogue() {
  */
 export function optics_catalogue() {
     const ret = wasm.optics_catalogue();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * The statistical scenarios with their parameter schemas.
+ * @returns {any}
+ */
+export function statmech_catalogue() {
+    const ret = wasm.statmech_catalogue();
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -1187,6 +1617,26 @@ function __wbg_get_imports() {
             const ret = new Float64Array(getArrayF64FromWasm0(arg0, arg1));
             return ret;
         },
+        __wbg_new_from_slice_d9c5662e7fd80ccd: function(arg0, arg1) {
+            const ret = new Int8Array(getArrayI8FromWasm0(arg0, arg1));
+            return ret;
+        },
+        __wbg_new_from_slice_e0c60a796e12bb7c: function(arg0, arg1) {
+            const ret = new Int32Array(getArrayI32FromWasm0(arg0, arg1));
+            return ret;
+        },
+        __wbg_new_with_length_07edd8a7019b8c30: function(arg0) {
+            const ret = new Float64Array(arg0 >>> 0);
+            return ret;
+        },
+        __wbg_new_with_length_405f2fe2d5c3a4b0: function(arg0) {
+            const ret = new Int8Array(arg0 >>> 0);
+            return ret;
+        },
+        __wbg_new_with_length_861de131a23a8038: function(arg0) {
+            const ret = new Int32Array(arg0 >>> 0);
+            return ret;
+        },
         __wbg_next_178c1651c11432b3: function(arg0) {
             const ret = arg0.next;
             return ret;
@@ -1242,12 +1692,18 @@ function __wbg_get_imports() {
     };
 }
 
+const CircuitBenchFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_circuitbench_free(ptr, 1));
 const MechanicsWorldFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_mechanicsworld_free(ptr, 1));
 const OpticsBenchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_opticsbench_free(ptr, 1));
+const StatRunFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_statrun_free(ptr, 1));
 const ThermalGasFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_thermalgas_free(ptr, 1));
@@ -1324,6 +1780,16 @@ function getArrayF64FromWasm0(ptr, len) {
     return getFloat64ArrayMemory0().subarray(ptr / 8, ptr / 8 + len);
 }
 
+function getArrayI32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getInt32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
+function getArrayI8FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getInt8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
@@ -1343,6 +1809,22 @@ function getFloat64ArrayMemory0() {
         cachedFloat64ArrayMemory0 = new Float64Array(wasm.memory.buffer);
     }
     return cachedFloat64ArrayMemory0;
+}
+
+let cachedInt32ArrayMemory0 = null;
+function getInt32ArrayMemory0() {
+    if (cachedInt32ArrayMemory0 === null || cachedInt32ArrayMemory0.byteLength === 0) {
+        cachedInt32ArrayMemory0 = new Int32Array(wasm.memory.buffer);
+    }
+    return cachedInt32ArrayMemory0;
+}
+
+let cachedInt8ArrayMemory0 = null;
+function getInt8ArrayMemory0() {
+    if (cachedInt8ArrayMemory0 === null || cachedInt8ArrayMemory0.byteLength === 0) {
+        cachedInt8ArrayMemory0 = new Int8Array(wasm.memory.buffer);
+    }
+    return cachedInt8ArrayMemory0;
 }
 
 function getStringFromWasm0(ptr, len) {
@@ -1457,6 +1939,8 @@ function __wbg_finalize_init(instance, module) {
     wasmModule = module;
     cachedDataViewMemory0 = null;
     cachedFloat64ArrayMemory0 = null;
+    cachedInt32ArrayMemory0 = null;
+    cachedInt8ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;

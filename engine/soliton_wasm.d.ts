@@ -1,6 +1,68 @@
 /* tslint:disable */
 /* eslint-disable */
 
+export class CircuitBench {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Moves time on by this many seconds of the circuit.
+     */
+    advance(seconds: number): void;
+    /**
+     * `steady`, `transient` or `alternating`.
+     */
+    analysis(): string;
+    /**
+     * `[{ name, value, measured }]`: the textbook's answers and what the solved circuit gives.
+     */
+    answers(): any;
+    /**
+     * How long a circuit followed in time runs for, s; zero for any other.
+     */
+    duration(): number;
+    /**
+     * True once a circuit followed in time has run its course.
+     */
+    finished(): boolean;
+    /**
+     * The frequency of the alternating sources, Hz; zero when there are none.
+     */
+    frequency(): number;
+    static from_scene(json: string): CircuitBench;
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     */
+    constructor(id: string, params: any);
+    /**
+     * The complex amplitudes of each component's alternating voltage and current, as
+     * `Re V, Im V, Re I, Im I`; empty for a circuit not solved that way. Each quantity is the imaginary part
+     * of its amplitude times `e^{iωt}`.
+     */
+    phasors(): Float64Array;
+    /**
+     * Seconds of the circuit to show in one second of watching.
+     */
+    playback(): number;
+    /**
+     * `voltage, current` for each component now: volts with its `a` above its `b`, amperes from `a` to `b`.
+     */
+    readings(): Float64Array;
+    /**
+     * The circuit as data: junctions and where they are drawn, components, how it is solved.
+     */
+    scene_json(): string;
+    /**
+     * One component's `voltage` or `current` at every step so far.
+     */
+    series(element: number, quantity: string): Float64Array;
+    /**
+     * The times of every step so far, for a circuit followed in time.
+     */
+    series_time(): Float64Array;
+    time(): number;
+    title(): string;
+}
+
 /**
  * A running mechanics scenario, built from the catalogue with chosen parameters.
  */
@@ -174,6 +236,71 @@ export class OpticsBench {
     view(): any;
 }
 
+export class StatRun {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * One step is a sweep of the lattice, a batch of darts, or a step of every walker.
+     */
+    advance(steps: number): void;
+    /**
+     * `[{ name, value, measured, within }]`.
+     */
+    answers(): any;
+    /**
+     * The critical temperature of the square lattice, `2/ln(1 + √2)`.
+     */
+    static critical_temperature(): number;
+    /**
+     * The most recent darts as `x, y, inside` triples.
+     */
+    darts(): Float64Array;
+    finished(): boolean;
+    static from_scene(json: string): StatRun;
+    /**
+     * The thinned record for graphs, as `step, first, second` triples: magnetisation and energy for a
+     * lattice, the estimate and its expected error for darts, the walkers' distance and `√steps` for a walk.
+     */
+    history(): Float64Array;
+    /**
+     * `ising`, `sweep`, `darts` or `walk`.
+     */
+    kind(): string;
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     */
+    constructor(id: string, params: any);
+    now(): any;
+    /**
+     * Onsager's exact results for an infinite lattice, at `count` temperatures from `from` to `to`, as
+     * `temperature, magnetisation, energy` triples.
+     */
+    static onsager(from: number, to: number, count: number): Float64Array;
+    /**
+     * Steps to make in one second of watching.
+     */
+    playback(): number;
+    /**
+     * The temperatures a sweep has measured so far, as
+     * `temperature, magnetisation, energy, specific heat, susceptibility` for each.
+     */
+    points(): Float64Array;
+    scene_json(): string;
+    /**
+     * Spins along a side of the lattice; zero when there is none.
+     */
+    size(): number;
+    /**
+     * The spins row by row, each `+1` or `−1`.
+     */
+    spins(): Int8Array;
+    title(): string;
+    /**
+     * Where each walker is, as `x, y` pairs in steps from the start.
+     */
+    walkers(): Int32Array;
+}
+
 export class ThermalGas {
     free(): void;
     [Symbol.dispose](): void;
@@ -293,6 +420,11 @@ export class WaveSimulation {
 }
 
 /**
+ * The circuit scenarios with their parameter schemas.
+ */
+export function circuits_catalogue(): any;
+
+/**
  * The scenario catalogue with parameter schemas, for building the picker and the sliders.
  */
 export function mechanics_catalogue(): any;
@@ -303,6 +435,11 @@ export function mechanics_catalogue(): any;
 export function optics_catalogue(): any;
 
 /**
+ * The statistical scenarios with their parameter schemas.
+ */
+export function statmech_catalogue(): any;
+
+/**
  * The thermal scenarios with their parameter schemas.
  */
 export function thermal_catalogue(): any;
@@ -311,10 +448,29 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_circuitbench_free: (a: number, b: number) => void;
     readonly __wbg_mechanicsworld_free: (a: number, b: number) => void;
     readonly __wbg_opticsbench_free: (a: number, b: number) => void;
+    readonly __wbg_statrun_free: (a: number, b: number) => void;
     readonly __wbg_thermalgas_free: (a: number, b: number) => void;
     readonly __wbg_wavesimulation_free: (a: number, b: number) => void;
+    readonly circuitbench_advance: (a: number, b: number) => [number, number];
+    readonly circuitbench_analysis: (a: number) => [number, number];
+    readonly circuitbench_answers: (a: number) => [number, number, number];
+    readonly circuitbench_duration: (a: number) => number;
+    readonly circuitbench_finished: (a: number) => number;
+    readonly circuitbench_frequency: (a: number) => number;
+    readonly circuitbench_from_scene: (a: number, b: number) => [number, number, number];
+    readonly circuitbench_new: (a: number, b: number, c: any) => [number, number, number];
+    readonly circuitbench_phasors: (a: number) => any;
+    readonly circuitbench_playback: (a: number) => number;
+    readonly circuitbench_readings: (a: number) => any;
+    readonly circuitbench_scene_json: (a: number) => [number, number];
+    readonly circuitbench_series: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly circuitbench_series_time: (a: number) => any;
+    readonly circuitbench_time: (a: number) => number;
+    readonly circuitbench_title: (a: number) => [number, number];
+    readonly circuits_catalogue: () => [number, number, number];
     readonly mechanics_catalogue: () => [number, number, number];
     readonly mechanicsworld_bodies: (a: number) => [number, number, number];
     readonly mechanicsworld_body_at: (a: number, b: number, c: number, d: number) => number;
@@ -366,6 +522,25 @@ export interface InitOutput {
     readonly opticsbench_scene_json: (a: number) => [number, number];
     readonly opticsbench_title: (a: number) => [number, number];
     readonly opticsbench_view: (a: number) => [number, number, number];
+    readonly statmech_catalogue: () => [number, number, number];
+    readonly statrun_advance: (a: number, b: number) => void;
+    readonly statrun_answers: (a: number) => [number, number, number];
+    readonly statrun_critical_temperature: () => number;
+    readonly statrun_darts: (a: number) => any;
+    readonly statrun_finished: (a: number) => number;
+    readonly statrun_from_scene: (a: number, b: number) => [number, number, number];
+    readonly statrun_history: (a: number) => any;
+    readonly statrun_kind: (a: number) => [number, number];
+    readonly statrun_new: (a: number, b: number, c: any) => [number, number, number];
+    readonly statrun_now: (a: number) => [number, number, number];
+    readonly statrun_onsager: (a: number, b: number, c: number) => any;
+    readonly statrun_playback: (a: number) => number;
+    readonly statrun_points: (a: number) => any;
+    readonly statrun_scene_json: (a: number) => [number, number];
+    readonly statrun_size: (a: number) => number;
+    readonly statrun_spins: (a: number) => any;
+    readonly statrun_title: (a: number) => [number, number];
+    readonly statrun_walkers: (a: number) => any;
     readonly thermal_catalogue: () => [number, number, number];
     readonly thermalgas_advance: (a: number, b: number) => void;
     readonly thermalgas_answers: (a: number) => [number, number, number];
