@@ -26,6 +26,16 @@ pendulum, and class 12's charges and fields, Gauss's law, and magnets and matter
 - A bar magnet is red at its north pole and blue at its south. The small needles across the stage are compasses,
   red end along the field; they fade where the field is weak, which is how a neutral point shows.
 
+**Watch a gas** (`?mode=thermal&scenario=<id>`). Class 11 thermodynamics and kinetic theory from a few hundred
+molecules in a box: the gas law, Maxwell's distribution, equipartition, Brownian motion, isothermal and adiabatic
+compression, free expansion, mixing, the Carnot cycle.
+
+- The side panel reads the gas as it is: temperature, pressure counted from blows on the walls, and the first law's
+  ledger of internal energy, work and heat.
+- Four graphs: the molecules counted by speed against Maxwell's curve, the path on a P–V diagram, temperature against
+  time, and how much of each gas is in the left half of the box.
+- Each textbook answer has beside it what the molecules have given so far; it settles as the run goes on.
+
 **Trace rays** (`?mode=optics&scenario=<id>`). The class 12 chapter on ray optics: spherical mirrors, refraction and
 total internal reflection, lenses, the prism, the telescope and the microscope.
 
@@ -122,6 +132,7 @@ src/
     gallery.ts, answers.ts, share.ts
   waves/                   the wave mode
   optics/                  the optics bench: renderer, handles, gallery
+  thermal/                 the gas: stage, graphs, gallery
     model.ts               sine waves and pulses as closed forms; the motion of one point
     lessons.ts             the class 11 lessons: parameters, parts, facts, marks, formulas
     lab.ts                 the wave lab: its state, its link, its editor

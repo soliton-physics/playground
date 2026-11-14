@@ -52,6 +52,15 @@
   --glass-fill: rgba(14, 116, 144, 0.13);
   --glass-edge: #0e7490;
   --mirror: #1f2937;
+  /* Walls held at a temperature: one colour when there is only one, red and blue when there are two. */
+  /* Molecules, one colour a kind: solid and well apart, for red-green colour blindness too. */
+  --molecule-1: #0f766e;
+  --molecule-2: #d97706;
+  --molecule-3: #7c3aed;
+  --molecule-4: #be123c;
+  --bath: #b45309;
+  --bath-hot: #b91c1c;
+  --bath-cold: #1d4ed8;
 
   --series-1: #2a78d6;
   --series-2: #c2410c;
@@ -118,6 +127,13 @@
   --glass-fill: rgba(103, 232, 249, 0.14);
   --glass-edge: #67e8f9;
   --mirror: #e5e7eb;
+  --molecule-1: #2dd4bf;
+  --molecule-2: #fbbf24;
+  --molecule-3: #a78bfa;
+  --molecule-4: #fb7185;
+  --bath: #f59e0b;
+  --bath-hot: #f87171;
+  --bath-cold: #60a5fa;
 
   --series-1: #5b9dee;
   --series-2: #f08a4b;

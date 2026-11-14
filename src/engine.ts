@@ -1,4 +1,4 @@
-import init, { MechanicsWorld, OpticsBench, WaveSimulation, mechanics_catalogue, optics_catalogue } from '@soliton-physics/engine';
+import init, { MechanicsWorld, OpticsBench, ThermalGas, WaveSimulation, mechanics_catalogue, optics_catalogue, thermal_catalogue } from '@soliton-physics/engine';
 
 let ready: Promise<void> | undefined;
 
@@ -7,4 +7,4 @@ export function loadEngine(): Promise<void> {
   return ready;
 }
 
-export { MechanicsWorld, OpticsBench, WaveSimulation, mechanics_catalogue, optics_catalogue };
+export { MechanicsWorld, OpticsBench, ThermalGas, WaveSimulation, mechanics_catalogue, optics_catalogue, thermal_catalogue };
