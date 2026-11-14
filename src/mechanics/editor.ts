@@ -2,7 +2,7 @@ import { iconButton, slider } from '../controls';
 import type { IconName } from '../icons';
 import { el, formatNumber } from '../ui';
 import { KNOB_COLOR, scales, type Painter } from './stage/renderer';
-import type { AnchorSpec, BodySpec, ConstraintSpec, ForceSpec, RopeNodeSpec, SceneFile, Vec } from './types';
+import type { AnchorSpec, BodySpec, ConstraintSpec, ForceSpec, RopeNodeSpec, SceneFile, ShapeSpec, Vec } from './types';
 
 export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
 
@@ -24,7 +24,7 @@ const TOOLS: [Tool, IconName, string][] = [
 export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', g: 'polygon', p: 'platform', i: 'incline', w: 'wall', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
 
 const HINTS: Record<Tool, string> = {
-  select: 'Drag a body to move it, or its arrow to launch it. Click a rope or spring to edit it. Shift-click selects several.',
+  select: 'Drag a body to move it, its arrow to launch it, or a knob on its edge to resize it. Click a rope or spring to edit it. Shift-click selects several.',
   ball: 'Click to drop a ball.',
   box: 'Click to place a box.',
   polygon: 'Click each corner in turn. Click the first corner again, or press Enter, to finish.',
@@ -90,6 +90,9 @@ function convexHull(points: Vec[]): Vec[] {
   return [...half(sorted), ...half(sorted.reverse())];
 }
 
+/** Twice the area of a polygon, positive when its corners go round anticlockwise. */
+const areaSigned = (points: Vec[]) => points.reduce((sum, [x0, y0], i) => sum + x0 * points[(i + 1) % points.length]![1] - points[(i + 1) % points.length]![0] * y0, 0);
+
 /** The area of a polygon and where its centre of mass is. */
 function areaAndCentroid(points: Vec[]): { area: number; centroid: Vec } {
   let [twice, cx, cy] = [0, 0, 0];
@@ -147,6 +150,15 @@ function distanceToSegment(p: Vec, a: Vec, b: Vec): number {
 }
 
 /** To the nearest `step`, without the stray digits binary arithmetic leaves: 0.575, not 0.5750000000000001. */
+/** Which way a knob on the edge of a body changes its size. */
+export type Grip = 'radius' | 'width' | 'height' | 'corner' | { vertex: number };
+
+/** A body as it was when a knob on its edge was taken, which the drag is measured from. */
+export interface Sized {
+  position: Vec;
+  shape: ShapeSpec;
+}
+
 const round = (value: number, step = 0.05) => Number((Math.round(value / step) * step).toPrecision(12));
 
 function mentions(value: unknown, id: string): boolean {
@@ -168,6 +180,8 @@ export class Editor {
   pickedLink: LinkRef | undefined;
   private clipboard: { bodies: BodySpec[]; constraints: ConstraintSpec[]; forces: ForceSpec[] } | undefined;
   private pending: { tool: Tool; anchor: AnchorSpec; at: Vec } | undefined;
+  /** True while a knob on the edge of a body is being dragged. */
+  resizing = false;
   /** The corners clicked so far with the polygon tool. */
   private corners: Vec[] = [];
   /** The incline or wall being dragged out. */
@@ -721,6 +735,104 @@ export class Editor {
   }
 
   /** Where the velocity arrow of the selected body ends, for drawing and for grabbing it. */
+  /**
+   * The knobs on the edge of the selected body that change its size when dragged: one on the rim of a ball; the
+   * right edge, the top edge and the corner between them of a box; every corner of any other shape.
+   */
+  sizeKnobs(): { grip: Grip; at: Vec }[] {
+    const spec = this.selection.length === 1 && this.selected !== undefined ? this.scene.bodies[this.selected] : undefined;
+    if (!spec || this.tool !== 'select') return [];
+    const at = (local: Vec): Vec => this.bodyPoint(spec.id, local)!;
+    const shape = spec.shape;
+    // A body drawn as a dot has no edge to take hold of.
+    const visible = (size: number) => size >= this.span() / 60;
+    if ('circle' in shape) {
+      // Down and to the right, clear of the launch arrow.
+      const r = shape.circle;
+      const [x, y] = spec.position ?? [0, 0];
+      return visible(2 * r) ? [{ grip: 'radius', at: [x + r * Math.SQRT1_2, y - r * Math.SQRT1_2] }] : [];
+    }
+    if ('rectangle' in shape) {
+      const [w, h] = shape.rectangle;
+      if (!visible(Math.max(w, h))) return [];
+      return [
+        { grip: 'width', at: at([w / 2, 0]) },
+        { grip: 'height', at: at([0, h / 2]) },
+        { grip: 'corner', at: at([w / 2, h / 2]) },
+      ];
+    }
+    if ('polygon' in shape) {
+      // Every corner can be taken and moved, which is how a slope is made steeper, longer or turned to face the other way.
+      const across = 2 * Math.max(...shape.polygon.map(([x, y]) => Math.hypot(x, y)));
+      return visible(across) ? shape.polygon.map((corner, vertex) => ({ grip: { vertex }, at: at(corner) })) : [];
+    }
+    return [];
+  }
+
+  /** The body's position and shape now, to measure a drag of one of its knobs from. */
+  sized(index: number): Sized | undefined {
+    const spec = this.scene.bodies[index];
+    return spec && { position: spec.position ?? [0, 0], shape: spec.shape };
+  }
+
+  /**
+   * Takes a knob to where the pointer is. A box keeps its opposite edges where they were, so one resting on the
+   * ground grows upwards and stays resting; a ball grows about its centre; a corner of any other shape goes where it
+   * is taken and the rest stay put.
+   */
+  resize(index: number, grip: Grip, from: Sized, to: Vec): void {
+    const spec = this.scene.bodies[index];
+    if (!spec) return;
+    this.checkpoint(`resize ${index}`);
+    const step = 0.05 * this.unit;
+    const size = (length: number) => Math.max(step, round(length, step));
+    const [cos, sin] = [Math.cos(spec.angle ?? 0), Math.sin(spec.angle ?? 0)];
+    const [dx, dy] = [to[0] - from.position[0], to[1] - from.position[1]];
+    // The pointer in the body's own frame, as the body was.
+    const local: Vec = [dx * cos + dy * sin, -dx * sin + dy * cos];
+    if ('circle' in from.shape) {
+      spec.shape = { circle: size(Math.hypot(...local)) };
+    } else if ('rectangle' in from.shape) {
+      const [w0, h0] = from.shape.rectangle;
+      const w = grip === 'height' ? w0 : size(local[0] + w0 / 2);
+      const h = grip === 'width' ? h0 : size(local[1] + h0 / 2);
+      const [sx, sy] = [(w - w0) / 2, (h - h0) / 2];
+      spec.shape = { rectangle: [w, h] };
+      spec.position = [round(from.position[0] + sx * cos - sy * sin, 1e-6 * this.unit), round(from.position[1] + sx * sin + sy * cos, 1e-6 * this.unit)];
+    } else if ('polygon' in from.shape && typeof grip === 'object') {
+      const grid = 0.05 * this.unit;
+      const corners = from.shape.polygon.map((corner, i): Vec => (i === grip.vertex ? [round(local[0], grid), round(local[1], grid)] : corner));
+      // The engine collides convex shapes, so a corner cannot be pushed in past its neighbours or flattened out.
+      const turns = corners.map(([x, y], i) => {
+        const [ax, ay] = corners[(i + 1) % corners.length]!;
+        const [bx, by] = corners[(i + 2) % corners.length]!;
+        return (ax - x) * (by - ay) - (ay - y) * (bx - ax);
+      });
+      const least = 1e-3 * grid * grid;
+      // Nor turned inside out: the corners keep going round the same way.
+      const way = Math.sign(areaSigned(from.shape.polygon));
+      if (!turns.every((t) => way * t > least)) return;
+      // Corners are kept about the centre of mass, which has moved with the corner.
+      const { centroid } = areaAndCentroid(corners);
+      spec.shape = { polygon: corners.map(([x, y]): Vec => [x - centroid[0], y - centroid[1]]) };
+      spec.position = [from.position[0] + centroid[0] * cos - centroid[1] * sin, from.position[1] + centroid[0] * sin + centroid[1] * cos];
+    }
+    this.resizing = true;
+    this.changed();
+  }
+
+  /** The size of a body in words, shown beside the knob being dragged. */
+  private sizeLabel(spec: BodySpec): string {
+    const metres = (v: number) => `${formatNumber(v)} m`;
+    if ('circle' in spec.shape) return `radius ${metres(spec.shape.circle)}`;
+    if ('rectangle' in spec.shape) return `${metres(spec.shape.rectangle[0])} × ${metres(spec.shape.rectangle[1])}`;
+    if ('polygon' in spec.shape) {
+      const [xs, ys] = [spec.shape.polygon.map((c) => c[0]), spec.shape.polygon.map((c) => c[1])];
+      return `${metres(Math.max(...xs) - Math.min(...xs))} × ${metres(Math.max(...ys) - Math.min(...ys))}`;
+    }
+    return '';
+  }
+
   velocityTip(): Vec | undefined {
     const spec = this.selected === undefined ? undefined : this.scene.bodies[this.selected];
     if (!spec || spec.kind === 'static') return undefined;
@@ -770,12 +882,19 @@ export class Editor {
     }
     const tip = this.velocityTip();
     const spec = this.selected === undefined ? undefined : this.scene.bodies[this.selected];
-    if (tip && spec && this.tool === 'select') {
+    // The launch arrow steps aside while the size is being dragged.
+    if (tip && spec && this.tool === 'select' && !this.resizing) {
       const [vx, vy] = spec.velocity ?? [0, 0];
       const speed = Math.hypot(vx, vy);
       if (speed < 1e-9) painter.dashed([spec.position ?? [0, 0], tip], KNOB_COLOR);
       painter.knob(tip[0], tip[1], KNOB_COLOR);
       painter.label(speed < 1e-9 ? 'drag to launch' : `${formatNumber(speed)} m/s`, tip[0], tip[1] + 0.25 * this.unit, KNOB_COLOR);
+    }
+    const knobs = this.sizeKnobs();
+    for (const knob of knobs) painter.knob(knob.at[0], knob.at[1], '--force-other', this.resizing);
+    if (this.resizing && spec && knobs.length > 0) {
+      const last = knobs[knobs.length - 1]!.at;
+      painter.label(this.sizeLabel(spec), last[0], last[1] + 0.25 * this.unit, '--force-other');
     }
   }
 

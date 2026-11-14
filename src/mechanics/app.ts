@@ -5,7 +5,7 @@ import type { Shell } from '../shell';
 import { clamp, el, formatNumber, formatPrefixed, formatSize, formatTime, layoutPx } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
-import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox } from './editor';
+import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox, type Grip, type Sized } from './editor';
 import { openGallery, type GalleryChoice } from './gallery';
 import { HANDLES, type Handle } from './handles';
 import { Inspector } from './inspector';
@@ -31,6 +31,7 @@ type Drag =
   | { kind: 'move'; origins: Map<number, Vec>; at: Vec }
   | { kind: 'marquee'; from: Vec; to: Vec; add: boolean }
   | { kind: 'velocity'; body: number }
+  | { kind: 'resize'; body: number; grip: Grip; from: Sized }
   | { kind: 'handle'; handle: Handle }
   | { kind: 'tool' };
 
@@ -541,6 +542,13 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       drag = { kind: 'velocity', body: editor.selected };
       return;
     }
+    // The nearest, since on a small box the three knobs are close together.
+    const grip = sandbox && !session.running ? editor.sizeKnobs().filter((k) => pixels(k.at, e) < KNOB_REACH).sort((a, b) => pixels(a.at, e) - pixels(b.at, e))[0] : undefined;
+    const from = grip && editor.selected !== undefined ? editor.sized(editor.selected) : undefined;
+    if (grip && from) {
+      drag = { kind: 'resize', body: editor.selected!, grip: grip.grip, from };
+      return;
+    }
     const body = bodyAt(at);
     const editing = sandbox && !session.running;
     if (body === undefined) {
@@ -586,7 +594,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       return;
     }
     if (!drag) {
-      canvas.classList.toggle('over-body', bodyAt(at) !== undefined || handles().some((h) => pixels(h.position(current()), e) < KNOB_REACH));
+      canvas.classList.toggle('over-body', bodyAt(at) !== undefined || handles().some((h) => pixels(h.position(current()), e) < KNOB_REACH) || (sandbox && !session.running && editor.sizeKnobs().some((k) => pixels(k.at, e) < KNOB_REACH)));
       canvas.classList.toggle('placing', sandbox && editor.tool !== 'select');
       return;
     }
@@ -630,6 +638,9 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
         editor.setVelocity(drag.body, (at[0] - x) / scales.velocity, (at[1] - y) / scales.velocity);
         break;
       }
+      case 'resize':
+        editor.resize(drag.body, drag.grip, drag.from, at);
+        break;
       case 'handle': {
         const wanted = drag.handle.drag(at, current());
         for (const p of spec.params) if (wanted[p.name] !== undefined) values[p.name] = snap(p, wanted[p.name]!);
@@ -645,6 +656,11 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     if (drag?.kind === 'grab') session.release();
     if (drag?.kind === 'tool') editor.release();
     if (drag?.kind === 'marquee') editor.selectWithin(drag.from, drag.to, drag.add);
+    if (drag?.kind === 'resize') {
+      editor.resizing = false;
+      // The sliders in the panel are rebuilt to show the new size.
+      propertiesKey = '';
+    }
     if (drag?.kind === 'handle') requestAnimationFrame(() => requestAnimationFrame(fit));
     drag = undefined;
     canvas.classList.remove('holding');

@@ -61,6 +61,8 @@ total internal reflection, lenses, the prism, the telescope and the microscope.
 - Tools on the left: ball, box, any shape you draw corner by corner, fixed platform, incline, wall or ramp, rope, rod,
   spring, pin, erase.
 - Select a body to change its mass, size, friction and bounce, or drag its arrow to give it a velocity.
+- Drag the knobs on a selected body's edge to resize it: a box by its right edge, top edge or corner, a ball by
+  its rim, an incline or a drawn shape by any of its corners. A box keeps its opposite edges where they were, so one on the ground stays on the ground.
 - Click a rope, rod or spring to change its length, or a spring's stiffness and natural length.
 - Shift-click to select several bodies, or shift-drag a box round them; drag one to move them all. Copy, paste and
   duplicate take the ropes, rods and springs between them along.
