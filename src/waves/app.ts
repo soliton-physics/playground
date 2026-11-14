@@ -39,7 +39,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
 
   let open: Open;
   let scene: WaveScene | undefined;
-  let running = true;
+  let running = false;
   let ended = false;
   let speed = 1;
   let showParts = true;
@@ -48,7 +48,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
   /** Positions of the points being read, at most two. */
   let probes: number[] = [];
 
-  const play = iconButton('pause', 'Pause (Space)', () => toggle(), 'play');
+  const play = iconButton('play', 'Play (Space)', () => toggle(), 'play');
   const speedSlider = slider({ label: 'Speed', min: 0.1, max: 4, step: 0.1, value: speed, format: (v) => `×${formatNumber(v, 2)}`, onInput: (v) => (speed = v) });
   const speedChip = el('button', { type: 'button', class: 'speed-chip wide-only', title: 'Speed', text: 'Speed' });
   speedChip.addEventListener('click', () => popover(speedChip, el('div', { class: 'params' }, [speedSlider.root]), 'above'));
@@ -116,10 +116,13 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
 
   function refreshPlay(): void {
     play.replaceChildren(icon(running ? 'pause' : 'play', 20));
+    play.title = running ? 'Pause (Space)' : 'Play (Space)';
+    play.setAttribute('aria-label', play.title);
   }
 
   function toggle(): void {
-    if (ended) return restart();
+    // Play on a wave that has run its course starts it again, and keeps going.
+    if (ended) restart();
     running = !running;
     refreshPlay();
   }
@@ -140,9 +143,11 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
     scene = open.kind === 'lesson' ? sceneOf(open.lesson, open.values, from) : spec ? new TextbookScene(spec, from) : new SolitonScene((open as { preset: Preset }).preset);
     const [low, high] = [scene.x[0]!, scene.x[scene.x.length - 1]!];
     probes = probes.filter((x) => x >= low && x <= high);
+    // A wave just opened or restarted waits for play. One whose numbers are being changed carries on as it
+    // was, from its beginning if it has one.
+    if (!keepTime) running = false;
     if (!keepTime || spec?.duration !== undefined) {
       ended = false;
-      running = true;
       refreshPlay();
     }
     renderFacts();
