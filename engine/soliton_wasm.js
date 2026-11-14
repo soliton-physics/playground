@@ -605,6 +605,269 @@ export class OpticsBench {
 }
 if (Symbol.dispose) OpticsBench.prototype[Symbol.dispose] = OpticsBench.prototype.free;
 
+export class ThermalGas {
+    static __wrap(ptr) {
+        const obj = Object.create(ThermalGas.prototype);
+        obj.__wbg_ptr = ptr;
+        ThermalGasFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ThermalGasFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_thermalgas_free(ptr, 0);
+    }
+    /**
+     * Runs the gas on by this many picoseconds.
+     * @param {number} picoseconds
+     */
+    advance(picoseconds) {
+        wasm.thermalgas_advance(this.__wbg_ptr, picoseconds);
+    }
+    /**
+     * `[{ name, value, measured, tolerance }]`: the textbook's answers and what the gas gives so far.
+     * @returns {any}
+     */
+    answers() {
+        const ret = wasm.thermalgas_answers(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * True once the last stage has ended, for a scene whose last stage has an end.
+     * @returns {boolean}
+     */
+    finished() {
+        const ret = wasm.thermalgas_finished(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @param {string} json
+     * @returns {ThermalGas}
+     */
+    static from_scene(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.thermalgas_from_scene(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ThermalGas.__wrap(ret[0]);
+    }
+    /**
+     * The kinds of molecule in the box, in the order of their species numbers.
+     * @returns {any}
+     */
+    groups() {
+        const ret = wasm.thermalgas_groups(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * The pressure an ideal gas of this many molecules would have at this volume and temperature, atm.
+     * @returns {number}
+     */
+    ideal_pressure() {
+        const ret = wasm.thermalgas_ideal_pressure(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Maxwell's distribution for a molecule of `mass` amu at `temperature` K: the probability density per
+     * m/s at each of `points` speeds evenly spaced from zero to `fastest` m/s.
+     * @param {number} mass
+     * @param {number} temperature
+     * @param {number} points
+     * @param {number} fastest
+     * @returns {Float64Array}
+     */
+    static maxwell(mass, temperature, points, fastest) {
+        const ret = wasm.thermalgas_maxwell(mass, temperature, points, fastest);
+        return ret;
+    }
+    /**
+     * Every molecule as `x, y, z, radius, species`, in nm.
+     * @returns {Float64Array}
+     */
+    molecules() {
+        const ret = wasm.thermalgas_molecules(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     * @param {string} id
+     * @param {any} params
+     */
+    constructor(id, params) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.thermalgas_new(ptr0, len0, params);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        ThermalGasFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * The state of the gas at this moment.
+     * @returns {any}
+     */
+    now() {
+        const ret = wasm.thermalgas_now(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Where the partition stands along x, while there is one.
+     * @returns {number | undefined}
+     */
+    partition() {
+        const ret = wasm.thermalgas_partition(this.__wbg_ptr);
+        return ret[0] === 0 ? undefined : ret[1];
+    }
+    /**
+     * Whether the piston is moving, and which way: +1 out, −1 in, 0 at rest.
+     * @returns {number}
+     */
+    piston() {
+        const ret = wasm.thermalgas_piston(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Picoseconds of the gas to show in one second of watching.
+     * @returns {number}
+     */
+    playback() {
+        const ret = wasm.thermalgas_playback(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {string}
+     */
+    scene_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.thermalgas_scene_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * The record kept once a picosecond, one quantity at a time: `time` (ps), `volume` (nm³), `pressure`
+     * (atm), `temperature` (K), `work`, `heat`, `energy` (10⁻²¹ J).
+     * @param {string} quantity
+     * @returns {Float64Array}
+     */
+    series(quantity) {
+        const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.thermalgas_series(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * The share of one kind of molecule found in the left half of the box, at each sample of the record.
+     * @param {number} species
+     * @returns {Float64Array}
+     */
+    series_share(species) {
+        const ret = wasm.thermalgas_series_share(this.__wbg_ptr, species);
+        return ret;
+    }
+    /**
+     * The box as it is now, `[x, y, z]` in nm; x is where the piston stands.
+     * @returns {Float64Array}
+     */
+    size() {
+        const ret = wasm.thermalgas_size(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * How one kind of molecule is spread over speed from zero to `fastest` m/s, as a probability density per
+     * m/s in `bins` equal steps. A negative `species` takes every kind together.
+     * @param {number} species
+     * @param {number} bins
+     * @param {number} fastest
+     * @returns {Float64Array}
+     */
+    speed_histogram(species, bins, fastest) {
+        const ret = wasm.thermalgas_speed_histogram(this.__wbg_ptr, species, bins, fastest);
+        return ret;
+    }
+    /**
+     * The stage in progress and what it is called.
+     * @returns {number}
+     */
+    stage() {
+        const ret = wasm.thermalgas_stage(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    stage_count() {
+        const ret = wasm.thermalgas_stage_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {string}
+     */
+    stage_label() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.thermalgas_stage_label(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    title() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.thermalgas_title(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * The temperature each wall is held at, in K, in the order low x, high x, low y, high y, low z, high z;
+     * `NaN` for a wall that is insulated.
+     * @returns {Float64Array}
+     */
+    walls() {
+        const ret = wasm.thermalgas_walls(this.__wbg_ptr);
+        return ret;
+    }
+}
+if (Symbol.dispose) ThermalGas.prototype[Symbol.dispose] = ThermalGas.prototype.free;
+
 /**
  * A running simulation of one of the supported wave equations.
  */
@@ -771,6 +1034,18 @@ export function mechanics_catalogue() {
  */
 export function optics_catalogue() {
     const ret = wasm.optics_catalogue();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * The thermal scenarios with their parameter schemas.
+ * @returns {any}
+ */
+export function thermal_catalogue() {
+    const ret = wasm.thermal_catalogue();
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -973,6 +1248,9 @@ const MechanicsWorldFinalization = (typeof FinalizationRegistry === 'undefined')
 const OpticsBenchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_opticsbench_free(ptr, 1));
+const ThermalGasFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_thermalgas_free(ptr, 1));
 const WaveSimulationFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wavesimulation_free(ptr, 1));

@@ -174,6 +174,92 @@ export class OpticsBench {
     view(): any;
 }
 
+export class ThermalGas {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Runs the gas on by this many picoseconds.
+     */
+    advance(picoseconds: number): void;
+    /**
+     * `[{ name, value, measured, tolerance }]`: the textbook's answers and what the gas gives so far.
+     */
+    answers(): any;
+    /**
+     * True once the last stage has ended, for a scene whose last stage has an end.
+     */
+    finished(): boolean;
+    static from_scene(json: string): ThermalGas;
+    /**
+     * The kinds of molecule in the box, in the order of their species numbers.
+     */
+    groups(): any;
+    /**
+     * The pressure an ideal gas of this many molecules would have at this volume and temperature, atm.
+     */
+    ideal_pressure(): number;
+    /**
+     * Maxwell's distribution for a molecule of `mass` amu at `temperature` K: the probability density per
+     * m/s at each of `points` speeds evenly spaced from zero to `fastest` m/s.
+     */
+    static maxwell(mass: number, temperature: number, points: number, fastest: number): Float64Array;
+    /**
+     * Every molecule as `x, y, z, radius, species`, in nm.
+     */
+    molecules(): Float64Array;
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     */
+    constructor(id: string, params: any);
+    /**
+     * The state of the gas at this moment.
+     */
+    now(): any;
+    /**
+     * Where the partition stands along x, while there is one.
+     */
+    partition(): number | undefined;
+    /**
+     * Whether the piston is moving, and which way: +1 out, −1 in, 0 at rest.
+     */
+    piston(): number;
+    /**
+     * Picoseconds of the gas to show in one second of watching.
+     */
+    playback(): number;
+    scene_json(): string;
+    /**
+     * The record kept once a picosecond, one quantity at a time: `time` (ps), `volume` (nm³), `pressure`
+     * (atm), `temperature` (K), `work`, `heat`, `energy` (10⁻²¹ J).
+     */
+    series(quantity: string): Float64Array;
+    /**
+     * The share of one kind of molecule found in the left half of the box, at each sample of the record.
+     */
+    series_share(species: number): Float64Array;
+    /**
+     * The box as it is now, `[x, y, z]` in nm; x is where the piston stands.
+     */
+    size(): Float64Array;
+    /**
+     * How one kind of molecule is spread over speed from zero to `fastest` m/s, as a probability density per
+     * m/s in `bins` equal steps. A negative `species` takes every kind together.
+     */
+    speed_histogram(species: number, bins: number, fastest: number): Float64Array;
+    /**
+     * The stage in progress and what it is called.
+     */
+    stage(): number;
+    stage_count(): number;
+    stage_label(): string;
+    title(): string;
+    /**
+     * The temperature each wall is held at, in K, in the order low x, high x, low y, high y, low z, high z;
+     * `NaN` for a wall that is insulated.
+     */
+    walls(): Float64Array;
+}
+
 /**
  * A running simulation of one of the supported wave equations.
  */
@@ -216,12 +302,18 @@ export function mechanics_catalogue(): any;
  */
 export function optics_catalogue(): any;
 
+/**
+ * The thermal scenarios with their parameter schemas.
+ */
+export function thermal_catalogue(): any;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_mechanicsworld_free: (a: number, b: number) => void;
     readonly __wbg_opticsbench_free: (a: number, b: number) => void;
+    readonly __wbg_thermalgas_free: (a: number, b: number) => void;
     readonly __wbg_wavesimulation_free: (a: number, b: number) => void;
     readonly mechanics_catalogue: () => [number, number, number];
     readonly mechanicsworld_bodies: (a: number) => [number, number, number];
@@ -274,6 +366,30 @@ export interface InitOutput {
     readonly opticsbench_scene_json: (a: number) => [number, number];
     readonly opticsbench_title: (a: number) => [number, number];
     readonly opticsbench_view: (a: number) => [number, number, number];
+    readonly thermal_catalogue: () => [number, number, number];
+    readonly thermalgas_advance: (a: number, b: number) => void;
+    readonly thermalgas_answers: (a: number) => [number, number, number];
+    readonly thermalgas_finished: (a: number) => number;
+    readonly thermalgas_from_scene: (a: number, b: number) => [number, number, number];
+    readonly thermalgas_groups: (a: number) => [number, number, number];
+    readonly thermalgas_ideal_pressure: (a: number) => number;
+    readonly thermalgas_maxwell: (a: number, b: number, c: number, d: number) => any;
+    readonly thermalgas_molecules: (a: number) => any;
+    readonly thermalgas_new: (a: number, b: number, c: any) => [number, number, number];
+    readonly thermalgas_now: (a: number) => [number, number, number];
+    readonly thermalgas_partition: (a: number) => [number, number];
+    readonly thermalgas_piston: (a: number) => number;
+    readonly thermalgas_playback: (a: number) => number;
+    readonly thermalgas_scene_json: (a: number) => [number, number];
+    readonly thermalgas_series: (a: number, b: number, c: number) => [number, number, number];
+    readonly thermalgas_series_share: (a: number, b: number) => any;
+    readonly thermalgas_size: (a: number) => any;
+    readonly thermalgas_speed_histogram: (a: number, b: number, c: number, d: number) => any;
+    readonly thermalgas_stage: (a: number) => number;
+    readonly thermalgas_stage_count: (a: number) => number;
+    readonly thermalgas_stage_label: (a: number) => [number, number];
+    readonly thermalgas_title: (a: number) => [number, number];
+    readonly thermalgas_walls: (a: number) => any;
     readonly wavesimulation_add_kdv_soliton: (a: number, b: number, c: number) => void;
     readonly wavesimulation_add_nls_soliton: (a: number, b: number, c: number, d: number) => void;
     readonly wavesimulation_clear: (a: number) => void;
