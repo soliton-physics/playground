@@ -1,6 +1,7 @@
 import { WaveSimulation } from '../engine';
 import { cssVar, formatNumber, formatPrefixed, formatQuantity } from '../ui';
 import type { CapacitorPicture } from './capacitor';
+import type { Picture } from './pattern';
 import { formulasFor, type FormulaGroup } from './formulas';
 import type { Fact, Lesson, Mark, Values } from './lessons';
 import { acceleration, commonFrequency, commonWavelength, displacement, naturalTime, oscillationAt, total, velocity, type Component } from './model';
@@ -44,11 +45,11 @@ export interface WaveScene {
   readonly yLabel?: string;
   /** The numbers under "worth knowing" change as time passes. */
   readonly liveFacts?: boolean;
-  readonly medium: 'string' | 'air' | 'field' | 'light' | 'capacitor';
+  readonly medium: 'string' | 'air' | 'field' | 'light' | 'capacitor' | 'screen';
   /** For light: the magnetic field, times the speed of the wave so that it is in the units of the electric field. */
   companion?(): Float64Array;
-  /** For a charging capacitor: what to draw under the graph. */
-  picture?(): CapacitorPicture;
+  /** For a charging capacitor, or a pattern on a screen: what to draw under the graph. */
+  picture?(): CapacitorPicture | Picture;
   readonly layerGain: number;
   /** How many waves are added together here, and whether they are worth showing one by one from the start. */
   readonly partCount: number;

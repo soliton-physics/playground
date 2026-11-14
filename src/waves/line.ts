@@ -1,5 +1,6 @@
 import { cssVar, paint, stageFont, stageScale } from '../ui';
 import type { CapacitorPicture } from './capacitor';
+import type { Picture } from './pattern';
 import type { Mark } from './lessons';
 import type { Series } from './scene';
 
@@ -20,7 +21,7 @@ export interface Frame {
   yUnit: string;
   marks: Mark[];
   probes: ProbeMark[];
-  medium: 'string' | 'air' | 'field' | 'light' | 'capacitor';
+  medium: 'string' | 'air' | 'field' | 'light' | 'capacitor' | 'screen';
   /** How far a layer of air is drawn from its place for each unit of displacement, in units of x. */
   layerGain: number;
   /** What the axes measure, when it is not displacement against position. */
@@ -28,8 +29,8 @@ export interface Frame {
   yLabel?: string;
   /** The magnetic field of a light wave, in the units of the electric one. */
   companion?: Float64Array;
-  /** The state of a charging capacitor, drawn under the graph. */
-  picture?: CapacitorPicture;
+  /** The state of a charging capacitor, or a pattern as it looks on a screen, drawn under the graph. */
+  picture?: CapacitorPicture | Picture;
 }
 
 /** Space for the axis numbers and, under a sound wave, the strip of air layers; all grow with the stage scale. */
@@ -85,7 +86,8 @@ export class LinePlot {
     const { x, series, range } = frame;
     const k = stageScale();
     const spectrum = frame.marks.find((m) => m.kind === 'spectrum');
-    this.strip = frame.medium === 'air' || spectrum ? stripHeight() : frame.medium === 'capacitor' ? pictureHeight() : 0;
+    const polaroids = frame.picture && 'kind' in frame.picture && frame.picture.kind === 'polaroids';
+    this.strip = frame.medium === 'air' || spectrum || (frame.medium === 'screen' && !polaroids) ? stripHeight() : frame.medium === 'capacitor' || polaroids ? pictureHeight() : 0;
     [this.x0, this.x1] = [x[0] ?? 0, x[x.length - 1] ?? 1];
     [this.y0, this.y1] = range;
     const { x0, x1, y0, y1, plotHeight } = this;
@@ -186,7 +188,11 @@ export class LinePlot {
         context.fillText('E', toX(x[crest]!) + 8 * k, toY(sum![crest]!) - 6 * k);
       }
     }
-    if (frame.medium === 'capacitor' && frame.picture) this.capacitor(frame.picture, floor + 30 * k);
+    if (frame.medium === 'capacitor' && frame.picture && !('kind' in frame.picture)) this.capacitor(frame.picture, floor + 30 * k);
+    if (frame.picture && 'kind' in frame.picture) {
+      if (frame.picture.kind === 'fringes') this.fringes(frame.picture.values, frame.picture.color, floor + 26 * k);
+      else this.polaroids(frame.picture, floor + 34 * k);
+    }
     if (spectrum && spectrum.kind === 'spectrum') this.spectrum(spectrum, floor + 26 * k);
 
     // Beads on a string: each stays at its own x and only rides up and down.
@@ -435,6 +441,81 @@ export class LinePlot {
     context.fillText('current', right + wire * 0.52, y + 18 * k);
     context.fillText('displacement current', middle, y + 5 * k);
     context.fillText('B circles wire and gap alike', middle, top + height + 17 * k);
+  }
+
+  /** The pattern as the eye would see it on the screen: bright where the graph is high, in the light's own colour. */
+  private fringes(values: Float64Array, color: string, top: number): void {
+    const { context } = this;
+    const k = stageScale();
+    const [left, width, height] = [margin().left, this.plotWidth, 24 * k];
+    context.fillStyle = cssVar('--dark-room');
+    context.fillRect(left, top, width, height);
+    context.fillStyle = color;
+    const columns = Math.max(1, Math.round(width));
+    for (let c = 0; c < columns; c++) {
+      const value = values[Math.min(values.length - 1, Math.round((c / columns) * (values.length - 1)))]!;
+      // The eye and a screen both flatter faint light, so the side bands are shown a little brighter than they are.
+      context.globalAlpha = Math.min(1, Math.max(0, value) ** 0.6);
+      context.fillRect(left + c, top, 1.5, height);
+    }
+    context.globalAlpha = 1;
+  }
+
+  /** Light going through two polaroids: each a disc with its axis marked, and a patch showing how bright the light is after it. */
+  private polaroids(picture: Extract<Picture, { kind: 'polaroids' }>, top: number): void {
+    const { context } = this;
+    const k = stageScale();
+    const middle = top + 34 * k;
+    const [left, width] = [margin().left, this.plotWidth];
+    const stops = [0.12, 0.38, 0.64, 0.9].map((share) => left + share * width);
+    const ink = cssVar('--canvas-text');
+    const beam = (from: number, to: number, share: number) => {
+      // Brightness as a thickness and a strength of colour, so that no light is plainly no beam.
+      if (share <= 0.002) return;
+      context.strokeStyle = cssVar('--accent');
+      context.globalAlpha = 0.25 + 0.75 * Math.sqrt(share);
+      context.lineWidth = (2 + 14 * share) * k;
+      context.lineCap = 'butt';
+      context.beginPath();
+      context.moveTo(from, middle);
+      context.lineTo(to, middle);
+      context.stroke();
+      context.globalAlpha = 1;
+    };
+    beam(stops[0]!, stops[1]!, 1);
+    beam(stops[1]!, stops[2]!, picture.afterFirst);
+    beam(stops[2]!, stops[3]!, picture.afterSecond);
+    const disc = (x: number, degrees: number, label: string) => {
+      const r = 26 * k;
+      context.fillStyle = cssVar('--surface');
+      context.strokeStyle = ink;
+      context.lineWidth = 2 * k;
+      context.beginPath();
+      context.ellipse(x, middle, r * 0.45, r, 0, 0, 2 * Math.PI);
+      context.fill();
+      context.stroke();
+      // The axis the polaroid lets vibrations through along, turned from the vertical.
+      const turn = (degrees * Math.PI) / 180;
+      context.strokeStyle = cssVar('--text');
+      context.lineWidth = 2.5 * k;
+      context.beginPath();
+      context.moveTo(x - Math.sin(turn) * r * 0.42, middle - Math.cos(turn) * r * 0.92);
+      context.lineTo(x + Math.sin(turn) * r * 0.42, middle + Math.cos(turn) * r * 0.92);
+      context.stroke();
+      context.fillStyle = ink;
+      context.font = axisFont();
+      context.textAlign = 'center';
+      context.fillText(label, x, middle + r + 15 * k);
+    };
+    disc(stops[1]!, 0, 'first polaroid');
+    disc(stops[2]!, picture.angle, `second, turned ${Math.round(picture.angle)}°`);
+    context.fillStyle = ink;
+    context.font = axisFont();
+    context.textAlign = 'center';
+    context.fillText('unpolarised light', stops[0]!, middle - 18 * k);
+    const percent = (share: number) => `${Math.round(share * 100)} %`;
+    context.fillText(percent(picture.afterFirst), (stops[1]! + stops[2]!) / 2, middle - 18 * k);
+    context.fillText(percent(picture.afterSecond), (stops[2]! + stops[3]!) / 2 + 20 * k, middle - 18 * k);
   }
 
   /** The whole spectrum on one line, a power of ten at a time, with a pointer at the frequency in hand. */

@@ -2,7 +2,7 @@ import { WaveSimulation } from '../engine';
 import { icon } from '../icons';
 import { cssVar, el } from '../ui';
 import { resolveLab, type Lab } from './lab';
-import { defaults, lessons, LIGHT_CHAPTER, type Lesson } from './lessons';
+import { defaults, lessons, LIGHT_CHAPTER, WAVE_OPTICS, type Lesson } from './lessons';
 import { sparkline } from './line';
 import { presets, type Preset } from './presets';
 import { CHAPTER, resolve, sceneOf, TextbookScene, type Resolved } from './scene';
@@ -68,7 +68,7 @@ export function openWaveGallery(current: string, saved: Lab | undefined, choose:
     const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
     const matches = (...text: string[]) => words.every((w) => text.join(' ').toLowerCase().includes(w));
     const groups: [string, HTMLButtonElement[]][] = [
-      ...[CHAPTER, LIGHT_CHAPTER].map((chapter): [string, HTMLButtonElement[]] => [
+      ...[CHAPTER, LIGHT_CHAPTER, WAVE_OPTICS].map((chapter): [string, HTMLButtonElement[]] => [
         chapter,
         lessons.filter((l) => (l.chapter ?? CHAPTER) === chapter && matches(l.title, l.description, chapter)).map((l) => card(l.id, l.title, l.description, { lesson: l.id }, (c) => drawLesson(c, l))),
       ]),

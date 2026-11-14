@@ -213,6 +213,8 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
     rebuild(false);
     const current = scene!;
     shell.setTitle(current.group, current.title);
+    // A steady pattern has nothing to play.
+    dock.style.display = current.medium === 'screen' ? 'none' : '';
     description.textContent = current.description;
     actions.replaceChildren(
       ...(open.kind === 'lesson'
@@ -266,7 +268,7 @@ export function mountWaves(main: HTMLElement, query: URLSearchParams, embedded: 
   function renderProbes(): void {
     if (!scene || embedded) return;
     if (probes.length === 0) {
-      probeBox.replaceChildren(el('p', { class: 'probe-hint' }, [icon('cursor', 14), scene.medium === 'capacitor' ? 'Click anywhere on the graph to read that moment.' : scene.medium === 'light' ? 'Click anywhere on the wave to read the two fields at that point. Click a second point to compare the two.' : 'Click anywhere on the wave to read that point: displacement, velocity, amplitude and phase. Click a second point to compare the two.']));
+      probeBox.replaceChildren(el('p', { class: 'probe-hint' }, [icon('cursor', 14), scene.medium === 'capacitor' ? 'Click anywhere on the graph to read that moment.' : scene.medium === 'screen' ? 'Click anywhere on the graph to read that point.' : scene.medium === 'light' ? 'Click anywhere on the wave to read the two fields at that point. Click a second point to compare the two.' : 'Click anywhere on the wave to read that point: displacement, velocity, amplitude and phase. Click a second point to compare the two.']));
       return;
     }
     const unit = scene.xUnit;

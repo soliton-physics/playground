@@ -1,5 +1,6 @@
 import { formatDuration, formatNumber, formatPrefixed, formatQuantity, prefixFor } from '../ui';
 import { CapacitorScene } from './capacitor';
+import { colourOf, PatternScene, type Pattern } from './pattern';
 import type { Formula } from './formulas';
 import { resultant, type Component, type Pulse, type Sine } from './model';
 import type { WaveScene } from './scene';
@@ -612,7 +613,171 @@ const displacementCurrent: Lesson = {
   build: (p, startAt) => new CapacitorScene({ voltage: p.voltage!, resistance: p.resistance! * 1e6, radius: p.radius! * 0.01, gap: p.gap! * 0.001 }, displacementCurrent, startAt),
 };
 
-export const lessons: Lesson[] = [travelling, longitudinal, onString, superposition, crossing, reflection(false), reflection(true), standing, pipe(true), pipe(false), beats, displacementCurrent, lightWave, lightStanding, spectrum];
+// ---------------------------------------------------------------- class 12: wave optics
+
+export const WAVE_OPTICS = 'Class 12 · Wave optics';
+
+const lightColour: Param = { id: 'wavelength', label: 'Wavelength of the light', unit: 'nm', min: 400, max: 700, step: 5, value: 590 };
+const toScreen: Param = { id: 'distance', label: 'Distance to the screen', unit: 'm', min: 0.5, max: 3, step: 0.1, value: 1.5 };
+const sinc = (u: number) => (Math.abs(u) < 1e-9 ? 1 : Math.sin(u) / u);
+const css = (nm: number) => `rgb(${colourOf(nm).join(' ')})`;
+/** Points across a screen from −half to +half, in millimetres. */
+const across = (half: number) => Float64Array.from({ length: 1201 }, (_, i) => -half + (2 * half * i) / 1200);
+
+/** A lesson that is a steady pattern and not a wave along a line: the wave fields are filled in for form's sake. */
+const pattern = (make: (p: Values) => Pattern) => ({
+  domain: (): [number, number] => [0, 1],
+  parts: (): Component[] => [],
+  height: () => 1,
+  facts: (): Fact[] => [],
+  medium: 'light' as const,
+  yUnit: '',
+  build(this: Lesson, p: Values) {
+    return new PatternScene(this, make(p));
+  },
+});
+
+const doubleSlit: Lesson = {
+  id: 'youngs-double-slit',
+  chapter: WAVE_OPTICS,
+  title: 'Young’s double slit',
+  description:
+    'Light from two narrow slits falls on a screen. Where the two paths differ by a whole number of wavelengths the waves arrive in step and the screen is bright; where they differ by a half, they cancel and it is dark. The even stripes are how the wavelength of light was first measured.',
+  params: [
+    lightColour,
+    { id: 'separation', label: 'Distance between the slits', unit: 'mm', min: 0.1, max: 1, step: 0.01, value: 0.25 },
+    toScreen,
+    { id: 'width', label: 'Width of each slit', unit: 'mm', min: 0.01, max: 0.2, step: 0.005, value: 0.04 },
+  ],
+  formulas: [
+    { label: 'Path difference at a point y from the centre', tex: String.raw`\Delta = \frac{y\,d}{D}`, note: 'For a screen far away compared with the distance between the slits.' },
+    { label: 'Bright and dark', tex: String.raw`\Delta = n\lambda \ \text{(bright)}, \qquad \Delta = \left(n + \tfrac12\right)\lambda \ \text{(dark)}` },
+    { label: 'Fringe width', tex: String.raw`\beta = \frac{\lambda D}{d}`, note: 'The same from one fringe to the next. Redder light, a more distant screen or closer slits all widen them.' },
+    { label: 'Brightness', tex: String.raw`I = 4I_0 \cos^2\frac{\varphi}{2}, \qquad \varphi = \frac{2\pi}{\lambda}\,\Delta`, note: 'Four times one slit’s light at a bright fringe, none at a dark one: the energy is moved, not lost.' },
+  ],
+  ...pattern((p) => {
+    const lambda = p.wavelength! * 1e-9;
+    const [d, big, a] = [p.separation! * 1e-3, p.distance!, p.width! * 1e-3];
+    const fringe = (lambda * big) / d;
+    // Wide enough for a dozen fringes, in millimetres.
+    const half = 6.2 * fringe * 1e3;
+    const x = across(half);
+    const single = x.map((mm) => sinc((Math.PI * a * mm * 1e-3) / (lambda * big)) ** 2);
+    const intensity = x.map((mm, i) => Math.cos((Math.PI * d * mm * 1e-3) / (lambda * big)) ** 2 * single[i]!);
+    const beta = fringe * 1e3;
+    return {
+      x,
+      xUnit: 'mm',
+      xLabel: 'position on the screen',
+      intensity,
+      envelope: single,
+      facts: [
+        { label: 'Fringe width, λD/d', value: q(beta, 'mm') },
+        { label: 'Angle between neighbouring fringes, λ/d', value: `${formatNumber((lambda / d) * 1e3)} mrad` },
+        { label: 'Third bright fringe from the centre', value: q(3 * beta, 'mm') },
+        { label: 'First dark fringe', value: q(0.5 * beta, 'mm') },
+        { label: 'Fringes inside the central hump of one slit, 2d/a', value: formatNumber((2 * d) / a) },
+      ],
+      marks: [{ kind: 'span', from: 0, to: beta, at: 1.05, label: `β = ${q(beta, 'mm')}` }],
+      picture: { kind: 'fringes', values: intensity, color: css(p.wavelength!) },
+      read: (mm) => {
+        const path = (mm * 1e-3 * d) / big;
+        const waves = path / lambda;
+        const off = Math.abs(waves - Math.round(waves));
+        return [
+          { label: 'Path difference', value: `${q(path * 1e9, 'nm')} = ${formatNumber(waves)} λ` },
+          { label: 'Phase difference', value: `${formatNumber((((waves % 1) + 1) % 1) * 360)}°` },
+          { label: 'The two waves here', value: off < 0.08 ? 'arrive in step: bright' : off > 0.42 ? 'arrive out of step: dark' : 'partly cancel' },
+        ];
+      },
+    };
+  }),
+};
+
+const singleSlit: Lesson = {
+  id: 'single-slit-diffraction',
+  chapter: WAVE_OPTICS,
+  title: 'Diffraction at a single slit',
+  description:
+    'Light through one narrow slit does not make a sharp shadow. It spreads into a broad bright band with fainter bands either side. Make the slit narrower and the light spreads more, not less: this is where the idea of a ray stops working.',
+  params: [lightColour, { id: 'width', label: 'Width of the slit', unit: 'mm', min: 0.02, max: 0.5, step: 0.005, value: 0.1 }, toScreen],
+  formulas: [
+    { label: 'Dark bands', tex: String.raw`a\sin\theta = n\lambda, \qquad n = \pm1, \pm2, \dots`, note: 'Each half of the slit then cancels the other half, strip for strip.' },
+    { label: 'Width of the central band on the screen', tex: String.raw`\frac{2\lambda D}{a}`, note: 'Twice as wide as the others.' },
+    { label: 'Brightness', tex: String.raw`I = I_0 \left(\frac{\sin\alpha}{\alpha}\right)^2, \qquad \alpha = \frac{\pi a \sin\theta}{\lambda}`, note: 'The first side band is under a twentieth as bright as the middle.' },
+    { label: 'How far a beam stays a beam', tex: String.raw`z_F = \frac{a^2}{\lambda}`, note: 'The Fresnel distance. Much nearer than this, ray optics is good enough.' },
+  ],
+  ...pattern((p) => {
+    const lambda = p.wavelength! * 1e-9;
+    const [a, big] = [p.width! * 1e-3, p.distance!];
+    const first = ((lambda * big) / a) * 1e3;
+    const x = across(4.2 * first);
+    const intensity = x.map((mm) => sinc((Math.PI * a * mm * 1e-3) / (lambda * big)) ** 2);
+    return {
+      x,
+      xUnit: 'mm',
+      xLabel: 'position on the screen',
+      intensity,
+      facts: [
+        { label: 'First dark band, λD/a from the centre', value: q(first, 'mm') },
+        { label: 'Width of the central bright band, 2λD/a', value: q(2 * first, 'mm') },
+        { label: 'Angle to the first dark band, λ/a', value: `${formatNumber((lambda / a) * 1e3)} mrad` },
+        { label: 'Brightness of the first side band', value: '4.7 % of the middle' },
+        { label: 'Fresnel distance, a²/λ', value: q((a * a) / lambda, 'm') },
+      ],
+      marks: [{ kind: 'span', from: -first, to: first, at: 1.05, label: `2λD/a = ${q(2 * first, 'mm')}` }],
+      picture: { kind: 'fringes', values: intensity, color: css(p.wavelength!) },
+      read: (mm) => {
+        const alpha = (Math.PI * a * mm * 1e-3) / (lambda * big);
+        return [
+          { label: 'Brightness here', value: `${formatNumber(100 * sinc(alpha) ** 2)} % of the middle` },
+          { label: 'Path difference between the two edges of the slit', value: `${formatNumber(alpha / Math.PI)} λ` },
+        ];
+      },
+    };
+  }),
+};
+
+const malus: Lesson = {
+  id: 'malus-law',
+  chapter: WAVE_OPTICS,
+  title: 'Polarisation and Malus’s law',
+  description:
+    'Ordinary light vibrates in every direction across its path. A polaroid lets through only the part along its own axis, half of the light. A second polaroid then passes all of that, some of it or none, depending on the angle between the two. That light can be blocked this way shows it is a transverse wave.',
+  params: [{ id: 'angle', label: 'Angle between the two polaroids', unit: '°', min: 0, max: 180, step: 1, value: 40 }],
+  formulas: [
+    { label: 'Through the first polaroid', tex: String.raw`I_1 = \tfrac12 I_0`, note: 'Unpolarised light has no favoured direction, so half gets through whichever way the polaroid is turned.' },
+    { label: 'Malus’s law, through the second', tex: String.raw`I_2 = I_1 \cos^2\theta`, note: 'Only the part of the vibration along the second axis passes, and brightness goes as its square.' },
+    { label: 'Crossed', tex: String.raw`\theta = 90^\circ \ \Longrightarrow\ I_2 = 0` },
+  ],
+  ...pattern((p) => {
+    const x = Float64Array.from({ length: 721 }, (_, i) => i / 4);
+    const intensity = x.map((degrees) => 0.5 * Math.cos((degrees * Math.PI) / 180) ** 2);
+    const through = 0.5 * Math.cos((p.angle! * Math.PI) / 180) ** 2;
+    return {
+      x,
+      xUnit: '°',
+      xLabel: 'angle between the polaroids',
+      intensity,
+      yUnit: 'of the light arriving',
+      top: 0.62,
+      facts: [
+        { label: 'After the first polaroid, I₀/2', value: '50 % of the light' },
+        { label: 'After the second, ½ I₀ cos²θ', value: `${formatNumber(100 * through)} % of the light` },
+        { label: 'Share of the first polaroid’s light that the second passes, cos²θ', value: `${formatNumber(200 * through)} %` },
+        { label: 'Angle at which half of that gets through', value: '45°' },
+      ],
+      marks: [{ kind: 'now', x: p.angle! }],
+      picture: { kind: 'polaroids', angle: p.angle!, afterFirst: 0.5, afterSecond: through },
+      read: (degrees) => [
+        { label: 'Light getting through both', value: `${formatNumber(50 * Math.cos((degrees * Math.PI) / 180) ** 2)} % of what arrived` },
+        { label: 'cos²θ', value: formatNumber(Math.cos((degrees * Math.PI) / 180) ** 2) },
+      ],
+    };
+  }),
+};
+
+export const lessons: Lesson[] = [travelling, longitudinal, onString, superposition, crossing, reflection(false), reflection(true), standing, pipe(true), pipe(false), beats, displacementCurrent, lightWave, lightStanding, spectrum, doubleSlit, singleSlit, malus];
 
 export const findLesson = (id: string | null) => lessons.find((lesson) => lesson.id === id);
 
