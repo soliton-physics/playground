@@ -4,6 +4,7 @@ import { icon } from '../icons';
 import type { Shell } from '../shell';
 import { clamp, cssVar, el, formatNumber, layoutPx } from '../ui';
 import { openThermalGallery } from './gallery';
+import { statisticalCatalogue } from './statistics';
 import { drawPlot, type Curve } from './graphs';
 import { GasStage, speciesToken, type GasFrame } from './stage';
 import { MOLECULE_STRIDE, type GroupInfo, type NowInfo, type ThermalAnswer, type ThermalSceneFile, type ThermalSpec } from './types';
@@ -50,9 +51,12 @@ export function gasFrame(gas: ThermalGas, scene: ThermalSceneFile, trail?: numbe
   };
 }
 
+/** The gas scenarios of the thermal tab. */
+export const thermalCatalogue = (): ThermalSpec[] => thermal_catalogue() as ThermalSpec[];
+
 /** The thermal tab: a gas from the catalogue, stepped by the engine, with what it is doing read off beside it. */
 export function mountThermal(main: HTMLElement, query: URLSearchParams, embedded: boolean, shell: Shell): void {
-  const catalogue = thermal_catalogue() as ThermalSpec[];
+  const catalogue = thermalCatalogue();
   const canvas = el('canvas', { class: 'stage-canvas' });
   const description = el('p');
   const actions = el('div', { class: 'info-actions' });
@@ -298,7 +302,7 @@ export function mountThermal(main: HTMLElement, query: URLSearchParams, embedded
     }
   });
 
-  const openGallery = () => openThermalGallery(catalogue, spec.id, (id) => show(catalogue.find((s) => s.id === id) ?? spec));
+  const openGallery = () => openThermalGallery(catalogue, statisticalCatalogue(), spec.id, (id) => show(catalogue.find((s) => s.id === id) ?? spec));
   shell.onTitle(openGallery);
   shell.onShare(async () => {
     const url = new URL(location.href).toString();
