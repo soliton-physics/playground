@@ -17,6 +17,11 @@ export class CircuitBench {
      */
     answers(): any;
     /**
+     * The characteristic curve of a diode, as `volts, milliamperes` pairs from a little beyond its breakdown,
+     * or a couple of volts backwards, up to where it passes 50 mA forwards. Empty for anything else.
+     */
+    diode_curve(element: number): Float64Array;
+    /**
      * How long a circuit followed in time runs for, s; zero for any other.
      */
     duration(): number;
@@ -498,6 +503,7 @@ export interface InitOutput {
     readonly circuitbench_advance: (a: number, b: number) => [number, number];
     readonly circuitbench_analysis: (a: number) => [number, number];
     readonly circuitbench_answers: (a: number) => [number, number, number];
+    readonly circuitbench_diode_curve: (a: number, b: number) => any;
     readonly circuitbench_duration: (a: number) => number;
     readonly circuitbench_finished: (a: number) => number;
     readonly circuitbench_frequency: (a: number) => number;

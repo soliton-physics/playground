@@ -55,6 +55,16 @@ export class CircuitBench {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * The characteristic curve of a diode, as `volts, milliamperes` pairs from a little beyond its breakdown,
+     * or a couple of volts backwards, up to where it passes 50 mA forwards. Empty for anything else.
+     * @param {number} element
+     * @returns {Float64Array}
+     */
+    diode_curve(element) {
+        const ret = wasm.circuitbench_diode_curve(this.__wbg_ptr, element);
+        return ret;
+    }
+    /**
      * How long a circuit followed in time runs for, s; zero for any other.
      * @returns {number}
      */

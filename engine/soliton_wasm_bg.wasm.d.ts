@@ -11,6 +11,7 @@ export const __wbg_wavesimulation_free: (a: number, b: number) => void;
 export const circuitbench_advance: (a: number, b: number) => [number, number];
 export const circuitbench_analysis: (a: number) => [number, number];
 export const circuitbench_answers: (a: number) => [number, number, number];
+export const circuitbench_diode_curve: (a: number, b: number) => any;
 export const circuitbench_duration: (a: number) => number;
 export const circuitbench_finished: (a: number) => number;
 export const circuitbench_frequency: (a: number) => number;
