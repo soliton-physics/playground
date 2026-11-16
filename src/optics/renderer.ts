@@ -1,3 +1,4 @@
+import { colourOf } from '../waves/pattern';
 import { Camera } from '../mechanics/stage/camera';
 import { cssVar, formatLength, formatNumber, stageFont, stageScale } from '../ui';
 import type { BenchFrame, ElementInfo, ObjectInfo, RayInfo, Vec } from './types';
@@ -185,15 +186,25 @@ export class BenchRenderer {
   private ray(ray: RayInfo, objects: ObjectInfo[], plain: boolean): void {
     const { ctx } = this;
     const k = stageScale();
-    const color = cssVar('--ray');
+    const coloured = ray.wavelength !== null && ray.wavelength !== undefined;
+    const color = coloured ? `rgb(${colourOf(ray.wavelength!).join(' ')})` : cssVar('--ray');
     ctx.save();
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineJoin = 'round';
-    ctx.lineWidth = (plain || ray.faint ? 1.25 : 1.75) * k;
+    ctx.lineWidth = (plain || ray.faint ? 1.25 : coloured ? 2.25 : 1.75) * k;
     if (ray.faint) ctx.globalAlpha = 0.4;
     this.path(ray.points);
     ctx.stroke();
+    if (coloured && ray.points.length > 1) {
+      // Until it meets something that separates the colours, it is white light: drawn as an ordinary ray.
+      ctx.strokeStyle = cssVar('--ray');
+      ctx.fillStyle = cssVar('--ray');
+      this.path(ray.points.slice(0, 2));
+      ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+    }
     if (!plain && !ray.faint) {
       for (let i = 1; i < ray.points.length; i++) {
         const [a, b] = [this.camera.toScreen(...ray.points[i - 1]!), this.camera.toScreen(...ray.points[i]!)];

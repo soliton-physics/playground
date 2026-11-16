@@ -38,6 +38,8 @@ export interface RayInfo {
   angles: boolean;
   /** Drawn lightly: background to another ray. */
   faint: boolean;
+  /** In nanometres, for a ray of one colour. */
+  wavelength: number | null;
 }
 
 export interface ObjectInfo {
