@@ -8,6 +8,10 @@ export interface Curve {
   dashed?: boolean;
   /** Drawn as bars from the axis, for a histogram. */
   bars?: boolean;
+  /** Drawn as separate dots: measurements, not a line. */
+  points?: boolean;
+  /** A name written at the left end, for an energy level. */
+  label?: string;
 }
 
 export interface Plot {
@@ -18,6 +22,8 @@ export interface Plot {
   now?: [number, number];
   /** Keep zero on the y axis. */
   fromZero?: boolean;
+  /** Energy levels: nothing is measured along x, so it has no ticks. */
+  ladder?: boolean;
 }
 
 function ticks(min: number, max: number, count: number): number[] {
@@ -78,7 +84,7 @@ export function drawPlot(canvas: HTMLCanvasElement, plot: Plot): void {
   }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  for (const tick of ticks(x0, x1, 5)) ctx.fillText(short(tick), toX(tick), h - pad.bottom + 13 * k);
+  if (!plot.ladder) for (const tick of ticks(x0, x1, 5)) ctx.fillText(short(tick), toX(tick), h - pad.bottom + 13 * k);
   ctx.fillText(plot.xLabel, (pad.left + w - pad.right) / 2, h - 4);
   ctx.save();
   ctx.translate(11 * k, (pad.top + h - pad.bottom) / 2);
@@ -99,6 +105,19 @@ export function drawPlot(canvas: HTMLCanvasElement, plot: Plot): void {
       for (let i = 0; i < curve.x.length; i++) ctx.fillRect(toX(curve.x[i]!) - width / 2 + 0.5, toY(curve.y[i]!), Math.max(width - 1, 1), toY(0) - toY(curve.y[i]!));
       ctx.globalAlpha = 1;
       continue;
+    }
+    if (curve.points) {
+      for (let i = 0; i < curve.x.length; i++) {
+        ctx.beginPath();
+        ctx.arc(toX(curve.x[i]!), toY(curve.y[i]!), (curve.width ?? 3) * k, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      continue;
+    }
+    if (curve.label) {
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(curve.label, toX(curve.x[0]!) + 3, toY(curve.y[0]!) - 1);
     }
     ctx.lineWidth = (curve.width ?? 2) * k;
     ctx.lineJoin = 'round';

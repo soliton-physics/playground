@@ -60,6 +60,7 @@
   --molecule-4: #be123c;
   /* A screen in a darkened room, on which a pattern of light is shown: black in either theme. */
   --dark-room: #000000;
+  --dark-room-ink: #e4e4e7;
   --bath: #b45309;
   --bath-hot: #b91c1c;
   --bath-cold: #1d4ed8;

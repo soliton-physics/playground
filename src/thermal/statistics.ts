@@ -187,7 +187,7 @@ export function mountStatistics(main: HTMLElement, query: URLSearchParams, embed
     const phone = main.clientWidth <= 700;
     insets = embedded
       ? { left: 8, right: 8, top: 8, bottom: layoutPx(52) }
-      : { left: wide ? layoutPx(344) : 16, right: phone ? 16 : panel.offsetWidth + 24, top: wide ? 16 : info.offsetHeight + 24, bottom: layoutPx(84) };
+      : { left: wide ? layoutPx(344) : 16, right: phone ? 16 : panel.offsetWidth + 24, top: wide ? 16 : info.offsetHeight + 24, bottom: phone && panel.offsetTop > 0 ? main.clientHeight - panel.offsetTop + 8 : layoutPx(84) };
   }
 
   function setRunning(next: boolean): void {
