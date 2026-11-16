@@ -9,6 +9,14 @@ export interface SchematicFrame {
   drift: Float64Array;
   /** A point on the page where a sliding contact can be dragged, and whether it is held. */
   jockey?: { at: Vec; active: boolean };
+  /** Marks for a circuit that is being built. */
+  edit?: EditMarks;
+}
+
+export interface EditMarks {
+  selected?: number;
+  /** A part being dragged out, from one grid point to another. */
+  preview?: [Vec, Vec];
 }
 
 /** What a component is worth, in words for the page: "12 Ω", "100 μF". */
@@ -21,6 +29,7 @@ export function valueOf(element: ElementSpec): string {
   if ('capacitor' in kind) return formatPrefixed(kind.capacitor.capacitance, 'F');
   if ('inductor' in kind) return formatPrefixed(kind.inductor.inductance, 'H');
   if ('source' in kind) return `${formatNumber(kind.source.amplitude)} V peak, ${formatNumber(kind.source.frequency)} Hz`;
+  if ('diode' in kind) return kind.diode.breakdown ? `${formatNumber(kind.diode.breakdown)} V` : (kind.diode.saturation ?? 0) > 1e-9 ? 'germanium' : 'silicon';
   return '';
 }
 
@@ -31,6 +40,8 @@ export class Schematic {
   private height = 0;
   /** Screen pixels the floating panels cover on each side. */
   insets = { left: 16, right: 16, top: 16, bottom: 16 };
+  /** A board of this many squares across and up to frame, whatever is on it: for a circuit being built. */
+  board?: [number, number];
   private scale = 1;
   private origin: Vec = [0, 0];
   private centre: Vec = [0, 0];
@@ -64,7 +75,7 @@ export class Schematic {
   private fit(scene: CircuitSceneFile, plain: boolean): void {
     const xs = scene.nodes.map((n) => n[0]);
     const ys = scene.nodes.map((n) => n[1]);
-    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const [x0, x1, y0, y1] = this.board ? [0, this.board[0], 0, this.board[1]] : [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     const { left, right, top, bottom } = this.insets;
     const margin = plain ? 10 : 64 * stageScale();
     // A component standing upright has its name to its right, so that side is given more room.
@@ -81,6 +92,7 @@ export class Schematic {
     this.fit(scene, plain);
     ctx.fillStyle = cssVar('--canvas-bg');
     ctx.fillRect(0, 0, this.width, this.height);
+    if (frame.edit && this.board) this.grid(scene, frame.edit);
     scene.elements.forEach((element, i) => this.element(element, scene, frame.readings[2 * i] ?? 0, frame.readings[2 * i + 1] ?? 0, plain));
     if (!plain) scene.elements.forEach((element, i) => this.charges(element, scene, frame.readings[2 * i + 1] ?? 0, frame.drift[i] ?? 0));
     // A dot where three or more components meet: wires that merely cross would have none.
@@ -172,6 +184,26 @@ export class Schematic {
       const loops = 4;
       for (let i = 0; i < loops; i++) ctx.arc(-s + ((i + 0.5) * 2 * s) / loops, 0, s / loops, Math.PI, 0);
       ctx.stroke();
+    } else if (kind === 'diode') {
+      // An arrowhead pointing the way it conducts, against a bar; a Zener's bar has its ends bent.
+      const s = 10 * k;
+      lead(s);
+      ctx.beginPath();
+      ctx.moveTo(-s, -s);
+      ctx.lineTo(s, 0);
+      ctx.lineTo(-s, s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      const zener = typeof spec !== 'string' && 'diode' in spec && typeof spec.diode.breakdown === 'number';
+      ctx.lineWidth = 2.5 * k;
+      ctx.beginPath();
+      if (zener) ctx.moveTo(s + 5 * k, -s - 4 * k);
+      else ctx.moveTo(s, -s);
+      ctx.lineTo(s, -s);
+      ctx.lineTo(s, s);
+      if (zener) ctx.lineTo(s - 5 * k, s + 4 * k);
+      ctx.stroke();
     } else if (kind === 'switch') {
       const s = 15 * k;
       lead(s);
@@ -227,7 +259,64 @@ export class Schematic {
     ctx.fillStyle = cssVar(letter ? '--accent' : '--text');
     ctx.textBaseline = 'middle';
     ctx.textAlign = upright ? 'left' : 'center';
-    ctx.fillText(text, upright ? mx + off * 0.75 : mx, upright ? my : my - off);
+    // Beside an upright component a long description goes on two lines, so as not to run into its neighbour.
+    const [first, ...rest] = upright ? text.split(', ') : [text];
+    if (rest.length > 0) {
+      ctx.fillText(first!, mx + off * 0.75, my - 9 * k);
+      ctx.fillText(rest.join(', '), mx + off * 0.75, my + 9 * k);
+    } else ctx.fillText(text, upright ? mx + off * 0.75 : mx, upright ? my : my - off);
+  }
+
+  /** How many pixels one square of the page is drawn as. */
+  get unit(): number {
+    return this.scale;
+  }
+
+  /** What a circuit being built has under it: the dots parts snap to, the part picked out, and one being drawn. */
+  private grid(scene: CircuitSceneFile, edit: EditMarks): void {
+    const { ctx } = this;
+    const k = stageScale();
+    ctx.fillStyle = cssVar('--canvas-grid-major');
+    for (let x = 0; x <= this.board![0]; x++) {
+      for (let y = 0; y <= this.board![1]; y++) {
+        const [sx, sy] = this.toScreen([x, y]);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2.2 * k, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+    const line = (from: Vec, to: Vec) => {
+      const [a, b] = [this.toScreen(from), this.toScreen(to)];
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+    };
+    const chosen = edit.selected === undefined ? undefined : scene.elements[edit.selected];
+    if (chosen) {
+      ctx.strokeStyle = cssVar('--accent-soft');
+      ctx.lineWidth = 30 * k;
+      ctx.lineCap = 'round';
+      line(scene.nodes[chosen.a]!, scene.nodes[chosen.b]!);
+    }
+    if (edit.preview) {
+      ctx.strokeStyle = cssVar('--accent');
+      ctx.lineWidth = 2.5 * k;
+      ctx.setLineDash([7 * k, 6 * k]);
+      line(edit.preview[0], edit.preview[1]);
+      ctx.setLineDash([]);
+    }
+    // Every junction, so that it is plain where a new part will join on.
+    ctx.strokeStyle = cssVar('--accent');
+    ctx.fillStyle = cssVar('--canvas-bg');
+    ctx.lineWidth = 2 * k;
+    for (const node of scene.nodes) {
+      const [sx, sy] = this.toScreen(node);
+      ctx.beginPath();
+      ctx.arc(sx, sy, 5 * k, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+    }
   }
 
   /** Charges on their way round: dots that move the way conventional current flows, faster for more of it. */
@@ -240,7 +329,7 @@ export class Schematic {
     const spacing = 26 * k;
     const kind = kindOf(element.kind);
     // Nothing passes between a capacitor's plates, and a meter's face is kept clear to read.
-    const clear = kind === 'capacitor' ? 7 * k : ['ammeter', 'voltmeter', 'galvanometer', 'source'].includes(kind) ? 16 * k : 0;
+    const clear = kind === 'capacitor' ? 7 * k : kind === 'diode' ? 12 * k : ['ammeter', 'voltmeter', 'galvanometer', 'source'].includes(kind) ? 16 * k : 0;
     ctx.fillStyle = cssVar('--ray');
     const start = ((drift % spacing) + spacing) % spacing;
     for (let s = start; s < length; s += spacing) {

@@ -21,7 +21,8 @@ export type KindSpec =
   | { inductor: { inductance: number; initial_current?: number } }
   | { source: { amplitude: number; frequency: number; phase?: number } }
   | { switch: { closed?: boolean; flips_at?: number } }
-  | { galvanometer: { resistance: number } };
+  | { galvanometer: { resistance: number } }
+  | { diode: { saturation?: number; breakdown?: number } };
 
 export interface ElementSpec {
   name: string;
