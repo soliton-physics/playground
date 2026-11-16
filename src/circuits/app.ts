@@ -4,6 +4,8 @@ import { icon } from '../icons';
 import type { Shell } from '../shell';
 import { drawPlot, type Curve } from '../thermal/graphs';
 import { clamp, cssVar, el, formatNumber, formatPrefixed, layoutPx, stageScale } from '../ui';
+import { encodeScene, sceneFromUrl } from '../mechanics/share';
+import { CircuitEditor, starter } from './editor';
 import { openCircuitGallery } from './gallery';
 import { Schematic } from './schematic';
 import { kindOf, type Analysis, type CircuitAnswer, type CircuitSceneFile, type CircuitSpec, type Vec } from './types';
@@ -15,6 +17,8 @@ const CURVES = ['--molecule-1', '--molecule-2', '--molecule-3', '--molecule-4'];
 /** Scenarios with a contact that slides along a wire ten units long on the page, set by `jockey` in centimetres. */
 const JOCKEYS = new Set(['meter-bridge', 'potentiometer']);
 
+const SAVE_KEY = 'soliton-circuit';
+
 /** The circuits tab: a circuit from the catalogue, solved by the engine from Kirchhoff's laws. */
 export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedded: boolean, shell: Shell): void {
   const catalogue = circuits_catalogue() as CircuitSpec[];
@@ -24,11 +28,13 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
   const info = el('section', { class: 'info glass overlay' }, [description, actions]);
   const answers = el('div', { class: 'answers overlay' });
   const notes = el('div', { class: 'stage-notes overlay' }, [answers]);
+  const hint = el('div', { class: 'hint hint-beside-rail glass overlay', hidden: true });
+  const properties = el('div');
   const table = el('dl', { class: 'readout circuit-readout' });
   const plot = el('canvas', { class: 'thermal-plot' });
   const legend = el('p', { class: 'formula-note' });
   const graphPicker = el('div');
-  const panel = el('aside', { class: 'wave-readout glass overlay' }, [el('h4', { class: 'panel-title', text: 'Each component now' }), table, graphPicker, plot, legend]);
+  const panel = el('aside', { class: 'wave-readout glass overlay' }, [properties, el('h4', { class: 'panel-title', text: 'Each component now' }), table, graphPicker, plot, legend]);
   const clock = el('output', { class: 'clock' });
   const play = iconButton('play', 'Play (Space)', () => toggle(), 'play');
   let speed = 1;
@@ -36,7 +42,7 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
   const speedChip = el('button', { type: 'button', class: 'speed-chip wide-only', title: 'Speed', text: 'Speed' });
   speedChip.addEventListener('click', () => popover(speedChip, el('div', { class: 'params' }, [speedSlider.root]), 'above'));
   const dock = el('div', { class: 'dock glass overlay' }, [iconButton('restart', 'Start again (R)', () => rebuild(false)), play, clock, speedChip]);
-  main.append(canvas, info, notes, panel, dock);
+  main.append(canvas, info, hint, notes, panel, dock);
 
   const schematic = new Schematic(canvas);
   let spec = catalogue[0]!;
@@ -51,6 +57,25 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
   let holding = false;
   let hovering = false;
   let lastPanel = 0;
+  /** Building a circuit of one's own, and why the engine cannot solve it as it stands, if it cannot. */
+  let sandbox = false;
+  let problem = '';
+  let pickerFor = '';
+
+  const editor = new CircuitEditor(
+    () => {
+      rebuild(true);
+      try {
+        localStorage.setItem(SAVE_KEY, editor.json());
+      } catch {
+        /* storage unavailable */
+      }
+    },
+    () => refreshProperties(),
+    (text) => (hint.textContent = text),
+  );
+  editor.rail.hidden = true;
+  main.append(editor.rail);
 
   const current = (): Record<string, number> => Object.fromEntries(spec.params.map((p) => [p.name, values[p.name] ?? p.default]));
   const jockeyAt = (): Vec | undefined => (JOCKEYS.has(spec.id) ? [current().jockey! / 10, 0] : undefined);
@@ -60,7 +85,10 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     const phone = main.clientWidth <= 700;
     schematic.insets = embedded
       ? { left: 8, right: 8, top: 8, bottom: layoutPx(52) }
-      : { left: wide ? layoutPx(344) : 16, right: phone ? 16 : panel.offsetWidth + 24, top: wide ? 16 : info.offsetHeight + 24, bottom: layoutPx(84) };
+      : sandbox
+        ? { left: layoutPx(118), right: phone ? 16 : panel.offsetWidth + 24, top: layoutPx(64), bottom: layoutPx(84) }
+        : { left: wide ? layoutPx(344) : 16, right: phone ? 16 : panel.offsetWidth + 24, top: wide ? 16 : info.offsetHeight + 24, bottom: layoutPx(84) };
+    schematic.board = sandbox ? editor.board : undefined;
   }
 
   function setRunning(next: boolean): void {
@@ -79,14 +107,30 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
   function rebuild(keepRunning: boolean): void {
     let next: CircuitBench;
     try {
-      next = new CircuitBench(spec.id, current());
+      if (sandbox && editor.draft.elements.length === 0) throw new Error('Pick a part on the left and drag between two dots to place it.');
+      next = sandbox ? CircuitBench.from_scene(editor.json()) : new CircuitBench(spec.id, current());
+      problem = '';
     } catch (error) {
-      toast(error instanceof Error ? error.message : String(error), 'error');
+      const message = error instanceof Error ? error.message : String(error);
+      if (!sandbox) {
+        toast(message, 'error');
+        return;
+      }
+      // A circuit half built is often one with no answer. It stays on the board, unsolved, with the reason given.
+      problem = message;
+      bench?.free();
+      bench = undefined;
+      scene = editor.draft;
+      analysis = 'steady';
+      drift = new Float64Array(scene.elements.length);
+      setRunning(false);
+      refreshPanel();
       return;
     }
     bench?.free();
     bench = next;
-    scene = JSON.parse(bench.scene_json()) as CircuitSceneFile;
+    scene = sandbox ? editor.draft : (JSON.parse(bench.scene_json()) as CircuitSceneFile);
+
     analysis = bench.analysis() as Analysis;
     if (drift.length !== scene.elements.length) drift = new Float64Array(scene.elements.length);
     // The charges drift at a pace set against the largest current there will be, so that the eye can compare.
@@ -102,6 +146,10 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
 
   function link(): void {
     if (embedded) return;
+    if (sandbox) {
+      history.replaceState(null, '', '?mode=circuits&sandbox');
+      return;
+    }
     let url = `?mode=circuits&scenario=${spec.id}`;
     for (const p of spec.params) if (values[p.name] !== undefined && values[p.name] !== p.default) url += `&${p.name}=${Number(values[p.name]!.toPrecision(6))}`;
     history.replaceState(null, '', url);
@@ -129,8 +177,34 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     return t < 1 ? `${formatNumber(t * 1000)} ms` : `${formatNumber(t)} s`;
   };
 
+  function refreshProperties(): void {
+    const card = sandbox ? editor.properties(analysis === 'transient') : undefined;
+    properties.replaceChildren(...(card ? [card] : []));
+  }
+
+  /** The graphs on offer depend on how the circuit is solved, which in a sandbox changes as it is built. */
+  function setPicker(): void {
+    if (pickerFor === analysis) return;
+    pickerFor = analysis;
+    graph = 0;
+    const options = analysis === 'alternating' ? ['Waves', 'Phasors'] : ['Voltage', 'Current'];
+    graphPicker.replaceChildren(
+      choice('Graph', options.map((label, value) => ({ label, value })), 0, (v) => {
+        graph = v;
+        drawGraph();
+      }),
+    );
+  }
+
   function refreshPanel(): void {
-    if (!bench) return;
+    if (!bench) {
+      clock.textContent = 'not solved';
+      answers.replaceChildren(el('div', { class: 'answer glass' }, [el('span', { class: 'name', text: problem })]));
+      table.replaceChildren();
+      plot.hidden = graphPicker.hidden = legend.hidden = true;
+      return;
+    }
+    setPicker();
     clock.textContent = analysis === 'steady' ? 'steady' : `t = ${cycleTime()}`;
     renderAnswers(bench.answers() as CircuitAnswer[]);
     if (embedded) return;
@@ -145,15 +219,31 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
   }
 
   /** The components worth graphing: those the scene names, by their place in its list. */
-  const watched = (): number[] => (scene.watch ?? []).map((name) => scene.elements.findIndex((e) => e.name === name)).filter((i) => i >= 0);
+  const watched = (): number[] => (sandbox ? editor.watching() : (scene.watch ?? [])).map((name) => scene.elements.findIndex((e) => e.name === name)).filter((i) => i >= 0);
 
   function drawGraph(): void {
     if (!bench) return;
-    const show = analysis !== 'steady';
+    // A steady circuit has nothing to graph, unless it is there to show a diode's characteristic curve.
+    const diode = analysis === 'steady' ? watched().find((i) => kindOf(scene.elements[i]!.kind) === 'diode') : undefined;
+    const show = analysis !== 'steady' || diode !== undefined;
     plot.hidden = !show;
-    graphPicker.hidden = !show;
+    graphPicker.hidden = !show || diode !== undefined;
     legend.hidden = !show;
     if (!show) return;
+    if (diode !== undefined) {
+      const curve = bench.diode_curve(diode);
+      const half = curve.length / 2;
+      const readings = bench.readings();
+      // The graph stops at 50 mA; a diode driven harder than that is marked at the top of it.
+      drawPlot(plot, {
+        xLabel: 'voltage across the diode (V)',
+        yLabel: 'current (mA)',
+        curves: [{ x: Float64Array.from({ length: half }, (_, k) => curve[2 * k]!), y: Float64Array.from({ length: half }, (_, k) => curve[2 * k + 1]!), color: cssVar(CURVES[0]!), width: 2.25 }],
+        now: [readings[2 * diode]!, Math.min(1000 * readings[2 * diode + 1]!, 50)],
+      });
+      legend.textContent = 'The diode’s characteristic curve. The dot is where this circuit puts it.';
+      return;
+    }
     const names = watched().map((i) => scene.elements[i]!.name);
     if (analysis === 'transient') {
       const time = bench.series_time();
@@ -245,7 +335,7 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     if (meter >= 0) arrow(phasors[4 * meter + 2]!, phasors[4 * meter + 3]!, (0.7 * reach) / currentPeak, cssVar('--text'), 'I', true);
   }
 
-  function action(name: 'sliders' | 'restart', label: string, onClick: (button: HTMLButtonElement) => void): HTMLButtonElement {
+  function action(name: 'sliders' | 'restart' | 'remix', label: string, onClick: (button: HTMLButtonElement) => void): HTMLButtonElement {
     const button = el('button', { type: 'button', class: 'text-button outlined' }, [icon(name, 16), label]);
     button.addEventListener('click', () => onClick(button));
     return button;
@@ -280,15 +370,48 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     shell.setTitle(`Class ${spec.syllabus.class} · ${spec.syllabus.chapter}`, spec.title);
     description.textContent = spec.description;
     actions.replaceChildren(action('sliders', 'Parameters', openParameters), action('restart', 'Reset', () => show(spec)));
+    actions.append(action('remix', 'Build on this', () => bench && build(bench.scene_json())));
+    sandbox = false;
+    editor.rail.hidden = hint.hidden = true;
+    info.hidden = false;
+    notes.classList.remove('beside-rail');
+    refreshProperties();
+    pickerFor = '';
     rebuild(false);
-    const options = analysis === 'alternating' ? ['Waves', 'Phasors'] : ['Voltage', 'Current'];
-    graphPicker.replaceChildren(
-      choice('Graph', options.map((label, value) => ({ label, value })), 0, (v) => {
-        graph = v;
-        drawGraph();
-      }),
-    );
     insets();
+  }
+
+  /** The circuit left on the board at the last visit, or the loop a builder starts with. */
+  function starterOrSaved(): unknown {
+    try {
+      const saved = localStorage.getItem(SAVE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      /* storage unavailable, or what is in it is not a circuit */
+    }
+    return starter();
+  }
+
+  /** Opens the builder on a circuit: one from a scenario, a link, the last visit, or the starting loop. */
+  function build(json?: string): void {
+    closePopover();
+    sandbox = true;
+    if (json) {
+      try {
+        editor.load(json);
+      } catch {
+        toast('That circuit could not be read.', 'error');
+      }
+    }
+    editor.rail.hidden = hint.hidden = embedded;
+    info.hidden = true;
+    notes.classList.add('beside-rail');
+    shell.setTitle('Sandbox', 'Build your own circuit');
+    editor.setTool('select');
+    pickerFor = '';
+    insets();
+    rebuild(false);
+    refreshProperties();
   }
 
   // ---------------------------------------------------------------- the sliding contact
@@ -304,13 +427,26 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     const [px, py] = local(e);
     return Math.hypot(sx - px, sy - 8 - py) < KNOB_REACH;
   };
+  /** How near, in squares of the board, the pointer must be to a part to mean it. */
+  const reach = () => (1.4 * KNOB_REACH) / schematic.unit;
   canvas.addEventListener('pointerdown', (e) => {
+    if (sandbox) {
+      canvas.setPointerCapture(e.pointerId);
+      editor.press(schematic.toPage(local(e)), reach());
+      return;
+    }
     if (!overJockey(e)) return;
     canvas.setPointerCapture(e.pointerId);
     holding = true;
     canvas.classList.add('holding');
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (sandbox) {
+      const at = schematic.toPage(local(e));
+      editor.dragTo(at);
+      canvas.classList.toggle('over-body', editor.over(at, reach()));
+      return;
+    }
     if (holding) {
       const p = spec.params.find((candidate) => candidate.name === 'jockey')!;
       // The wire is ten units long on the page and a hundred centimetres on the bench.
@@ -322,6 +458,7 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     }
   });
   const letGo = () => {
+    if (sandbox) editor.release();
     holding = false;
     canvas.classList.remove('holding');
   };
@@ -330,8 +467,17 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
 
   document.addEventListener('keydown', (e) => {
     const typing = e.target instanceof HTMLElement && e.target.matches('input, textarea, select, [contenteditable]');
-    if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === ' ') {
+    if (typing) return;
+    if (sandbox && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) editor.redo();
+      else editor.undo();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (sandbox && (e.key === 'Delete' || e.key === 'Backspace') && editor.selected !== undefined) editor.remove(editor.selected);
+    else if (sandbox && e.key === 'Escape') editor.setTool('select');
+    else if (e.key === ' ') {
       e.preventDefault();
       toggle();
     } else if (e.key.toLowerCase() === 'r') rebuild(false);
@@ -341,10 +487,12 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     }
   });
 
-  const openGallery = () => openCircuitGallery(catalogue, spec.id, (id) => show(catalogue.find((s) => s.id === id) ?? spec));
+  const openGallery = () => openCircuitGallery(catalogue, sandbox ? '' : spec.id, (id) => show(catalogue.find((s) => s.id === id) ?? spec), () => build(sandbox ? undefined : JSON.stringify(starterOrSaved())));
   shell.onTitle(openGallery);
   shell.onShare(async () => {
-    const url = new URL(location.href).toString();
+    const link = new URL(location.href);
+    if (sandbox) link.hash = `scene=${await encodeScene(editor.json())}`;
+    const url = link.toString();
     try {
       await navigator.clipboard.writeText(url);
       toast('Link copied. Anyone who opens it gets exactly this.');
@@ -358,6 +506,7 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
   function loop(now: number): void {
     const elapsed = Math.min(0.05, (now - last) / 1000);
     last = now;
+    if (!bench && sandbox) schematic.draw({ scene, readings: new Float64Array(2 * scene.elements.length), drift, edit: { selected: editor.selected, preview: editor.preview } });
     if (bench) {
       if (running && !bench.finished()) {
         try {
@@ -371,8 +520,8 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
         for (let i = 0; i < drift.length; i++) drift[i]! += (readings[2 * i + 1]! / largest) * 100 * stageScale() * elapsed * speed;
         if (bench.finished()) setRunning(false);
       }
-      const at = jockeyAt();
-      schematic.draw({ scene, readings: bench.readings(), drift, jockey: at ? { at, active: holding || hovering } : undefined });
+      const at = sandbox ? undefined : jockeyAt();
+      schematic.draw({ scene, readings: bench.readings(), drift, jockey: at ? { at, active: holding || hovering } : undefined, edit: sandbox && !embedded ? { selected: editor.selected, preview: editor.preview } : undefined });
       if (now - lastPanel > 150) {
         lastPanel = now;
         refreshPanel();
@@ -387,6 +536,12 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
     const given = query.get(p.name);
     if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), p.min, p.max);
   }
+  // A link carries its circuit in the part after the #, which is read before anything rewrites the address.
+  const shared = query.has('sandbox') ? sceneFromUrl() : undefined;
   show(wanted, chosen);
+  if (shared) {
+    build(JSON.stringify(starterOrSaved()));
+    void shared.then((json) => json && build(json));
+  }
   requestAnimationFrame(loop);
 }

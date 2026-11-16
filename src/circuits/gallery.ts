@@ -19,7 +19,7 @@ function thumbnail(canvas: HTMLCanvasElement, id: string): void {
 }
 
 /** A searchable grid of the circuit scenarios, grouped by chapter. */
-export function openCircuitGallery(catalogue: CircuitSpec[], current: string, choose: (id: string) => void): void {
+export function openCircuitGallery(catalogue: CircuitSpec[], current: string, choose: (id: string) => void, build?: () => void): void {
   const search = el('input', { type: 'search', placeholder: 'Search: Ohm, bridge, capacitor, resonance…', 'aria-label': 'Search scenarios' });
   const list = el('div', { class: 'gallery-list' });
   const panel = el('div', { class: 'gallery glass', role: 'dialog', 'aria-label': 'Scenarios' }, [el('div', { class: 'gallery-search' }, [icon('search'), search]), list]);
@@ -54,6 +54,14 @@ export function openCircuitGallery(catalogue: CircuitSpec[], current: string, ch
       groups.set(key, [...(groups.get(key) ?? []), spec]);
     }
     list.replaceChildren();
+    if (build && words.length === 0) {
+      const own = el('button', { type: 'button', class: 'text-button outlined gallery-own' }, [icon('plus', 16), 'Build your own circuit']);
+      own.addEventListener('click', () => {
+        close();
+        build();
+      });
+      list.append(own);
+    }
     for (const [group, specs] of groups) list.append(el('h4', { text: group }), el('div', { class: 'gallery-grid' }, specs.map(card)));
     if (groups.size === 0) list.append(el('p', { class: 'empty', text: 'Nothing matches that. Try a single word.' }));
   }

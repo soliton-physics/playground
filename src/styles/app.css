@@ -1464,3 +1464,38 @@ body.embed .banner {
 .thermal-plot[hidden] {
   display: none;
 }
+
+.gallery-own {
+  margin: 0.286rem 0 0.571rem;
+  align-self: flex-start;
+}
+
+/* Beside the tool rail and clear of the readings, where the mechanics hint has the whole width to sit in. */
+.hint-beside-rail {
+  left: 8.286rem;
+  transform: none;
+  max-width: calc(100vw - 36rem);
+  white-space: normal;
+}
+
+.stage-notes.beside-rail {
+  left: 8.286rem;
+}
+
+/* A rail with more tools than one column has room for. */
+.rail.two {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+}
+
+.rail.two .rail-divider {
+  grid-column: 1 / -1;
+}
+
+/* The part picked out in a circuit being built has its settings at the head of the readings. */
+.wave-readout .properties {
+  width: auto;
+  padding: 0 0 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
