@@ -49,6 +49,13 @@ The subject is chosen from the button beside the logo, which lists all six.
 
 **Solve a circuit** (`?mode=circuits&scenario=<id>`). Class 12 current electricity, capacitors, the inductor and
 alternating current: from Ohm's law to the potentiometer, charging through a resistance, and the series LCR circuit.
+Semiconductors too: the junction diode with its characteristic curve, rectifiers and smoothing, the Zener regulator,
+and OR and AND gates made from diodes.
+
+- **Build your own circuit** (`?mode=circuits&sandbox`, or "Build on this" on any scenario). Drag parts onto a grid
+  from the rail, wire them up, click one to set its value, drag a junction to move it. The circuit is solved after
+  every change, in whichever way it needs: steady, in time, or alternating. Undo, a remembered board, and a link
+  that carries the circuit.
 
 - The diagram uses the textbook's symbols. Press play and charges drift round it the way the current flows, faster
   where there is more.
@@ -57,7 +64,8 @@ alternating current: from Ohm's law to the potentiometer, charging through a res
 - On the metre bridge and the potentiometer, drag the jockey along the wire to find the balance point.
 
 **Trace rays** (`?mode=optics&scenario=<id>`). The class 12 chapter on ray optics: spherical mirrors, refraction and
-total internal reflection, lenses, the prism, the telescope and the microscope.
+total internal reflection, lenses, the prism, white light split into colours, the rainbow, the telescope and the
+microscope.
 
 - Drag the knob on the bench: the top of the object, the start of a ray, the eyepiece. The engine traces every ray
   again as you move it. Parameters has the rest, and a scenario's numbers go in the link.
