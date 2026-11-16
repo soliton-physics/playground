@@ -639,6 +639,117 @@ export class MechanicsWorld {
 }
 if (Symbol.dispose) MechanicsWorld.prototype[Symbol.dispose] = MechanicsWorld.prototype.free;
 
+export class ModernRun {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ModernRunFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_modernrun_free(ptr, 0);
+    }
+    /**
+     * Moves on by this many seconds of watching.
+     * @param {number} seconds
+     */
+    advance(seconds) {
+        wasm.modernrun_advance(this.__wbg_ptr, seconds);
+    }
+    /**
+     * `[{ name, value, measured, within }]`.
+     * @returns {any}
+     */
+    answers() {
+        const ret = wasm.modernrun_answers(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {string}
+     */
+    clock() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.modernrun_clock(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {boolean}
+     */
+    finished() {
+        const ret = wasm.modernrun_finished(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     * @param {string} id
+     * @param {any} params
+     */
+    constructor(id, params) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.modernrun_new(ptr0, len0, params);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        ModernRunFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * What stands on the stage: `{ kind, ... }`.
+     * @returns {any}
+     */
+    picture() {
+        const ret = wasm.modernrun_picture(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `[{ title, x_label, y_label, curves, marker, from_zero, ladder }]`.
+     * @returns {any}
+     */
+    plots() {
+        const ret = wasm.modernrun_plots(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `[{ label, value, unit }]`.
+     * @returns {any}
+     */
+    readings() {
+        const ret = wasm.modernrun_readings(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * True for a lesson with nothing to play.
+     * @returns {boolean}
+     */
+    still() {
+        const ret = wasm.modernrun_still(this.__wbg_ptr);
+        return ret !== 0;
+    }
+}
+if (Symbol.dispose) ModernRun.prototype[Symbol.dispose] = ModernRun.prototype.free;
+
 export class OpticsBench {
     static __wrap(ptr) {
         const obj = Object.create(OpticsBench.prototype);
@@ -1447,6 +1558,18 @@ export function mechanics_catalogue() {
 }
 
 /**
+ * The modern physics scenarios with their parameter schemas.
+ * @returns {any}
+ */
+export function modern_catalogue() {
+    const ret = wasm.modern_catalogue();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * The optics scenarios with their parameter schemas.
  * @returns {any}
  */
@@ -1698,6 +1821,9 @@ const CircuitBenchFinalization = (typeof FinalizationRegistry === 'undefined')
 const MechanicsWorldFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_mechanicsworld_free(ptr, 1));
+const ModernRunFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_modernrun_free(ptr, 1));
 const OpticsBenchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_opticsbench_free(ptr, 1));

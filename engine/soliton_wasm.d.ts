@@ -198,6 +198,41 @@ export class MechanicsWorld {
     view(): any;
 }
 
+export class ModernRun {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Moves on by this many seconds of watching.
+     */
+    advance(seconds: number): void;
+    /**
+     * `[{ name, value, measured, within }]`.
+     */
+    answers(): any;
+    clock(): string;
+    finished(): boolean;
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     */
+    constructor(id: string, params: any);
+    /**
+     * What stands on the stage: `{ kind, ... }`.
+     */
+    picture(): any;
+    /**
+     * `[{ title, x_label, y_label, curves, marker, from_zero, ladder }]`.
+     */
+    plots(): any;
+    /**
+     * `[{ label, value, unit }]`.
+     */
+    readings(): any;
+    /**
+     * True for a lesson with nothing to play.
+     */
+    still(): boolean;
+}
+
 export class OpticsBench {
     free(): void;
     [Symbol.dispose](): void;
@@ -430,6 +465,11 @@ export function circuits_catalogue(): any;
 export function mechanics_catalogue(): any;
 
 /**
+ * The modern physics scenarios with their parameter schemas.
+ */
+export function modern_catalogue(): any;
+
+/**
  * The optics scenarios with their parameter schemas.
  */
 export function optics_catalogue(): any;
@@ -450,6 +490,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_circuitbench_free: (a: number, b: number) => void;
     readonly __wbg_mechanicsworld_free: (a: number, b: number) => void;
+    readonly __wbg_modernrun_free: (a: number, b: number) => void;
     readonly __wbg_opticsbench_free: (a: number, b: number) => void;
     readonly __wbg_statrun_free: (a: number, b: number) => void;
     readonly __wbg_thermalgas_free: (a: number, b: number) => void;
@@ -509,6 +550,16 @@ export interface InitOutput {
     readonly mechanicsworld_time: (a: number) => number;
     readonly mechanicsworld_title: (a: number) => [number, number];
     readonly mechanicsworld_view: (a: number) => [number, number, number];
+    readonly modern_catalogue: () => [number, number, number];
+    readonly modernrun_advance: (a: number, b: number) => void;
+    readonly modernrun_answers: (a: number) => [number, number, number];
+    readonly modernrun_clock: (a: number) => [number, number];
+    readonly modernrun_finished: (a: number) => number;
+    readonly modernrun_new: (a: number, b: number, c: any) => [number, number, number];
+    readonly modernrun_picture: (a: number) => [number, number, number];
+    readonly modernrun_plots: (a: number) => [number, number, number];
+    readonly modernrun_readings: (a: number) => [number, number, number];
+    readonly modernrun_still: (a: number) => number;
     readonly optics_catalogue: () => [number, number, number];
     readonly opticsbench_answers: (a: number) => [number, number, number];
     readonly opticsbench_axis: (a: number) => [number, number, number];
