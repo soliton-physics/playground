@@ -68,6 +68,41 @@ export class CircuitBench {
     title(): string;
 }
 
+export class MagnetismRun {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Moves on by this many seconds of watching.
+     */
+    advance(seconds: number): void;
+    /**
+     * `[{ name, value, measured, within }]`.
+     */
+    answers(): any;
+    clock(): string;
+    finished(): boolean;
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     */
+    constructor(id: string, params: any);
+    /**
+     * What stands on the stage: `{ kind, ... }`.
+     */
+    picture(): any;
+    /**
+     * `[{ title, x_label, y_label, curves, marker, from_zero, ladder }]`.
+     */
+    plots(): any;
+    /**
+     * `[{ label, value, unit }]`.
+     */
+    readings(): any;
+    /**
+     * True for a lesson with nothing to play.
+     */
+    still(): boolean;
+}
+
 export class MatterRun {
     free(): void;
     [Symbol.dispose](): void;
@@ -207,13 +242,13 @@ export class MechanicsWorld {
      */
     scene_json_now(): string;
     /**
-     * A recorded quantity of one body: `x`, `y`, `vx`, `vy`, `speed`, `ax`, `ay`, `angle`, `omega`.
-     */
-    series(body: number, quantity: string): Float64Array;
-    /**
      * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
      */
     series_energy(quantity: string): Float64Array;
+    /**
+     * A recorded quantity of one body: `x`, `y`, `vx`, `vy`, `speed`, `ax`, `ay`, `angle`, `omega`.
+     */
+    series(body: number, quantity: string): Float64Array;
     /**
      * The recorded net force with `label` on one body, as `[fx, fy]` pairs flattened.
      */
@@ -500,6 +535,11 @@ export class WaveSimulation {
 export function circuits_catalogue(): any;
 
 /**
+ * The currents-and-magnetism scenarios with their parameter schemas.
+ */
+export function magnetism_catalogue(): any;
+
+/**
  * The properties-of-matter scenarios with their parameter schemas.
  */
 export function matter_catalogue(): any;
@@ -534,6 +574,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_circuitbench_free: (a: number, b: number) => void;
+    readonly __wbg_magnetismrun_free: (a: number, b: number) => void;
     readonly __wbg_matterrun_free: (a: number, b: number) => void;
     readonly __wbg_mechanicsworld_free: (a: number, b: number) => void;
     readonly __wbg_modernrun_free: (a: number, b: number) => void;
@@ -559,6 +600,16 @@ export interface InitOutput {
     readonly circuitbench_time: (a: number) => number;
     readonly circuitbench_title: (a: number) => [number, number];
     readonly circuits_catalogue: () => [number, number, number];
+    readonly magnetism_catalogue: () => [number, number, number];
+    readonly magnetismrun_advance: (a: number, b: number) => void;
+    readonly magnetismrun_answers: (a: number) => [number, number, number];
+    readonly magnetismrun_clock: (a: number) => [number, number];
+    readonly magnetismrun_finished: (a: number) => number;
+    readonly magnetismrun_new: (a: number, b: number, c: any) => [number, number, number];
+    readonly magnetismrun_picture: (a: number) => [number, number, number];
+    readonly magnetismrun_plots: (a: number) => [number, number, number];
+    readonly magnetismrun_readings: (a: number) => [number, number, number];
+    readonly magnetismrun_still: (a: number) => number;
     readonly matter_catalogue: () => [number, number, number];
     readonly matterrun_advance: (a: number, b: number) => void;
     readonly matterrun_answers: (a: number) => [number, number, number];

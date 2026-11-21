@@ -208,6 +208,117 @@ export class CircuitBench {
 }
 if (Symbol.dispose) CircuitBench.prototype[Symbol.dispose] = CircuitBench.prototype.free;
 
+export class MagnetismRun {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        MagnetismRunFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_magnetismrun_free(ptr, 0);
+    }
+    /**
+     * Moves on by this many seconds of watching.
+     * @param {number} seconds
+     */
+    advance(seconds) {
+        wasm.magnetismrun_advance(this.__wbg_ptr, seconds);
+    }
+    /**
+     * `[{ name, value, measured, within }]`.
+     * @returns {any}
+     */
+    answers() {
+        const ret = wasm.magnetismrun_answers(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {string}
+     */
+    clock() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.magnetismrun_clock(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {boolean}
+     */
+    finished() {
+        const ret = wasm.magnetismrun_finished(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     * @param {string} id
+     * @param {any} params
+     */
+    constructor(id, params) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.magnetismrun_new(ptr0, len0, params);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        MagnetismRunFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * What stands on the stage: `{ kind, ... }`.
+     * @returns {any}
+     */
+    picture() {
+        const ret = wasm.magnetismrun_picture(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `[{ title, x_label, y_label, curves, marker, from_zero, ladder }]`.
+     * @returns {any}
+     */
+    plots() {
+        const ret = wasm.magnetismrun_plots(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `[{ label, value, unit }]`.
+     * @returns {any}
+     */
+    readings() {
+        const ret = wasm.magnetismrun_readings(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * True for a lesson with nothing to play.
+     * @returns {boolean}
+     */
+    still() {
+        const ret = wasm.magnetismrun_still(this.__wbg_ptr);
+        return ret !== 0;
+    }
+}
+if (Symbol.dispose) MagnetismRun.prototype[Symbol.dispose] = MagnetismRun.prototype.free;
+
 export class MatterRun {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -643,6 +754,20 @@ export class MechanicsWorld {
         }
     }
     /**
+     * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
+     * @param {string} quantity
+     * @returns {Float64Array}
+     */
+    series_energy(quantity) {
+        const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.mechanicsworld_series_energy(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * A recorded quantity of one body: `x`, `y`, `vx`, `vy`, `speed`, `ax`, `ay`, `angle`, `omega`.
      * @param {number} body
      * @param {string} quantity
@@ -653,20 +778,6 @@ export class MechanicsWorld {
         const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.mechanicsworld_series(this.__wbg_ptr, val2, ptr0, len0);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        return takeFromExternrefTable0(ret[0]);
-    }
-    /**
-     * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
-     * @param {string} quantity
-     * @returns {Float64Array}
-     */
-    series_energy(quantity) {
-        const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.mechanicsworld_series_energy(this.__wbg_ptr, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -1667,6 +1778,18 @@ export function circuits_catalogue() {
 }
 
 /**
+ * The currents-and-magnetism scenarios with their parameter schemas.
+ * @returns {any}
+ */
+export function magnetism_catalogue() {
+    const ret = wasm.magnetism_catalogue();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * The properties-of-matter scenarios with their parameter schemas.
  * @returns {any}
  */
@@ -1951,6 +2074,9 @@ function __wbg_get_imports() {
 const CircuitBenchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_circuitbench_free(ptr, 1));
+const MagnetismRunFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_magnetismrun_free(ptr, 1));
 const MatterRunFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_matterrun_free(ptr, 1));
