@@ -2,7 +2,7 @@ import { iconButton, popover } from './controls';
 import { icon, type IconName } from './icons';
 import { el, presenting, setPresenting, toggleTheme } from './ui';
 
-export type Mode = 'mechanics' | 'waves' | 'optics' | 'thermal' | 'circuits' | 'modern' | 'matter';
+export type Mode = 'mechanics' | 'waves' | 'optics' | 'thermal' | 'circuits' | 'modern' | 'matter' | 'magnetism';
 
 /** The subjects, in the order the syllabus meets them, with what each holds. */
 const SUBJECTS: { mode: Mode; name: string; icon: IconName; holds: string }[] = [
@@ -11,6 +11,7 @@ const SUBJECTS: { mode: Mode; name: string; icon: IconName; holds: string }[] = 
   { mode: 'waves', name: 'Waves', icon: 'wave', holds: 'Waves on strings and in air, light as a wave, interference and diffraction, solitons.' },
   { mode: 'thermal', name: 'Thermal', icon: 'flame', holds: 'Kinetic theory, thermodynamics and the Carnot engine, Monte Carlo and the Ising model.' },
   { mode: 'circuits', name: 'Circuits', icon: 'circuit', holds: 'Current electricity, capacitors and inductors, alternating current.' },
+  { mode: 'magnetism', name: 'Magnetism', icon: 'magnet', holds: 'The field of a current, the force on a current, Faraday and Lenz, the generator and the transformer.' },
   { mode: 'optics', name: 'Optics', icon: 'lens', holds: 'Mirrors, refraction, lenses, the prism, the microscope and the telescope.' },
   { mode: 'modern', name: 'Modern', icon: 'orbits', holds: 'The photoelectric effect, matter waves, the Bohr atom, radioactivity and nuclei.' },
 ];

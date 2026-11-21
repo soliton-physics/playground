@@ -54,6 +54,7 @@ const paths = {
   diode: '<path d="M2 12h6M16 12h6M16 6v12"/><path d="M8 6v12l8-6z" fill="currentColor"/>',
   ammeter: '<circle cx="12" cy="12" r="7"/><path d="M2 12h3M19 12h3"/><path d="M9.5 15l2.5-6 2.5 6M10.4 13h3.2"/>',
   voltmeter: '<circle cx="12" cy="12" r="7"/><path d="M2 12h3M19 12h3"/><path d="M9.5 9l2.5 6 2.5-6"/>',
+  magnet: '<path d="M6 4v8a6 6 0 0 0 12 0V4h-4v8a2 2 0 0 1-4 0V4z"/><path d="M6 8h4M14 8h4"/>',
   drop: '<path d="M12 3c3.5 4.2 6 7.4 6 10.5a6 6 0 0 1-12 0C6 10.4 8.5 7.2 12 3z"/>',
   lens: '<path d="M12 3c3.2 2.4 3.2 15.6 0 18c-3.2-2.4-3.2-15.6 0-18z"/><path d="M2 12h6M16 12h6"/>',
   wave: '<path d="M2 14c3 0 3-7 6-7s3 10 6 10 3-7 6-7"/>',

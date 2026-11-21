@@ -1,4 +1,4 @@
-import init, { CircuitBench, MatterRun, MechanicsWorld, ModernRun, OpticsBench, StatRun, ThermalGas, WaveSimulation, circuits_catalogue, matter_catalogue, mechanics_catalogue, modern_catalogue, optics_catalogue, statmech_catalogue, thermal_catalogue } from '@soliton-physics/engine';
+import init, { CircuitBench, MagnetismRun, MatterRun, MechanicsWorld, ModernRun, OpticsBench, StatRun, ThermalGas, WaveSimulation, circuits_catalogue, magnetism_catalogue, matter_catalogue, mechanics_catalogue, modern_catalogue, optics_catalogue, statmech_catalogue, thermal_catalogue } from '@soliton-physics/engine';
 
 let ready: Promise<void> | undefined;
 
@@ -7,4 +7,4 @@ export function loadEngine(): Promise<void> {
   return ready;
 }
 
-export { CircuitBench, MatterRun, MechanicsWorld, ModernRun, OpticsBench, StatRun, ThermalGas, WaveSimulation, circuits_catalogue, matter_catalogue, mechanics_catalogue, modern_catalogue, optics_catalogue, statmech_catalogue, thermal_catalogue };
+export { CircuitBench, MagnetismRun, MatterRun, MechanicsWorld, ModernRun, OpticsBench, StatRun, ThermalGas, WaveSimulation, circuits_catalogue, magnetism_catalogue, matter_catalogue, mechanics_catalogue, modern_catalogue, optics_catalogue, statmech_catalogue, thermal_catalogue };
