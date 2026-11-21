@@ -107,7 +107,11 @@ export function slider(options: SliderOptions): Slider {
     field.value = String(Number(value.toFixed(6)));
     field.select();
   });
-  const commit = () => {
+  /**
+   * Takes what has been typed. While typing is going on the value follows it without the text being touched;
+   * once it is finished the text is tidied, and a number the quantity cannot take is said to be so.
+   */
+  const take = (finished: boolean) => {
     // Units and stray letters are dropped; text with no number in it leaves the value alone.
     const cleaned = field.value.replace(',', '.').replace('−', '-').replace(/[^0-9.+-]/g, '');
     const typed = Number(cleaned);
@@ -117,8 +121,19 @@ export function slider(options: SliderOptions): Slider {
         show(next);
         options.onInput(next);
       }
+      if (finished && next !== typed) toast(`${options.label} can go from ${options.format(hardMin)} to ${options.format(hardMax)}.`);
     }
-    field.value = options.format(value);
+    if (finished) field.value = options.format(value);
+  };
+  let pause: number | undefined;
+  // A value takes effect a moment after the typing stops, without waiting for Enter.
+  field.addEventListener('input', () => {
+    clearTimeout(pause);
+    pause = window.setTimeout(() => take(false), 500);
+  });
+  const commit = () => {
+    clearTimeout(pause);
+    take(true);
   };
   field.addEventListener('blur', commit);
   field.addEventListener('keydown', (e) => {
@@ -160,6 +175,8 @@ export function popover(anchor: HTMLElement, content: HTMLElement, placement: 'b
   };
   const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
   function close(): void {
+    // A value still being typed in the panel is taken before the panel goes.
+    if (document.activeElement instanceof HTMLElement && panel.contains(document.activeElement)) document.activeElement.blur();
     panel.remove();
     document.removeEventListener('pointerdown', onDown, true);
     document.removeEventListener('keydown', onKey);

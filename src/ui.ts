@@ -57,6 +57,18 @@ export function formatDuration(seconds: number): string {
   return Math.abs(seconds) < 0.1 && seconds !== 0 ? `${formatNumber(seconds * 1000)} ms` : `${formatNumber(seconds)} s`;
 }
 
+/**
+ * How far past its slider a parameter may be taken when a value is typed in: ten times above and to a tenth of
+ * its lower end for a physical quantity, and no further than the slider for a pure number (an angle, a ratio, a
+ * count) or a place along a wire. The engine holds values to the same rule, `typed_limits` in `soliton-core`.
+ */
+export function typedLimits(p: { name: string; unit: string; min: number; max: number }): { min: number; max: number } {
+  if (['', '°', '%', '×'].includes(p.unit) || p.name === 'jockey') return { min: p.min, max: p.max };
+  const max = p.max > 0 ? 10 * p.max : p.max / 10;
+  const min = p.min > 0 ? p.min / 10 : 10 * p.min;
+  return { min: p.unit === '°C' ? Math.max(min, -273) : min, max };
+}
+
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

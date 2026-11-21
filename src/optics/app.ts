@@ -2,7 +2,7 @@ import { closePopover, popover, slider, toast } from '../controls';
 import { OpticsBench, optics_catalogue } from '../engine';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, el, formatNumber, formatSize, layoutPx } from '../ui';
+import { clamp, el, formatNumber, formatSize, layoutPx, typedLimits } from '../ui';
 import { frameOf, openOpticsGallery } from './gallery';
 import { HANDLES, type Handle } from './handles';
 import { BenchRenderer, type Knob } from './renderer';
@@ -114,6 +114,8 @@ export function mountOptics(main: HTMLElement, query: URLSearchParams, embedded:
           label: p.label,
           min: p.min,
           max: p.max,
+          hardMin: typedLimits(p).min,
+          hardMax: typedLimits(p).max,
           step: p.step,
           value: values[p.name] ?? p.default,
           format: (v) => `${formatNumber(v)}${p.unit ? ` ${p.unit}` : ''}`,
@@ -238,7 +240,7 @@ export function mountOptics(main: HTMLElement, query: URLSearchParams, embedded:
   const chosen: Record<string, number> = {};
   for (const p of wanted.params) {
     const given = query.get(p.name);
-    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), p.min, p.max);
+    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), typedLimits(p).min, typedLimits(p).max);
   }
   show(wanted, chosen);
   requestAnimationFrame(loop);

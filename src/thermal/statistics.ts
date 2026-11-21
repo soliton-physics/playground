@@ -2,7 +2,7 @@ import { choice, closePopover, iconButton, popover, slider, toast } from '../con
 import { StatRun, statmech_catalogue } from '../engine';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, cssVar, el, formatNumber, layoutPx, stageFont, stageScale } from '../ui';
+import { clamp, cssVar, el, formatNumber, layoutPx, stageFont, stageScale, typedLimits } from '../ui';
 import { openThermalGallery } from './gallery';
 import { drawPlot, type Curve } from './graphs';
 import type { ThermalSpec } from './types';
@@ -330,6 +330,8 @@ export function mountStatistics(main: HTMLElement, query: URLSearchParams, embed
           label: p.label,
           min: p.min,
           max: p.max,
+          hardMin: typedLimits(p).min,
+          hardMax: typedLimits(p).max,
           step: p.step,
           value: values[p.name] ?? p.default,
           format: (v) => `${formatNumber(v)}${p.unit ? ` ${p.unit}` : ''}`,
@@ -419,7 +421,7 @@ export function mountStatistics(main: HTMLElement, query: URLSearchParams, embed
   const chosen: Record<string, number> = {};
   for (const p of wanted.params) {
     const given = query.get(p.name);
-    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), p.min, p.max);
+    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), typedLimits(p).min, typedLimits(p).max);
   }
   show(wanted, chosen);
   requestAnimationFrame(loop);

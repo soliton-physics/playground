@@ -3,7 +3,7 @@ import { CircuitBench, circuits_catalogue } from '../engine';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
 import { drawPlot, type Curve } from '../thermal/graphs';
-import { clamp, cssVar, el, formatNumber, formatPrefixed, layoutPx, stageScale } from '../ui';
+import { clamp, cssVar, el, formatNumber, formatPrefixed, layoutPx, stageScale, typedLimits } from '../ui';
 import { encodeScene, sceneFromUrl } from '../mechanics/share';
 import { CircuitEditor, starter } from './editor';
 import { openCircuitGallery } from './gallery';
@@ -349,6 +349,8 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
           label: p.label,
           min: p.min,
           max: p.max,
+          hardMin: typedLimits(p).min,
+          hardMax: typedLimits(p).max,
           step: p.step,
           value: values[p.name] ?? p.default,
           format: (v) => `${formatNumber(v)}${p.unit ? ` ${p.unit}` : ''}`,
@@ -534,7 +536,7 @@ export function mountCircuits(main: HTMLElement, query: URLSearchParams, embedde
   const chosen: Record<string, number> = {};
   for (const p of wanted.params) {
     const given = query.get(p.name);
-    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), p.min, p.max);
+    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), typedLimits(p).min, typedLimits(p).max);
   }
   // A link carries its circuit in the part after the #, which is read before anything rewrites the address.
   const shared = query.has('sandbox') ? sceneFromUrl() : undefined;
