@@ -1,18 +1,17 @@
-import { ModernRun } from '../engine';
 import { icon } from '../icons';
 import { el } from '../ui';
-import { drawChart, drawPicture } from './stage';
-import type { ModernSpec, Picture, PlotData } from './types';
+import { drawChart } from './stage';
+import type { LessonKit, LessonRun, ModernSpec, PlotData } from './types';
 
-function thumbnail(canvas: HTMLCanvasElement, id: string): void {
-  let run: ModernRun | undefined;
+function thumbnail(kit: LessonKit, canvas: HTMLCanvasElement, id: string): void {
+  let run: LessonRun | undefined;
   try {
-    run = new ModernRun(id, {});
+    run = kit.start(id, {});
     // A little way in, so that there is something to see.
     run.advance(3.2);
-    const picture = run.picture() as Picture;
+    const picture = run.picture() as { kind: string };
     if (picture.kind === 'chart') drawChart(canvas, (run.plots() as PlotData[])[0]!);
-    else drawPicture(canvas, picture, { left: 0, right: 0, top: 0, bottom: 0 }, true);
+    else kit.draw(canvas, picture, { left: 0, right: 0, top: 0, bottom: 0 }, true);
   } catch {
     /* a lesson the engine refuses simply has no picture */
   } finally {
@@ -20,9 +19,9 @@ function thumbnail(canvas: HTMLCanvasElement, id: string): void {
   }
 }
 
-/** A searchable grid of the modern physics scenarios, grouped by chapter. */
-export function openModernGallery(catalogue: ModernSpec[], current: string, choose: (id: string) => void): void {
-  const search = el('input', { type: 'search', placeholder: 'Search: photon, Bohr, alpha, half-life…', 'aria-label': 'Search scenarios' });
+/** A searchable grid of a subject's lessons, grouped by chapter. */
+export function openLessonGallery(kit: LessonKit, catalogue: ModernSpec[], current: string, choose: (id: string) => void): void {
+  const search = el('input', { type: 'search', placeholder: kit.search, 'aria-label': 'Search scenarios' });
   const list = el('div', { class: 'gallery-list' });
   const panel = el('div', { class: 'gallery glass', role: 'dialog', 'aria-label': 'Scenarios' }, [el('div', { class: 'gallery-search' }, [icon('search'), search]), list]);
   const backdrop = el('div', { class: 'gallery-backdrop' }, [panel]);
@@ -43,7 +42,7 @@ export function openModernGallery(catalogue: ModernSpec[], current: string, choo
       close();
       choose(spec.id);
     });
-    requestAnimationFrame(() => thumbnail(canvas, spec.id));
+    requestAnimationFrame(() => thumbnail(kit, canvas, spec.id));
     return button;
   }
 

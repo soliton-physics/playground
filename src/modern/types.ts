@@ -39,3 +39,27 @@ export type Picture =
   | { kind: 'spectrum'; lines: { wavelength: number; lower: number; upper: number }[]; chosen: Point }
   | { kind: 'sample'; columns: number; decayed: number[] }
   | { kind: 'chart' };
+
+/** A lesson running in the engine, whichever subject it belongs to. */
+export interface LessonRun {
+  advance(seconds: number): void;
+  finished(): boolean;
+  still(): boolean;
+  clock(): string;
+  picture(): unknown;
+  readings(): unknown;
+  plots(): unknown;
+  answers(): unknown;
+  free(): void;
+}
+
+/** What a subject made of such lessons brings to the page they share. */
+export interface LessonKit {
+  mode: string;
+  catalogue(): ModernSpec[];
+  start(id: string, params: Record<string, number>): LessonRun;
+  /** Draws a lesson's picture; `plain` is for a thumbnail. One of kind `chart` is only a cleared stage. */
+  draw(canvas: HTMLCanvasElement, picture: unknown, insets: { left: number; right: number; top: number; bottom: number }, plain?: boolean): void;
+  /** What the gallery's search box suggests. */
+  search: string;
+}

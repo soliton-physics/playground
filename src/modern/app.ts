@@ -3,14 +3,28 @@ import { ModernRun, modern_catalogue } from '../engine';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
 import { drawPlot } from '../thermal/graphs';
-import { clamp, el, formatNumber, layoutPx } from '../ui';
-import { openModernGallery } from './gallery';
+import { clamp, el, formatNumber, layoutPx, typedLimits } from '../ui';
+import { openLessonGallery } from './gallery';
 import { drawChart, drawPicture, toPlot, type Insets } from './stage';
-import type { Answer, ModernSpec, Picture, PlotData, Reading } from './types';
+import type { Answer, LessonKit, LessonRun, ModernSpec, Picture, PlotData, Reading } from './types';
 
 /** The modern physics tab: photons, matter waves, atoms and nuclei, each lesson run by the engine. */
 export function mountModern(main: HTMLElement, query: URLSearchParams, embedded: boolean, shell: Shell): void {
-  const catalogue = modern_catalogue() as ModernSpec[];
+  mountLessons(main, query, embedded, shell, {
+    mode: 'modern',
+    catalogue: () => modern_catalogue() as ModernSpec[],
+    start: (id, params) => new ModernRun(id, params),
+    draw: (canvas, picture, insets, plain) => drawPicture(canvas, picture as Picture, insets, plain),
+    search: 'Search: photon, Bohr, alpha, half-life…',
+  });
+}
+
+/**
+ * A subject made of lessons the engine runs: each gives a picture for the stage, readings, graphs and answers,
+ * and the page is the same whatever the physics.
+ */
+export function mountLessons(main: HTMLElement, query: URLSearchParams, embedded: boolean, shell: Shell, kit: LessonKit): void {
+  const catalogue = kit.catalogue();
   const canvas = el('canvas', { class: 'stage-canvas' });
   // A lesson that is all graph has it drawn large here, over the stage.
   const chart = el('canvas', { class: 'modern-chart overlay' });
@@ -35,7 +49,7 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
 
   let spec = catalogue[0]!;
   let values: Record<string, number> = {};
-  let run: ModernRun | undefined;
+  let run: LessonRun | undefined;
   let running = false;
   let graph = 0;
   let lastPanel = 0;
@@ -66,9 +80,9 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
   }
 
   function rebuild(): void {
-    let next: ModernRun;
+    let next: LessonRun;
     try {
-      next = new ModernRun(spec.id, current());
+      next = kit.start(spec.id, current());
     } catch (error) {
       toast(error instanceof Error ? error.message : String(error), 'error');
       return;
@@ -79,7 +93,7 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
     // A formula and its graph have nothing to play.
     dock.style.display = run.still() ? 'none' : '';
     if (!embedded) {
-      let url = `?mode=modern&scenario=${spec.id}`;
+      let url = `?mode=${kit.mode}&scenario=${spec.id}`;
       for (const p of spec.params) if (values[p.name] !== undefined && values[p.name] !== p.default) url += `&${p.name}=${Number(values[p.name]!.toPrecision(6))}`;
       history.replaceState(null, '', url);
     }
@@ -106,7 +120,7 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
     clock.textContent = run.clock();
     renderAnswers(run.answers() as Answer[]);
     const plots = run.plots() as PlotData[];
-    charted = (run.picture() as Picture).kind === 'chart';
+    charted = (run.picture() as { kind: string }).kind === 'chart';
     chart.style.display = charted ? '' : 'none';
     if (charted && plots[0]) drawChart(chart, plots[0]);
     if (embedded) return;
@@ -134,6 +148,8 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
           label: p.label,
           min: p.min,
           max: p.max,
+          hardMin: typedLimits(p).min,
+          hardMax: typedLimits(p).max,
           step: p.step,
           value: values[p.name] ?? p.default,
           format: (v) => `${formatNumber(v)}${p.unit ? ` ${p.unit}` : ''}`,
@@ -190,7 +206,7 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
     }
   });
 
-  const openGallery = () => openModernGallery(catalogue, spec.id, (id) => show(catalogue.find((s) => s.id === id) ?? spec));
+  const openGallery = () => openLessonGallery(kit, catalogue, spec.id, (id) => show(catalogue.find((s) => s.id === id) ?? spec));
   shell.onTitle(openGallery);
   shell.onShare(async () => {
     const url = new URL(location.href).toString();
@@ -215,8 +231,7 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
         run.advance(elapsed * speed);
         if (run.finished()) setRunning(false);
       }
-      if (!charted) drawPicture(canvas, run.picture() as Picture, insets);
-      else drawPicture(canvas, { kind: 'chart' }, insets);
+      kit.draw(canvas, charted ? { kind: 'chart' } : run.picture(), insets);
       if (now - lastPanel > 200) {
         lastPanel = now;
         if (running || charted === false) refreshPanel();
@@ -229,7 +244,7 @@ export function mountModern(main: HTMLElement, query: URLSearchParams, embedded:
   const chosen: Record<string, number> = {};
   for (const p of wanted.params) {
     const given = query.get(p.name);
-    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), p.min, p.max);
+    if (given !== null && Number.isFinite(Number(given))) chosen[p.name] = clamp(Number(given), typedLimits(p).min, typedLimits(p).max);
   }
   show(wanted, chosen);
   requestAnimationFrame(loop);
