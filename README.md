@@ -53,7 +53,18 @@ compression, free expansion, mixing, the Carnot cycle.
 - Alpha particles swung round a nucleus, Bohr's orbits with the photon leaving, and the line spectrum of hydrogen.
 - Nuclei decaying one by one against the exponential law, and the binding energy curve.
 
-The subject is chosen from the button beside the logo, which lists all seven.
+The subject is chosen from the button beside the logo, which lists all eight.
+
+**Currents and magnetism** (`?mode=magnetism&scenario=<id>`). Class 12: the field of a current and
+electromagnetic induction.
+
+- Compass needles round a straight wire, a coil, a solenoid and two parallel wires, from the Biot–Savart law
+  summed along the wire. A dot in a wire is current towards you, a cross is current away.
+- The force on a wire in a field, and a moving-coil galvanometer whose pointer swings and settles.
+- A magnet carried through a coil, a rod pulled along rails, a loop falling through a band of field, the AC
+  generator, self and mutual inductance, and the transformer at the head of a power line.
+- Each formula has beside it what the engine found another way: a field summed piece by piece, an emf from the
+  change of flux, heat against the energy lost.
 
 **Solve a circuit** (`?mode=circuits&scenario=<id>`). Class 12 current electricity, capacitors, the inductor and
 alternating current: from Ohm's law to the potentiometer, charging through a resistance, and the series LCR circuit.
@@ -174,6 +185,7 @@ src/
   optics/                  the optics bench: renderer, handles, gallery
   thermal/                 the gas: stage, graphs, gallery
   circuits/                circuit diagrams: schematic, gallery
+  modern/, matter/, magnetism/   lessons that share one screen; each brings its own pictures
     model.ts               sine waves and pulses as closed forms; the motion of one point
     lessons.ts             the class 11 lessons: parameters, parts, facts, marks, formulas
     lab.ts                 the wave lab: its state, its link, its editor
