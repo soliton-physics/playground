@@ -38,6 +38,14 @@ compression, free expansion, mixing, the Carnot cycle.
 - Beyond the textbook, in the same tab: finding π with random points, a crowd of random walkers, the Ising model of
   a magnet, and cooling it through its phase transition against Onsager's exact curve.
 
+**Solids, fluids and heat** (`?mode=matter&scenario=<id>`). Class 11 properties of matter.
+
+- A wire stretched to its elastic limit and past it, a block sheared, a cube squeezed in the deep sea.
+- Pressure at a depth, a hydraulic lift, a block that bobs and settles where Archimedes says, a Venturi tube with
+  specks to follow, a tank draining, a ball reaching its terminal speed, water climbing fine tubes.
+- A rod expanding, a hot block in cool water, ice heated to steam, heat creeping along two metals, a cup cooling,
+  and the glow of a hot body.
+
 **Photons, atoms and nuclei** (`?mode=modern&scenario=<id>`). Class 12 modern physics.
 
 - The photoelectric effect with photons and electrons you can count, the wavelength of an electron, and the
@@ -45,7 +53,7 @@ compression, free expansion, mixing, the Carnot cycle.
 - Alpha particles swung round a nucleus, Bohr's orbits with the photon leaving, and the line spectrum of hydrogen.
 - Nuclei decaying one by one against the exponential law, and the binding energy curve.
 
-The subject is chosen from the button beside the logo, which lists all six.
+The subject is chosen from the button beside the logo, which lists all seven.
 
 **Solve a circuit** (`?mode=circuits&scenario=<id>`). Class 12 current electricity, capacitors, the inductor and
 alternating current: from Ohm's law to the potentiometer, charging through a resistance, and the series LCR circuit.

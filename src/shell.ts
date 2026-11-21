@@ -2,11 +2,12 @@ import { iconButton, popover } from './controls';
 import { icon, type IconName } from './icons';
 import { el, presenting, setPresenting, toggleTheme } from './ui';
 
-export type Mode = 'mechanics' | 'waves' | 'optics' | 'thermal' | 'circuits' | 'modern';
+export type Mode = 'mechanics' | 'waves' | 'optics' | 'thermal' | 'circuits' | 'modern' | 'matter';
 
 /** The subjects, in the order the syllabus meets them, with what each holds. */
 const SUBJECTS: { mode: Mode; name: string; icon: IconName; holds: string }[] = [
   { mode: 'mechanics', name: 'Mechanics', icon: 'atom', holds: 'Motion, forces, energy, rotation, gravitation, charges and fields. Build your own.' },
+  { mode: 'matter', name: 'Matter', icon: 'drop', holds: 'Stress and strain, pressure, floating, Bernoulli, viscosity, expansion, heat and change of state.' },
   { mode: 'waves', name: 'Waves', icon: 'wave', holds: 'Waves on strings and in air, light as a wave, interference and diffraction, solitons.' },
   { mode: 'thermal', name: 'Thermal', icon: 'flame', holds: 'Kinetic theory, thermodynamics and the Carnot engine, Monte Carlo and the Ising model.' },
   { mode: 'circuits', name: 'Circuits', icon: 'circuit', holds: 'Current electricity, capacitors and inductors, alternating current.' },
