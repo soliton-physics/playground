@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_circuitbench_free: (a: number, b: number) => void;
+export const __wbg_matterrun_free: (a: number, b: number) => void;
 export const __wbg_mechanicsworld_free: (a: number, b: number) => void;
 export const __wbg_modernrun_free: (a: number, b: number) => void;
 export const __wbg_opticsbench_free: (a: number, b: number) => void;
@@ -26,6 +27,16 @@ export const circuitbench_series_time: (a: number) => any;
 export const circuitbench_time: (a: number) => number;
 export const circuitbench_title: (a: number) => [number, number];
 export const circuits_catalogue: () => [number, number, number];
+export const matter_catalogue: () => [number, number, number];
+export const matterrun_advance: (a: number, b: number) => void;
+export const matterrun_answers: (a: number) => [number, number, number];
+export const matterrun_clock: (a: number) => [number, number];
+export const matterrun_finished: (a: number) => number;
+export const matterrun_new: (a: number, b: number, c: any) => [number, number, number];
+export const matterrun_picture: (a: number) => [number, number, number];
+export const matterrun_plots: (a: number) => [number, number, number];
+export const matterrun_readings: (a: number) => [number, number, number];
+export const matterrun_still: (a: number) => number;
 export const mechanics_catalogue: () => [number, number, number];
 export const mechanicsworld_bodies: (a: number) => [number, number, number];
 export const mechanicsworld_body_at: (a: number, b: number, c: number, d: number) => number;

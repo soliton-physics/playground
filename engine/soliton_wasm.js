@@ -208,6 +208,117 @@ export class CircuitBench {
 }
 if (Symbol.dispose) CircuitBench.prototype[Symbol.dispose] = CircuitBench.prototype.free;
 
+export class MatterRun {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        MatterRunFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_matterrun_free(ptr, 0);
+    }
+    /**
+     * Moves on by this many seconds of watching.
+     * @param {number} seconds
+     */
+    advance(seconds) {
+        wasm.matterrun_advance(this.__wbg_ptr, seconds);
+    }
+    /**
+     * `[{ name, value, measured, within }]`.
+     * @returns {any}
+     */
+    answers() {
+        const ret = wasm.matterrun_answers(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {string}
+     */
+    clock() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.matterrun_clock(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {boolean}
+     */
+    finished() {
+        const ret = wasm.matterrun_finished(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * `params` is a plain object `{ name: value }`; missing entries take the scenario defaults.
+     * @param {string} id
+     * @param {any} params
+     */
+    constructor(id, params) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.matterrun_new(ptr0, len0, params);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        MatterRunFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * What stands on the stage: `{ kind, ... }`.
+     * @returns {any}
+     */
+    picture() {
+        const ret = wasm.matterrun_picture(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `[{ title, x_label, y_label, curves, marker, from_zero, ladder }]`.
+     * @returns {any}
+     */
+    plots() {
+        const ret = wasm.matterrun_plots(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * `[{ label, value, unit }]`.
+     * @returns {any}
+     */
+    readings() {
+        const ret = wasm.matterrun_readings(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * True for a lesson with nothing to play.
+     * @returns {boolean}
+     */
+    still() {
+        const ret = wasm.matterrun_still(this.__wbg_ptr);
+        return ret !== 0;
+    }
+}
+if (Symbol.dispose) MatterRun.prototype[Symbol.dispose] = MatterRun.prototype.free;
+
 /**
  * A running mechanics scenario, built from the catalogue with chosen parameters.
  */
@@ -1339,18 +1450,18 @@ export class ThermalGas {
         return ret;
     }
     /**
+     * @returns {number}
+     */
+    stage_count() {
+        const ret = wasm.thermalgas_stage_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
      * The stage in progress and what it is called.
      * @returns {number}
      */
     stage() {
         const ret = wasm.thermalgas_stage(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
-     * @returns {number}
-     */
-    stage_count() {
-        const ret = wasm.thermalgas_stage_count(this.__wbg_ptr);
         return ret >>> 0;
     }
     /**
@@ -1549,6 +1660,18 @@ if (Symbol.dispose) WaveSimulation.prototype[Symbol.dispose] = WaveSimulation.pr
  */
 export function circuits_catalogue() {
     const ret = wasm.circuits_catalogue();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * The properties-of-matter scenarios with their parameter schemas.
+ * @returns {any}
+ */
+export function matter_catalogue() {
+    const ret = wasm.matter_catalogue();
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -1828,6 +1951,9 @@ function __wbg_get_imports() {
 const CircuitBenchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_circuitbench_free(ptr, 1));
+const MatterRunFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_matterrun_free(ptr, 1));
 const MechanicsWorldFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_mechanicsworld_free(ptr, 1));
