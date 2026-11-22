@@ -4,6 +4,7 @@ import { loadEngine } from './engine';
 import { mountCircuits } from './circuits/app';
 import { mountMagnetism } from './magnetism/app';
 import { mountMatter } from './matter/app';
+import { mountMaths } from './maths/app';
 import { mountMechanics } from './mechanics/app';
 import { mountModern } from './modern/app';
 import { mountOptics } from './optics/app';
@@ -24,7 +25,7 @@ document.addEventListener('keydown', (e) => {
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const asked = query.get('mode');
-const mode: Mode = asked === 'optics' || asked === 'thermal' || asked === 'circuits' || asked === 'modern' || asked === 'matter' || asked === 'magnetism' ? asked : query.get('mode') === 'waves' || query.has('preset') ? 'waves' : 'mechanics';
+const mode: Mode = asked === 'optics' || asked === 'thermal' || asked === 'circuits' || asked === 'modern' || asked === 'matter' || asked === 'magnetism' || asked === 'maths' ? asked : query.get('mode') === 'waves' || query.has('preset') ? 'waves' : 'mechanics';
 
 await loadEngine();
 const shell = buildShell(mode);
@@ -41,4 +42,5 @@ else if (mode === 'circuits') mountCircuits(main, query, embedded, shell);
 else if (mode === 'modern') mountModern(main, query, embedded, shell);
 else if (mode === 'matter') mountMatter(main, query, embedded, shell);
 else if (mode === 'magnetism') mountMagnetism(main, query, embedded, shell);
+else if (mode === 'maths') mountMaths(main, query, embedded, shell);
 else await mountMechanics(main, query, embedded, shell);

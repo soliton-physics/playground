@@ -1499,3 +1499,428 @@ body.embed .banner {
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
 }
+
+/* ---------- maths: the Functions room ---------- */
+
+.maths-canvas {
+  cursor: crosshair;
+}
+
+.maths-panel,
+.maths-calculus {
+  top: 0.857rem;
+  bottom: 5.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.857rem;
+  padding: 0.857rem 1rem;
+  overflow: auto;
+}
+
+.maths-panel {
+  left: 0.857rem;
+  width: 22rem;
+  bottom: auto;
+  max-height: calc(100% - 6.3rem);
+}
+
+.maths-calculus {
+  right: 0.857rem;
+  width: 25rem;
+}
+
+.maths-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.571rem;
+}
+
+.maths-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.357rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+}
+
+.maths-row.chosen {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.maths-row.wrong {
+  border-color: var(--danger);
+}
+
+.maths-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.maths-swatch {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+}
+
+.maths-input,
+.maths-limit {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: ui-monospace, 'JetBrains Mono', Menlo, monospace;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.4rem 0.55rem;
+}
+
+.maths-input:focus,
+.maths-limit:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.maths-remove {
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+.maths-preview {
+  min-height: 1.6rem;
+  font-size: 1.05rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.maths-preview code {
+  display: block;
+  font-size: 0.9rem;
+  white-space: pre;
+}
+
+.maths-preview mark {
+  background: none;
+  color: var(--danger);
+  text-decoration: underline wavy var(--danger);
+  text-underline-offset: 3px;
+}
+
+.maths-complaint {
+  display: block;
+  color: var(--danger);
+  font-size: 0.88rem;
+}
+
+.maths-add {
+  align-self: flex-start;
+}
+
+.maths-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.714rem;
+}
+
+.maths-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.maths-note:empty {
+  display: none;
+}
+
+.maths-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.857rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.maths-section:last-child {
+  border-bottom: none;
+}
+
+.maths-formula {
+  overflow-x: auto;
+  overflow-y: hidden;
+  font-size: 1.02rem;
+}
+
+.maths-formula .katex-display {
+  margin: 0.3rem 0;
+  text-align: left;
+}
+
+.maths-formula .katex-display > .katex {
+  text-align: left;
+}
+
+.maths-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.429rem;
+}
+
+.maths-toggle[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.maths-steps {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.maths-step-formula .katex-display {
+  margin: 0.2rem 0;
+  text-align: left;
+}
+
+.maths-step-formula .katex-display > .katex {
+  text-align: left;
+}
+
+.maths-limits {
+  display: flex;
+  gap: 0.714rem;
+}
+
+.maths-limit-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.429rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.maths-rules {
+  flex-wrap: wrap;
+}
+
+.maths-sum {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.maths-dock {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 1rem;
+}
+
+.maths-examples {
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  overflow: auto;
+  width: 24rem;
+}
+
+.maths-examples .subject {
+  text-align: left;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.maths-embedded .maths-calculus {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .maths-calculus {
+    width: 21rem;
+  }
+
+  .maths-panel {
+    width: 19rem;
+  }
+}
+
+@media (max-width: 800px) {
+  .maths-panel {
+    right: 0.857rem;
+    width: auto;
+    max-height: 38%;
+  }
+
+  .maths-calculus {
+    top: auto;
+    left: 0.857rem;
+    width: auto;
+    height: 34%;
+  }
+}
+
+.maths-limit-label .maths-limit {
+  width: 100%;
+}
+
+.maths-limit-label {
+  min-width: 0;
+}
+
+.maths-rules {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.maths-rooms a {
+  flex: 1;
+  padding: 0.357rem 0.571rem;
+  border-radius: 6px;
+  color: var(--muted);
+  text-align: center;
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.maths-rooms a[aria-current='page'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.12);
+}
+
+/* ---------- maths: the Matrices room ---------- */
+
+.matrix-frame {
+  position: relative;
+  padding: 0 0.7rem;
+}
+
+/* the square brackets of a matrix */
+.matrix-frame::before,
+.matrix-frame::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.45rem;
+  border: 2px solid var(--text);
+}
+
+.matrix-frame::before {
+  left: 0;
+  border-right: none;
+}
+
+.matrix-frame::after {
+  right: 0;
+  border-left: none;
+}
+
+.matrix-grid {
+  display: grid;
+  gap: 0.357rem;
+  padding: 0.357rem 0;
+}
+
+.matrix-cell {
+  min-width: 0;
+  width: 100%;
+  font: inherit;
+  font-family: ui-monospace, 'JetBrains Mono', Menlo, monospace;
+  font-size: 1rem;
+  text-align: center;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.45rem 0.3rem;
+}
+
+.matrix-cell:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.matrix-cell.wrong {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.matrix-fold > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.matrix-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.matrix-fold > summary h4::before {
+  content: '▸ ';
+}
+
+.matrix-fold[open] > summary h4::before {
+  content: '▾ ';
+}
+
+.matrix-solve {
+  display: flex;
+  align-items: center;
+  gap: 0.571rem;
+}
+
+.matrix-b {
+  display: flex;
+  gap: 0.357rem;
+}
+
+.matrix-b .matrix-cell {
+  width: 3.6rem;
+}
+
+.matrix-verdict {
+  margin: 0;
+  font-weight: 600;
+}
+
+.matrix-progress {
+  width: 11rem;
+  margin: 0 0.429rem;
+}
+
+.matrix-dock-3d .toggle {
+  display: none;
+}
+
+.matrix-space {
+  cursor: grab;
+}
+
+.matrix-pieces {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.4rem;
+}
+
+.matrix-progress {
+  width: 9rem;
+}
+
+.matrix-progress .slider-head span:first-child {
+  white-space: nowrap;
+}
