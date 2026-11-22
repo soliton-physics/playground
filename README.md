@@ -53,7 +53,16 @@ compression, free expansion, mixing, the Carnot cycle.
 - Alpha particles swung round a nucleus, Bohr's orbits with the photon leaving, and the line spectrum of hydrogen.
 - Nuclei decaying one by one against the exponential law, and the binding energy curve.
 
-The subject is chosen from the button beside the logo, which lists all eight.
+**Maths** (`?mode=maths`). Two rooms so far, NCERT class 11–12 and past it.
+
+- **Functions** (`&room=functions`): type up to four functions the way the textbook writes them; letters become
+  sliders. The derivative drawn and written, a tangent you drag along the curve, the area between two limits
+  (exact where a formula exists) with Riemann strips, and the integral worked out step by step.
+- **Matrices** (`&room=matrices`): a 2×2 matrix bends the plane (drag its columns), a 3×3 turns the unit cube
+  into a box you can turn. Determinant by expansion, inverse by the adjoint, row reduction, `AX = B` by the
+  matrix method, eigenvalues and eigenvectors, exactly and with letters.
+
+The subject is chosen from the button beside the logo, which lists all nine.
 
 **Currents and magnetism** (`?mode=magnetism&scenario=<id>`). Class 12: the field of a current and
 electromagnetic induction.
@@ -186,6 +195,7 @@ src/
   thermal/                 the gas: stage, graphs, gallery
   circuits/                circuit diagrams: schematic, gallery
   modern/, matter/, magnetism/   lessons that share one screen; each brings its own pictures
+  maths/                   the Functions and Matrices rooms: the plane, the stage for a matrix, KaTeX
     model.ts               sine waves and pulses as closed forms; the motion of one point
     lessons.ts             the class 11 lessons: parameters, parts, facts, marks, formulas
     lab.ts                 the wave lab: its state, its link, its editor
