@@ -68,6 +68,47 @@ export class CircuitBench {
     title(): string;
 }
 
+export class Formula {
+    free(): void;
+    [Symbol.dispose](): void;
+    at(x: number, values: Float64Array | number[]): number;
+    /**
+     * ∫ from `a` to `b` (each typed, as `pi/2`): `{ value, numeric, error, exact_latex, exact_text, antiderivative }`.
+     */
+    definite(a: string, b: string, values: Float64Array | number[]): any;
+    /**
+     * The derivative, a formula with the same parameters. Throws when there is none (`x!`).
+     */
+    derivative(): Formula;
+    /**
+     * The graph over the view as `[x0, y0, x1, y1, …]`, with a NaN pair where the line is cut.
+     */
+    graph(left: number, right: number, bottom: number, top: number, pixels: number, values: Float64Array | number[]): Float64Array;
+    /**
+     * `{ latex, text, steps: [{ words, latex }] }`, or null when no formula is found.
+     */
+    integral(): any;
+    /**
+     * "expression", "function", "relation" or "differential".
+     */
+    kind(): string;
+    latex(): string;
+    /**
+     * Reads one line. Throws `{ message, start, end }` when it cannot.
+     */
+    constructor(text: string);
+    /**
+     * The names that take a value, in the order `values` lists them: the sliders.
+     */
+    parameters(): string[];
+    /**
+     * `rule` is "left", "right", "midpoint", "trapezium" or "simpson": `{ value, edges, heights }`.
+     */
+    riemann(a: number, b: number, strips: number, rule: string, values: Float64Array | number[]): any;
+    text(): string;
+    variable(): string;
+}
+
 export class MagnetismRun {
     free(): void;
     [Symbol.dispose](): void;
@@ -101,6 +142,41 @@ export class MagnetismRun {
      * True for a lesson with nothing to play.
      */
     still(): boolean;
+}
+
+/**
+ * A matrix of typed entries, for the Matrices room.
+ */
+export class Matrix {
+    free(): void;
+    [Symbol.dispose](): void;
+    cols(): number;
+    /**
+     * Everything the room shows about the matrix at once.
+     */
+    facts(values: Float64Array | number[]): any;
+    latex(): string;
+    /**
+     * `entries` is an array of rows of strings. Throws `{ message, row, col, start, end }`.
+     */
+    constructor(entries: any);
+    /**
+     * Every entry as a number, row by row.
+     */
+    numbers(values: Float64Array | number[]): Float64Array;
+    /**
+     * The letters, in the order `values` lists them.
+     */
+    parameters(): string[];
+    /**
+     * Row reduction to the reduced echelon form, each operation with the matrix it leaves.
+     */
+    reduce(values: Float64Array | number[]): any;
+    rows(): number;
+    /**
+     * `A x = b` for a typed right-hand side.
+     */
+    solve(b: any, values: Float64Array | number[]): any;
 }
 
 export class MatterRun {
@@ -540,6 +616,11 @@ export function circuits_catalogue(): any;
 export function magnetism_catalogue(): any;
 
 /**
+ * A limit or a typed number such as `pi/2`, as a value. Throws `{ message, start, end }`.
+ */
+export function maths_number(text: string): number;
+
+/**
  * The properties-of-matter scenarios with their parameter schemas.
  */
 export function matter_catalogue(): any;
@@ -574,7 +655,9 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_circuitbench_free: (a: number, b: number) => void;
+    readonly __wbg_formula_free: (a: number, b: number) => void;
     readonly __wbg_magnetismrun_free: (a: number, b: number) => void;
+    readonly __wbg_matrix_free: (a: number, b: number) => void;
     readonly __wbg_matterrun_free: (a: number, b: number) => void;
     readonly __wbg_mechanicsworld_free: (a: number, b: number) => void;
     readonly __wbg_modernrun_free: (a: number, b: number) => void;
@@ -600,6 +683,18 @@ export interface InitOutput {
     readonly circuitbench_time: (a: number) => number;
     readonly circuitbench_title: (a: number) => [number, number];
     readonly circuits_catalogue: () => [number, number, number];
+    readonly formula_at: (a: number, b: number, c: number, d: number) => number;
+    readonly formula_definite: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly formula_derivative: (a: number) => [number, number, number];
+    readonly formula_graph: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number];
+    readonly formula_integral: (a: number) => [number, number, number];
+    readonly formula_kind: (a: number) => [number, number];
+    readonly formula_latex: (a: number) => [number, number];
+    readonly formula_new: (a: number, b: number) => [number, number, number];
+    readonly formula_parameters: (a: number) => [number, number];
+    readonly formula_riemann: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+    readonly formula_text: (a: number) => [number, number];
+    readonly formula_variable: (a: number) => [number, number];
     readonly magnetism_catalogue: () => [number, number, number];
     readonly magnetismrun_advance: (a: number, b: number) => void;
     readonly magnetismrun_answers: (a: number) => [number, number, number];
@@ -610,6 +705,16 @@ export interface InitOutput {
     readonly magnetismrun_plots: (a: number) => [number, number, number];
     readonly magnetismrun_readings: (a: number) => [number, number, number];
     readonly magnetismrun_still: (a: number) => number;
+    readonly maths_number: (a: number, b: number) => [number, number, number];
+    readonly matrix_cols: (a: number) => number;
+    readonly matrix_facts: (a: number, b: number, c: number) => [number, number, number];
+    readonly matrix_latex: (a: number) => [number, number];
+    readonly matrix_new: (a: any) => [number, number, number];
+    readonly matrix_numbers: (a: number, b: number, c: number) => [number, number];
+    readonly matrix_parameters: (a: number) => [number, number];
+    readonly matrix_reduce: (a: number, b: number, c: number) => [number, number, number];
+    readonly matrix_rows: (a: number) => number;
+    readonly matrix_solve: (a: number, b: any, c: number, d: number) => [number, number, number];
     readonly matter_catalogue: () => [number, number, number];
     readonly matterrun_advance: (a: number, b: number) => void;
     readonly matterrun_answers: (a: number) => [number, number, number];
@@ -746,6 +851,7 @@ export interface InitOutput {
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __externref_table_dealloc: (a: number) => void;
+    readonly __externref_drop_slice: (a: number, b: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

@@ -208,6 +208,227 @@ export class CircuitBench {
 }
 if (Symbol.dispose) CircuitBench.prototype[Symbol.dispose] = CircuitBench.prototype.free;
 
+export class Formula {
+    static __wrap(ptr) {
+        const obj = Object.create(Formula.prototype);
+        obj.__wbg_ptr = ptr;
+        FormulaFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        FormulaFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_formula_free(ptr, 0);
+    }
+    /**
+     * @param {number} x
+     * @param {Float64Array | number[]} values
+     * @returns {number}
+     */
+    at(x, values) {
+        const val2 = +x;
+        const ptr0 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.formula_at(this.__wbg_ptr, val2, ptr0, len0);
+        return ret;
+    }
+    /**
+     * ∫ from `a` to `b` (each typed, as `pi/2`): `{ value, numeric, error, exact_latex, exact_text, antiderivative }`.
+     * @param {string} a
+     * @param {string} b
+     * @param {Float64Array | number[]} values
+     * @returns {any}
+     */
+    definite(a, b, values) {
+        let ptr0, len0, ptr1, len1, ptr2, len2;
+        try {
+            ptr0 = passStringToWasm0(a, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len0 = WASM_VECTOR_LEN;
+            ptr1 = passStringToWasm0(b, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len1 = WASM_VECTOR_LEN;
+            ptr2 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+            len2 = WASM_VECTOR_LEN;
+        } catch (e) {
+            if (ptr2) { wasm.__wbindgen_free(ptr2, len2 * 8, 8); }
+            if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+            if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+            throw e;
+        }
+        const ret = wasm.formula_definite(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * The derivative, a formula with the same parameters. Throws when there is none (`x!`).
+     * @returns {Formula}
+     */
+    derivative() {
+        const ret = wasm.formula_derivative(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return Formula.__wrap(ret[0]);
+    }
+    /**
+     * The graph over the view as `[x0, y0, x1, y1, …]`, with a NaN pair where the line is cut.
+     * @param {number} left
+     * @param {number} right
+     * @param {number} bottom
+     * @param {number} top
+     * @param {number} pixels
+     * @param {Float64Array | number[]} values
+     * @returns {Float64Array}
+     */
+    graph(left, right, bottom, top, pixels, values) {
+        const val2 = +left;
+        const val3 = +right;
+        const val4 = +bottom;
+        const val5 = +top;
+        const val6 = +pixels;
+        const ptr0 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.formula_graph(this.__wbg_ptr, val2, val3, val4, val5, val6, ptr0, len0);
+        var v7 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v7;
+    }
+    /**
+     * `{ latex, text, steps: [{ words, latex }] }`, or null when no formula is found.
+     * @returns {any}
+     */
+    integral() {
+        const ret = wasm.formula_integral(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * "expression", "function", "relation" or "differential".
+     * @returns {string}
+     */
+    kind() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.formula_kind(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    latex() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.formula_latex(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Reads one line. Throws `{ message, start, end }` when it cannot.
+     * @param {string} text
+     */
+    constructor(text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.formula_new(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        FormulaFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * The names that take a value, in the order `values` lists them: the sliders.
+     * @returns {string[]}
+     */
+    parameters() {
+        const ret = wasm.formula_parameters(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]);
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * `rule` is "left", "right", "midpoint", "trapezium" or "simpson": `{ value, edges, heights }`.
+     * @param {number} a
+     * @param {number} b
+     * @param {number} strips
+     * @param {string} rule
+     * @param {Float64Array | number[]} values
+     * @returns {any}
+     */
+    riemann(a, b, strips, rule, values) {
+        const val3 = +a;
+        const val4 = +b;
+        const val5 = +strips;
+        let ptr0, len0, ptr1, len1;
+        try {
+            ptr0 = passStringToWasm0(rule, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len0 = WASM_VECTOR_LEN;
+            ptr1 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+            len1 = WASM_VECTOR_LEN;
+        } catch (e) {
+            if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 8, 8); }
+            if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+            throw e;
+        }
+        const ret = wasm.formula_riemann(this.__wbg_ptr, val3, val4, val5, ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {string}
+     */
+    text() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.formula_text(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    variable() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.formula_variable(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) Formula.prototype[Symbol.dispose] = Formula.prototype.free;
+
 export class MagnetismRun {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -318,6 +539,131 @@ export class MagnetismRun {
     }
 }
 if (Symbol.dispose) MagnetismRun.prototype[Symbol.dispose] = MagnetismRun.prototype.free;
+
+/**
+ * A matrix of typed entries, for the Matrices room.
+ */
+export class Matrix {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        MatrixFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_matrix_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    cols() {
+        const ret = wasm.matrix_cols(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Everything the room shows about the matrix at once.
+     * @param {Float64Array | number[]} values
+     * @returns {any}
+     */
+    facts(values) {
+        const ptr0 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.matrix_facts(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {string}
+     */
+    latex() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.matrix_latex(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * `entries` is an array of rows of strings. Throws `{ message, row, col, start, end }`.
+     * @param {any} entries
+     */
+    constructor(entries) {
+        const ret = wasm.matrix_new(entries);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        MatrixFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Every entry as a number, row by row.
+     * @param {Float64Array | number[]} values
+     * @returns {Float64Array}
+     */
+    numbers(values) {
+        const ptr0 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.matrix_numbers(this.__wbg_ptr, ptr0, len0);
+        var v2 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v2;
+    }
+    /**
+     * The letters, in the order `values` lists them.
+     * @returns {string[]}
+     */
+    parameters() {
+        const ret = wasm.matrix_parameters(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]);
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * Row reduction to the reduced echelon form, each operation with the matrix it leaves.
+     * @param {Float64Array | number[]} values
+     * @returns {any}
+     */
+    reduce(values) {
+        const ptr0 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.matrix_reduce(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {number}
+     */
+    rows() {
+        const ret = wasm.matrix_rows(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * `A x = b` for a typed right-hand side.
+     * @param {any} b
+     * @param {Float64Array | number[]} values
+     * @returns {any}
+     */
+    solve(b, values) {
+        const ptr0 = passArrayF64ToWasm0(values, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.matrix_solve(this.__wbg_ptr, b, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+}
+if (Symbol.dispose) Matrix.prototype[Symbol.dispose] = Matrix.prototype.free;
 
 export class MatterRun {
     __destroy_into_raw() {
@@ -1790,6 +2136,21 @@ export function magnetism_catalogue() {
 }
 
 /**
+ * A limit or a typed number such as `pi/2`, as a value. Throws `{ message, start, end }`.
+ * @param {string} text
+ * @returns {number}
+ */
+export function maths_number(text) {
+    const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.maths_number(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0];
+}
+
+/**
  * The properties-of-matter scenarios with their parameter schemas.
  * @returns {any}
  */
@@ -1968,6 +2329,10 @@ function __wbg_get_imports() {
             const ret = result;
             return ret;
         },
+        __wbg_isArray_bcf1376d0d732d08: function(arg0) {
+            const ret = Array.isArray(arg0);
+            return ret;
+        },
         __wbg_iterator_e4c5e8f68ada7b58: function() {
             const ret = Symbol.iterator;
             return ret;
@@ -2074,9 +2439,15 @@ function __wbg_get_imports() {
 const CircuitBenchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_circuitbench_free(ptr, 1));
+const FormulaFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_formula_free(ptr, 1));
 const MagnetismRunFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_magnetismrun_free(ptr, 1));
+const MatrixFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_matrix_free(ptr, 1));
 const MatterRunFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_matterrun_free(ptr, 1));
@@ -2176,6 +2547,17 @@ function getArrayI32FromWasm0(ptr, len) {
 function getArrayI8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getInt8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
+function getArrayJsValueFromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    const mem = getDataViewMemory0();
+    const result = [];
+    for (let i = ptr; i < ptr + 4 * len; i += 4) {
+        result.push(wasm.__wbindgen_externrefs.get(mem.getUint32(i, true)));
+    }
+    wasm.__externref_drop_slice(ptr, len);
+    return result;
 }
 
 function getArrayU8FromWasm0(ptr, len) {
