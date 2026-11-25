@@ -6,7 +6,7 @@
 
 <p align="center">A physics playground in the browser. Grab things, throw them, build your own worlds.<br>Every number comes from the Soliton Physics engine, compiled to WebAssembly.</p>
 
-Live at [soliton-playground.vercel.app](https://soliton-playground.vercel.app/).
+Live at [solitonplay.com](https://solitonplay.com/).
 
 ## What you can do
 

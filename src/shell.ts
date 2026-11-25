@@ -53,7 +53,7 @@ export function buildShell(active: Mode): Shell {
       'below',
     ),
   );
-  const docs = import.meta.env.VITE_DOCS_URL ?? 'https://soliton-docs.vercel.app';
+  const docs = import.meta.env.VITE_DOCS_URL ?? 'https://docs.solitonplay.com';
   const shareButton = el('button', { type: 'button', class: 'text-button' }, [icon('share', 16), el('span', { class: 'wide-only', text: 'Share' })]);
   shareButton.addEventListener('click', () => share());
 
