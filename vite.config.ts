@@ -13,9 +13,9 @@ const playRoute: Plugin = {
   configurePreviewServer: (server) => void server.middlewares.use(play),
 };
 
-// The download counts on the landing page, fetched through the site's own address as vercel.json does.
+// PyPI's download counts, fetched through the site's own address as vercel.json does: pypistats does not
+// answer browsers on other sites. npm's are read straight from its API, which does.
 const stats = {
-  '/stats/npm': { target: 'https://api.npmjs.org', changeOrigin: true, rewrite: () => '/downloads/point/2020-01-01:2100-01-01/@soliton-physics/engine' },
   '/stats/pypi': { target: 'https://pypistats.org', changeOrigin: true, rewrite: () => '/api/packages/soliton-physics/overall?mirrors=false' },
 };
 

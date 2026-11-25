@@ -170,8 +170,8 @@ rising.forEach((node, i) => {
 });
 
 /*
- * Download counts: the page carries the last known figures, then asks the registries for today's through the
- * site's own /stats routes. Every count rolls up from zero the first time it comes into view.
+ * Download counts: the page carries the last known figures, then asks the registries for today's: npm directly,
+ * PyPI through the site's own /stats route. Every count rolls up from zero the first time it comes into view.
  */
 const counts = new Map<string, number>();
 for (const node of document.querySelectorAll<HTMLElement>('[data-count]')) {
@@ -204,7 +204,7 @@ document.querySelectorAll<HTMLElement>('[data-count]').forEach((node) => counter
 
 async function fetchCounts(): Promise<void> {
   const [npm, pypi] = await Promise.all([
-    fetch('/stats/npm')
+    fetch('https://api.npmjs.org/downloads/point/2020-01-01:2100-01-01/@soliton-physics/engine')
       .then((r) => r.json())
       .then((d: { downloads?: number }) => d.downloads)
       .catch(() => undefined),

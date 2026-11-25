@@ -19,10 +19,6 @@
       "destination": "/play/index.html"
     },
     {
-      "source": "/stats/npm",
-      "destination": "https://api.npmjs.org/downloads/point/2020-01-01:2100-01-01/@soliton-physics/engine"
-    },
-    {
       "source": "/stats/pypi",
       "destination": "https://pypistats.org/api/packages/soliton-physics/overall?mirrors=false"
     }
