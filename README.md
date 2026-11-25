@@ -164,9 +164,8 @@ pnpm install
 pnpm dev
 ```
 
-The compiled engine lives in `engine/`, vendored from the sibling [`soliton`](https://github.com/soliton-physics/soliton)
-repository so that Vercel can build this repo without a Rust toolchain. After changing the engine, clone both repos
-side by side and run:
+The compiled engine lives in `engine/`, vendored so that this repo builds without a Rust toolchain and without the
+engine's source, which is private. After changing the engine, with its repository checked out beside this one, run:
 
 ```sh
 pnpm sync-engine
