@@ -14,6 +14,7 @@
     "sync-engine": "sh scripts/sync-engine.sh"
   },
   "dependencies": {
+    "@fontsource-variable/space-grotesk": "^5.3.0",
     "@soliton-physics/engine": "link:./engine",
     "katex": "^0.19.1"
   },

@@ -3,22 +3,245 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="A physics playground: grab things, throw them, build your own worlds. Computed live by the Soliton Physics engine in WebAssembly." />
-    <meta name="theme-color" content="#e4e6ea" />
-    <title>Soliton Playground</title>
-    <link rel="icon" href="./favicon.svg" />
+    <title>Soliton: live physics for the classroom</title>
+    <meta name="description" content="Every NCERT physics chapter of class 11 and 12 as a live simulation. Real forces, real graphs, checked against the textbook answer. Free, in the browser, made for the projector." />
+    <meta name="theme-color" content="#05070f" />
+    <link rel="icon" href="/favicon.svg" />
+    <meta property="og:title" content="Soliton: live physics for the classroom" />
+    <meta property="og:description" content="Every NCERT physics chapter of class 11 and 12 as a live simulation, checked against the textbook answer." />
+    <meta property="og:url" content="https://solitonplay.com/" />
+    <meta property="og:type" content="website" />
     <script>
-      try {
-        const asked = new URLSearchParams(location.search).get('theme');
-        const saved = localStorage.getItem('soliton-theme');
-        document.documentElement.dataset.theme = asked === 'light' || asked === 'dark' ? asked : (saved ?? 'light');
-      } catch {
-        document.documentElement.dataset.theme = 'light';
-      }
+      // Links made before the playground moved to /play carry its settings on the home address: send them on.
+      if (location.pathname === '/' && (location.search || location.hash)) location.replace('/play' + location.search + location.hash);
     </script>
   </head>
   <body>
-    <div id="app" class="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div class="backdrop" aria-hidden="true"><span class="orb orb-1"></span><span class="orb orb-2"></span><span class="orb orb-3"></span></div>
+
+    <header class="nav">
+      <div class="wrap nav-row">
+        <a class="brand" href="/"><img src="/favicon.svg" alt="" width="32" height="32" /><span>Soliton</span></a>
+        <nav class="nav-links">
+          <a href="#features">Why Soliton</a>
+          <a href="#syllabus">Syllabus</a>
+          <a href="#developers">Developers</a>
+          <a href="https://docs.solitonplay.com">Docs</a>
+          <a class="button small" href="/play">Launch playground <span class="arrow">→</span></a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-text">
+          <p class="pill"><span class="dot"></span>Live physics engine · NCERT class 11 &amp; 12</p>
+          <h1>Physics your class can <span class="gradient">see</span> and <span class="gradient">check</span>.</h1>
+          <p class="lead">
+            Every chapter as a live simulation. Forces, graphs and energy are computed as you watch, and set right
+            beside the textbook's answer.
+          </p>
+          <div class="actions">
+            <a class="button" href="/play">Open the playground <span class="arrow">→</span></a>
+            <a class="button ghost" href="#teachers">Use it in your class</a>
+          </div>
+        </div>
+
+        <figure class="scope" aria-label="Two solitons passing through each other, computed live">
+          <div class="scope-head">
+            <span class="live"><span class="dot"></span>LIVE</span>
+            <span class="scope-title">KdV equation · two solitons</span>
+            <span class="scope-time">t = <b data-read="t">0.00</b></span>
+          </div>
+          <canvas class="scope-wave"></canvas>
+          <div class="scope-foot">
+            <div><small>mass ∫u dx</small><b data-read="mass">—</b></div>
+            <div><small>momentum ∫u² dx</small><b data-read="momentum">—</b></div>
+            <div><small>status</small><b class="ok">conserved</b></div>
+          </div>
+          <figcaption>The tall soliton is faster. It passes straight through the short one, and both come out unchanged.</figcaption>
+        </figure>
+      </div>
+
+      <div class="wrap stats">
+        <div><b>147</b><span>live simulations</span></div>
+        <div><b>27</b><span>NCERT chapters</span></div>
+        <div><b data-count="downloads">4,192</b><span>package downloads</span></div>
+        <div><b>100%</b><span>free to use</span></div>
+      </div>
+    </section>
+
+    <section class="demo">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">Not a video</p>
+          <h2>The engine, running in your browser</h2>
+          <p class="section-lead">Press play. Every arrow is a force the engine actually applied, measured in newtons.</p>
+        </div>
+        <div class="screen">
+          <div class="screen-bar">
+            <span class="lights"><i></i><i></i><i></i></span>
+            <b>A block on a rough incline</b>
+            <a href="/play?mode=mechanics&amp;scenario=incline-friction">Open with sliders and graphs ↗</a>
+          </div>
+          <iframe
+            src="/play?mode=mechanics&amp;scenario=incline-friction&amp;embed&amp;theme=dark"
+            title="Live simulation: a block on a rough incline"
+            loading="lazy"
+          ></iframe>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">Why teachers use it</p>
+          <h2>Made for the way physics is taught</h2>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <span class="icon"><svg viewBox="0 0 24 24"><path d="M4 19h16M7 15l3-4 3 2 4-6" /><circle cx="17" cy="7" r="1.6" /></svg></span>
+            <h3>The textbook answer, beside the real one</h3>
+            <p>What the formula predicts and what the engine measured, side by side. Students watch the formula come true.</p>
+          </article>
+          <article class="card">
+            <span class="icon"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="6" height="6" rx="1" /><path d="M12 9V3m0 0-2 2m2-2 2 2M12 15v6m0 0-2-2m2 2 2-2M9 12H3" /></svg></span>
+            <h3>Free-body diagrams, not drawn by hand</h3>
+            <p>Gravity, normal, friction, tension: the arrows are the forces actually applied. Pause at any instant and read them off.</p>
+          </article>
+          <article class="card">
+            <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg></span>
+            <h3>Built for the projector</h3>
+            <p>Press <kbd>T</kbd> and everything grows bigger and bolder for the back row. Graphs, energy bars and an event log in every scene.</p>
+          </article>
+          <article class="card">
+            <span class="icon"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg></span>
+            <h3>Share a link, not a file</h3>
+            <p>Every scene, with your numbers in it, is a link. Send it on WhatsApp and students open exactly what you showed.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="syllabus" id="syllabus">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">The whole syllabus</p>
+          <h2>Every NCERT chapter, ready to teach</h2>
+          <p class="section-lead">Pick a chapter and the simulation opens straight away.</p>
+        </div>
+        <div class="classes">
+          <div class="class">
+            <h3>Class 11</h3>
+            <ol>
+              <li><span class="ch">2</span><b>Motion in a Straight Line</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=free-fall">Free fall</a><a href="/play?mode=mechanics&amp;scenario=thrown-upward">Thrown upward</a><a href="/play?mode=mechanics&amp;scenario=stopping-distance">Stopping distance</a></span></li>
+              <li><span class="ch">3</span><b>Motion in a Plane</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=projectile">Projectile</a><a href="/play?mode=mechanics&amp;scenario=projectile-from-height">From a height</a><a href="/play?mode=mechanics&amp;scenario=circular-motion">Circular motion</a></span></li>
+              <li><span class="ch">4</span><b>Laws of Motion</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=incline-friction">Friction on an incline</a><a href="/play?mode=mechanics&amp;scenario=atwood">Atwood machine</a><a href="/play?mode=mechanics&amp;scenario=lift">In a lift</a></span></li>
+              <li><span class="ch">5</span><b>Work, Energy and Power</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=vertical-circle">Vertical circle</a><a href="/play?mode=mechanics&amp;scenario=spring-compression">Spring</a><a href="/play?mode=mechanics&amp;scenario=collision-1d">Collisions</a></span></li>
+              <li><span class="ch">6</span><b>Rotational Motion</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=rolling">Rolling</a><a href="/play?mode=mechanics&amp;scenario=flywheel">Flywheel</a><a href="/play?mode=mechanics&amp;scenario=seesaw">Seesaw</a></span></li>
+              <li><span class="ch">7</span><b>Gravitation</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=circular-orbit">Orbit</a><a href="/play?mode=mechanics&amp;scenario=elliptical-orbit">Kepler's laws</a><a href="/play?mode=mechanics&amp;scenario=escape-velocity">Escape velocity</a></span></li>
+              <li><span class="ch">8</span><b>Mechanical Properties of Solids</b><span class="chips"><a href="/play?mode=matter&amp;scenario=stress-strain">Stress and strain</a><a href="/play?mode=matter&amp;scenario=shear-modulus">Shear</a><a href="/play?mode=matter&amp;scenario=bulk-modulus">Bulk modulus</a></span></li>
+              <li><span class="ch">9</span><b>Mechanical Properties of Fluids</b><span class="chips"><a href="/play?mode=matter&amp;scenario=buoyancy">Archimedes</a><a href="/play?mode=matter&amp;scenario=bernoulli">Bernoulli</a><a href="/play?mode=matter&amp;scenario=stokes-law">Viscosity</a></span></li>
+              <li><span class="ch">10</span><b>Thermal Properties of Matter</b><span class="chips"><a href="/play?mode=matter&amp;scenario=calorimetry">Calorimetry</a><a href="/play?mode=matter&amp;scenario=heating-curve">Change of state</a><a href="/play?mode=matter&amp;scenario=newtons-cooling">Newton's cooling</a></span></li>
+              <li><span class="ch">11</span><b>Thermodynamics</b><span class="chips"><a href="/play?mode=thermal&amp;scenario=isothermal-process">Isothermal</a><a href="/play?mode=thermal&amp;scenario=adiabatic-process">Adiabatic</a><a href="/play?mode=thermal&amp;scenario=carnot-cycle">Carnot cycle</a></span></li>
+              <li><span class="ch">12</span><b>Kinetic Theory</b><span class="chips"><a href="/play?mode=thermal&amp;scenario=ideal-gas">Gas pressure</a><a href="/play?mode=thermal&amp;scenario=maxwell-distribution">Maxwell speeds</a><a href="/play?mode=thermal&amp;scenario=brownian-motion">Brownian motion</a></span></li>
+              <li><span class="ch">13</span><b>Oscillations</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=simple-pendulum">Pendulum</a><a href="/play?mode=mechanics&amp;scenario=spring-mass">Spring and mass</a><a href="/play?mode=mechanics&amp;scenario=damped-oscillator">Damping</a></span></li>
+              <li><span class="ch">14</span><b>Waves</b><span class="chips"><a href="/play?mode=waves&amp;preset=travelling-wave">Travelling wave</a><a href="/play?mode=waves&amp;preset=standing-wave">Standing wave</a><a href="/play?mode=waves&amp;preset=beats">Beats</a></span></li>
+            </ol>
+          </div>
+          <div class="class">
+            <h3>Class 12</h3>
+            <ol>
+              <li><span class="ch">1</span><b>Electric Charges and Fields</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=coulomb-force">Coulomb's law</a><a href="/play?mode=mechanics&amp;scenario=field-of-two-charges">Field lines</a><a href="/play?mode=mechanics&amp;scenario=gauss-law">Gauss's law</a></span></li>
+              <li><span class="ch">2</span><b>Potential and Capacitance</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=accelerating-voltage">Accelerating voltage</a><a href="/play?mode=mechanics&amp;scenario=closest-approach">Closest approach</a><a href="/play?mode=circuits&amp;scenario=capacitors-in-series">Capacitors</a></span></li>
+              <li><span class="ch">3</span><b>Current Electricity</b><span class="chips"><a href="/play?mode=circuits&amp;scenario=ohms-law">Ohm's law</a><a href="/play?mode=circuits&amp;scenario=kirchhoff-rules">Kirchhoff</a><a href="/play?mode=circuits&amp;scenario=wheatstone-bridge">Wheatstone bridge</a></span></li>
+              <li><span class="ch">4</span><b>Moving Charges and Magnetism</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=cyclotron">Cyclotron</a><a href="/play?mode=magnetism&amp;scenario=straight-wire-field">Field of a wire</a><a href="/play?mode=magnetism&amp;scenario=parallel-currents">Parallel currents</a></span></li>
+              <li><span class="ch">5</span><b>Magnetism and Matter</b><span class="chips"><a href="/play?mode=mechanics&amp;scenario=bar-magnet-field">Bar magnet</a><a href="/play?mode=mechanics&amp;scenario=compass-needle">Compass</a><a href="/play?mode=mechanics&amp;scenario=magnetic-materials">Materials</a></span></li>
+              <li><span class="ch">6</span><b>Electromagnetic Induction</b><span class="chips"><a href="/play?mode=magnetism&amp;scenario=faradays-law">Faraday's law</a><a href="/play?mode=magnetism&amp;scenario=motional-emf">Motional emf</a><a href="/play?mode=magnetism&amp;scenario=ac-generator">Generator</a></span></li>
+              <li><span class="ch">7</span><b>Alternating Current</b><span class="chips"><a href="/play?mode=circuits&amp;scenario=series-lcr">LCR resonance</a><a href="/play?mode=circuits&amp;scenario=lc-oscillations">LC oscillations</a><a href="/play?mode=magnetism&amp;scenario=transformer">Transformer</a></span></li>
+              <li><span class="ch">8</span><b>Electromagnetic Waves</b><span class="chips"><a href="/play?mode=waves&amp;preset=electromagnetic-wave">The wave</a><a href="/play?mode=waves&amp;preset=electromagnetic-spectrum">The spectrum</a></span></li>
+              <li><span class="ch">9</span><b>Ray Optics</b><span class="chips"><a href="/play?mode=optics&amp;scenario=convex-lens">Convex lens</a><a href="/play?mode=optics&amp;scenario=total-internal-reflection">Total internal reflection</a><a href="/play?mode=optics&amp;scenario=prism">Prism</a></span></li>
+              <li><span class="ch">10</span><b>Wave Optics</b><span class="chips"><a href="/play?mode=waves&amp;preset=youngs-double-slit">Young's double slit</a><a href="/play?mode=waves&amp;preset=single-slit-diffraction">Diffraction</a><a href="/play?mode=waves&amp;preset=malus-law">Polarisation</a></span></li>
+              <li><span class="ch">11</span><b>Dual Nature of Radiation and Matter</b><span class="chips"><a href="/play?mode=modern&amp;scenario=photoelectric-effect">Photoelectric effect</a><a href="/play?mode=modern&amp;scenario=davisson-germer">Davisson–Germer</a></span></li>
+              <li><span class="ch">12</span><b>Atoms</b><span class="chips"><a href="/play?mode=modern&amp;scenario=rutherford-scattering">Rutherford</a><a href="/play?mode=modern&amp;scenario=bohr-model">Bohr model</a><a href="/play?mode=modern&amp;scenario=hydrogen-spectrum">Hydrogen spectrum</a></span></li>
+              <li><span class="ch">13</span><b>Nuclei</b><span class="chips"><a href="/play?mode=modern&amp;scenario=radioactive-decay">Radioactive decay</a><a href="/play?mode=modern&amp;scenario=binding-energy">Binding energy</a></span></li>
+              <li><span class="ch">14</span><b>Semiconductor Electronics</b><span class="chips"><a href="/play?mode=circuits&amp;scenario=pn-junction">p–n junction</a><a href="/play?mode=circuits&amp;scenario=full-wave-rectifier">Rectifier</a><a href="/play?mode=circuits&amp;scenario=zener-regulator">Zener diode</a></span></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="developers" id="developers">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">For developers</p>
+          <h2>The same engine, in your own code</h2>
+          <p class="section-lead">Build simulations into your app, your course or your notebook. Free to use, including commercially.</p>
+        </div>
+        <div class="packages">
+          <article class="package">
+            <div class="package-head">
+              <span class="badge npm">npm</span>
+              <span class="package-name">@soliton-physics/engine</span>
+            </div>
+            <p class="downloads"><b data-count="npm">2,223</b> downloads</p>
+            <button class="command" type="button" data-copy="npm install @soliton-physics/engine"><code><span class="prompt">$</span> npm install @soliton-physics/engine</code><span class="copy">Copy</span></button>
+            <p class="package-note">WebAssembly for the browser and Node. <a href="https://docs.solitonplay.com/reference/javascript/">JavaScript API →</a></p>
+          </article>
+          <article class="package">
+            <div class="package-head">
+              <span class="badge pypi">PyPI</span>
+              <span class="package-name">soliton-physics</span>
+            </div>
+            <p class="downloads"><b data-count="pypi">1,969</b> downloads</p>
+            <button class="command" type="button" data-copy="pip install soliton-physics"><code><span class="prompt">$</span> pip install soliton-physics</code><span class="copy">Copy</span></button>
+            <p class="package-note">NumPy in and out, for notebooks and research. <a href="https://docs.solitonplay.com/start/install/">Python guide →</a></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="teachers" id="teachers">
+      <div class="wrap">
+        <div class="teachers-box">
+          <div>
+            <p class="eyebrow">For teachers and institutes</p>
+            <h2>Bring it to your class</h2>
+            <p>
+              We are working with a small group of physics teachers to shape what comes next: lessons that ask the class
+              to predict before they watch, worksheets to print, and challenges the engine checks. Tell us what you teach
+              and we will set it up with you.
+            </p>
+          </div>
+          <div class="contact">
+            <a class="button whatsapp" href="https://wa.me/919296175228?text=Hi%2C%20I%20teach%20physics%20and%20would%20like%20to%20use%20Soliton%20in%20my%20class." target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg>
+              Message us on WhatsApp
+            </a>
+            <a class="button ghost" href="mailto:developer.zang.000@gmail.com?subject=Soliton%20in%20my%20class">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18v12H3zM3 7l9 6 9-6" /></svg>
+              developer.zang.000@gmail.com
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="wrap footer-row">
+        <a class="brand" href="/"><img src="/favicon.svg" alt="" width="24" height="24" /><span>Soliton</span></a>
+        <nav>
+          <a href="/play">Playground</a>
+          <a href="https://docs.solitonplay.com">Docs</a>
+          <a href="https://www.npmjs.com/package/@soliton-physics/engine">npm</a>
+          <a href="https://pypi.org/project/soliton-physics/">PyPI</a>
+        </nav>
+        <small>© 2026 Soliton Physics. Free to use.</small>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/landing/landing.ts"></script>
   </body>
 </html>

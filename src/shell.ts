@@ -59,8 +59,8 @@ export function buildShell(active: Mode): Shell {
 
   const root = el('header', { class: 'topbar' }, [
     el('div', { class: 'topbar-left' }, [
-      el('a', { class: 'brand', href: 'https://github.com/soliton-physics', title: 'Soliton Physics' }, [
-        el('img', { src: './favicon.svg', alt: '', width: 26, height: 26 }),
+      el('a', { class: 'brand', href: '/', title: 'Soliton: home' }, [
+        el('img', { src: '/favicon.svg', alt: '', width: 26, height: 26 }),
         el('span', { text: 'Soliton' }),
       ]),
       subject,

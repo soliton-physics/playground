@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@fontsource-variable/space-grotesk':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@soliton-physics/engine':
         specifier: link:./engine
         version: link:engine
@@ -23,6 +26,9 @@ importers:
         version: 8.3.5
 
 packages:
+
+  '@fontsource-variable/space-grotesk@5.3.0':
+    resolution: {integrity: sha512-2IxmvfB08i9vnGB3Ym/AXvhRE+8XOjWMXIyDum03c+tPwH0FUoMNQfGpU8NXPxjbws0Vvss3AH0Zqt4oJBBAdw==}
 
   '@oxc-project/types@0.156.0':
     resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
@@ -304,6 +310,8 @@ packages:
         optional: true
 
 snapshots:
+
+  '@fontsource-variable/space-grotesk@5.3.0': {}
 
   '@oxc-project/types@0.156.0': {}
 
