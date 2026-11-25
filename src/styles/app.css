@@ -1924,3 +1924,24 @@ body.embed .banner {
 .matrix-progress .slider-head span:first-child {
   white-space: nowrap;
 }
+
+/* Shown on an embedded stage when a plain scroll passes through to the page instead of zooming. */
+.wheel-hint {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 50;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-small);
+  background: rgba(17, 24, 39, 0.82);
+  color: #fff;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.2s ease;
+}
+
+.wheel-hint.shown {
+  opacity: 1;
+}

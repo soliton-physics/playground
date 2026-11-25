@@ -116,6 +116,23 @@ export function setPresenting(on: boolean): void {
   }
 }
 
+let wheelHint: HTMLElement | undefined;
+let wheelHintTimer = 0;
+
+/**
+ * Whether a turn of the wheel over a stage should zoom it. Embedded in another page, a plain scroll belongs to
+ * that page, so only Ctrl or ⌘ held (which a trackpad pinch also sends) zooms; otherwise a hint says how, and
+ * the scroll goes on to the page around.
+ */
+export function wheelZooms(e: WheelEvent): boolean {
+  if (!document.body.classList.contains('embed') || e.ctrlKey || e.metaKey) return true;
+  wheelHint ??= document.body.appendChild(el('div', { class: 'wheel-hint', text: 'Hold Ctrl (or ⌘) and scroll to zoom' }));
+  wheelHint.classList.add('shown');
+  clearTimeout(wheelHintTimer);
+  wheelHintTimer = window.setTimeout(() => wheelHint?.classList.remove('shown'), 1400);
+  return false;
+}
+
 const themeCache = new Map<string, string>();
 
 /** Reads a CSS custom property from the document, for canvases that must match the theme. */

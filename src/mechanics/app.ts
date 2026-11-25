@@ -2,7 +2,7 @@ import { closePopover, popover, slider, toast } from '../controls';
 import { mechanics_catalogue } from '../engine';
 import { icon, type IconName } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, el, formatNumber, formatPrefixed, formatSize, formatTime, layoutPx } from '../ui';
+import { clamp, el, formatNumber, formatPrefixed, formatSize, formatTime, layoutPx, wheelZooms } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
 import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox, type Grip, type Sized } from './editor';
@@ -671,6 +671,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   canvas.addEventListener(
     'wheel',
     (e) => {
+      if (!wheelZooms(e)) return;
       e.preventDefault();
       renderer.camera.zoomAt(...local(e), Math.exp(-e.deltaY * 0.0015));
     },

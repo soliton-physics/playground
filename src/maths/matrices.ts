@@ -1,7 +1,7 @@
 import { iconButton, popover, slider, toast, toggleButton, type Slider } from '../controls';
 import { Matrix } from '../engine';
 import type { Shell } from '../shell';
-import { el, formatNumber, layoutPx } from '../ui';
+import { el, formatNumber, layoutPx, wheelZooms } from '../ui';
 import { HOME } from './plane';
 import { roomTabs } from './rooms';
 import { PlaneStage, SpaceStage, type Show } from './stage';
@@ -529,6 +529,7 @@ export function mountMatrices(main: HTMLElement, query: URLSearchParams, embedde
   canvas.addEventListener(
     'wheel',
     (e) => {
+      if (!wheelZooms(e)) return;
       e.preventDefault();
       const factor = Math.exp(-e.deltaY * 0.0015);
       if (size === 3) space.zoom = Math.max(0.2, Math.min(5, space.zoom * factor));

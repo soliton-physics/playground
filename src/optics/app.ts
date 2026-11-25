@@ -2,7 +2,7 @@ import { closePopover, popover, slider, toast } from '../controls';
 import { OpticsBench, optics_catalogue } from '../engine';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
-import { clamp, el, formatNumber, formatSize, layoutPx, typedLimits } from '../ui';
+import { clamp, el, formatNumber, formatSize, layoutPx, typedLimits, wheelZooms } from '../ui';
 import { frameOf, openOpticsGallery } from './gallery';
 import { HANDLES, type Handle } from './handles';
 import { BenchRenderer, type Knob } from './renderer';
@@ -195,6 +195,7 @@ export function mountOptics(main: HTMLElement, query: URLSearchParams, embedded:
   canvas.addEventListener(
     'wheel',
     (e) => {
+      if (!wheelZooms(e)) return;
       e.preventDefault();
       renderer.camera.zoomAt(...local(e), Math.exp(-e.deltaY * 0.0015));
       dirty = true;

@@ -2,7 +2,7 @@ import { iconButton, popover, slider, toast, type Slider } from '../controls';
 import { Formula, maths_number } from '../engine';
 import { icon } from '../icons';
 import type { Shell } from '../shell';
-import { cssVar, el, formatNumber } from '../ui';
+import { cssVar, el, formatNumber, wheelZooms } from '../ui';
 import { HOME, Plane, type Area, type Curve, type Marker } from './plane';
 import { mountMatrices } from './matrices';
 import { roomTabs } from './rooms';
@@ -614,6 +614,7 @@ export function mountMaths(main: HTMLElement, query: URLSearchParams, embedded: 
   canvas.addEventListener(
     'wheel',
     (e) => {
+      if (!wheelZooms(e)) return;
       e.preventDefault();
       const [px, py] = local(e);
       plane.zoom(Math.exp(-e.deltaY * 0.0015), px, py);
