@@ -125,6 +125,12 @@ export class Session {
     if (this.steps >= this.reached) return;
     this.inputs = this.inputs.filter((input) => input.step < this.steps);
     this.reached = this.steps;
+    // The old future held the release of a hand that is still holding here. Nobody's pointer is down in the new
+    // one, so the hand lets go now, and that goes in the record too, or a replay would keep holding.
+    if (this.world.grabbed() !== null) {
+      this.inputs.push({ step: this.steps, kind: 'release' });
+      this.world.release();
+    }
   }
 
   /** Runs the clock forward; true when the problem ended during this call, which is where the front end pauses. */
@@ -148,7 +154,11 @@ export class Session {
     this.reached = Math.max(this.reached, this.steps);
   }
 
-  /** Moves the clock to `time` within what has been reached, replaying the run and the hand's part in it. */
+  /**
+   * Moves the clock to `time` within what has been reached, replaying the run and the hand's part in it. A hand
+   * that was holding at `time` is still holding afterwards, as the record says; it lets go only if play goes on
+   * from here (see `branch`).
+   */
   seek(time: number): void {
     const target = Math.max(0, Math.min(this.reached, Math.round(time / this.dt)));
     if (target === this.steps) return;
@@ -170,7 +180,6 @@ export class Session {
       this.run(until - this.steps, false);
       if (this.steps === before) break;
     }
-    this.world.release();
   }
 
   private apply(input: Input): void {
