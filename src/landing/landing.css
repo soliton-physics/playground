@@ -385,7 +385,7 @@ section {
 .scope-wave {
   display: block;
   width: 100%;
-  height: clamp(240px, 28vw, 330px);
+  height: clamp(280px, 31vw, 380px);
   background-color: #080c1c;
   background-image:
     linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
@@ -427,11 +427,73 @@ section {
 }
 
 .scope figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
   padding: 0.75rem 1.2rem 0.95rem;
   border-radius: 0 0 21px 21px;
   border-top: 1px solid var(--line);
   font-size: 0.82rem;
   color: var(--dim);
+}
+
+.scope-wave.fade {
+  animation: scene-in 0.6s ease;
+}
+
+@keyframes scene-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The carousel's dots fill up as each scene plays, then hand over to the next. */
+.slides {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+}
+
+.slide-dot {
+  position: relative;
+  width: 2.6rem;
+  height: 0.32rem;
+  padding: 0;
+  border: 0;
+  border-radius: 99px;
+  background: rgba(148, 163, 184, 0.22);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.slide-dot i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--cyan), #c084fc);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.slide-dot[aria-current='true'] {
+  background: rgba(148, 163, 184, 0.35);
+}
+
+.slide-dot:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.slide-open {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+.slide-open:hover {
+  text-decoration: underline;
 }
 
 /* Numbers under the hero */
