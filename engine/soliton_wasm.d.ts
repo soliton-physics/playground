@@ -318,13 +318,13 @@ export class MechanicsWorld {
      */
     scene_json_now(): string;
     /**
-     * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
-     */
-    series_energy(quantity: string): Float64Array;
-    /**
      * A recorded quantity of one body: `x`, `y`, `vx`, `vy`, `speed`, `ax`, `ay`, `angle`, `omega`.
      */
     series(body: number, quantity: string): Float64Array;
+    /**
+     * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
+     */
+    series_energy(quantity: string): Float64Array;
     /**
      * The recorded net force with `label` on one body, as `[fx, fy]` pairs flattened.
      */
@@ -559,11 +559,11 @@ export class ThermalGas {
      * m/s in `bins` equal steps. A negative `species` takes every kind together.
      */
     speed_histogram(species: number, bins: number, fastest: number): Float64Array;
-    stage_count(): number;
     /**
      * The stage in progress and what it is called.
      */
     stage(): number;
+    stage_count(): number;
     stage_label(): string;
     title(): string;
     /**

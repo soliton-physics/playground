@@ -1100,20 +1100,6 @@ export class MechanicsWorld {
         }
     }
     /**
-     * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
-     * @param {string} quantity
-     * @returns {Float64Array}
-     */
-    series_energy(quantity) {
-        const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.mechanicsworld_series_energy(this.__wbg_ptr, ptr0, len0);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        return takeFromExternrefTable0(ret[0]);
-    }
-    /**
      * A recorded quantity of one body: `x`, `y`, `vx`, `vy`, `speed`, `ax`, `ay`, `angle`, `omega`.
      * @param {number} body
      * @param {string} quantity
@@ -1124,6 +1110,20 @@ export class MechanicsWorld {
         const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.mechanicsworld_series(this.__wbg_ptr, val2, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Recorded energy ledger: `kinetic`, `potential`, `dissipated`, `external_work`, `conserved`.
+     * @param {string} quantity
+     * @returns {Float64Array}
+     */
+    series_energy(quantity) {
+        const ptr0 = passStringToWasm0(quantity, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.mechanicsworld_series_energy(this.__wbg_ptr, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -1907,18 +1907,18 @@ export class ThermalGas {
         return ret;
     }
     /**
-     * @returns {number}
-     */
-    stage_count() {
-        const ret = wasm.thermalgas_stage_count(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
      * The stage in progress and what it is called.
      * @returns {number}
      */
     stage() {
         const ret = wasm.thermalgas_stage(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    stage_count() {
+        const ret = wasm.thermalgas_stage_count(this.__wbg_ptr);
         return ret >>> 0;
     }
     /**

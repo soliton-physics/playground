@@ -4,19 +4,16 @@
   "collaborators": [
     "Soliton Physics contributors"
   ],
-  "description": "WebAssembly bindings for the Soliton Physics engine",
-  "version": "0.8.0",
-  "license": "MIT OR Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/soliton-physics/soliton"
-  },
+  "description": "Physics engine for education in WebAssembly: live simulations for every NCERT class 11 and 12 physics chapter, checked against the textbook answer",
+  "version": "0.9.1",
+  "license": "SEE LICENSE IN ../../LICENSE",
   "files": [
     "soliton_wasm_bg.wasm",
     "soliton_wasm.js",
     "soliton_wasm.d.ts"
   ],
   "main": "soliton_wasm.js",
+  "homepage": "https://docs.solitonplay.com/",
   "types": "soliton_wasm.d.ts",
   "sideEffects": [
     "./snippets/*"
