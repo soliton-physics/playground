@@ -20,6 +20,97 @@ interface Slide {
 }
 
 /*
+ * Two solitons: the exact two-soliton solution of the KdV equation u_t + 6 u u_x + u_xxx = 0,
+ * u = 2 (ln f)_xx with f = 1 + e^η1 + e^η2 + A e^(η1+η2), η_i = k_i x - k_i³ t, A = ((k1 - k2)/(k1 + k2))².
+ * The tall soliton (k1) is faster, catches the short one, passes through it, and both come out as they went in.
+ * The readouts are integrals of the drawn curve, worked out each frame: they stay put because KdV conserves them.
+ */
+function solitons(): Slide {
+  const [k1, k2] = [1.25, 0.8];
+  const lnA = Math.log(((k1 - k2) / (k1 + k2)) ** 2);
+  const peak = (k1 * k1) / 2;
+  const [x0, x1, t0, t1] = [-34, 34, -9, 14];
+  const height = (x: number, t: number) => {
+    const e1 = k1 * x - k1 ** 3 * t + 6;
+    const e2 = k2 * x - k2 ** 3 * t;
+    const e12 = e1 + e2 + lnA;
+    // Every term is divided by the largest, so nothing overflows however far out the solitons are.
+    const top = Math.max(0, e1, e2, e12);
+    const [a0, a1, a2, a12] = [Math.exp(-top), Math.exp(e1 - top), Math.exp(e2 - top), Math.exp(e12 - top)];
+    const f = a0 + a1 + a2 + a12;
+    const f1 = k1 * a1 + k2 * a2 + (k1 + k2) * a12;
+    const f2 = k1 * k1 * a1 + k2 * k2 * a2 + (k1 + k2) ** 2 * a12;
+    return 2 * (f2 / f - (f1 / f) ** 2);
+  };
+
+  return {
+    title: 'KdV equation · two solitons',
+    caption: 'The tall soliton is faster. It passes straight through the short one, and both come out unchanged.',
+    href: '/play?mode=waves&preset=kdv-collision',
+    labels: ['mass ∫u dx', 'momentum ∫u² dx'],
+    status: 'conserved',
+    length: t1 - t0,
+    rate: 1.5,
+    draw(ctx, width, tall, time) {
+      const t = t0 + time;
+      const base = tall * 0.84;
+      const scale = (tall * 0.66) / peak;
+      const n = Math.max(240, Math.round(width / 2));
+      const dx = (x1 - x0) / n;
+      const points: [number, number][] = [];
+      let m = 0;
+      let p = 0;
+      for (let i = 0; i <= n; i++) {
+        const u = height(x0 + dx * i, t);
+        const w = i === 0 || i === n ? 0.5 : 1;
+        m += w * u * dx;
+        p += w * u * u * dx;
+        points.push([(width * i) / n, base - scale * u]);
+      }
+
+      // The axis the wave rests on.
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(0, base + 0.5);
+      ctx.lineTo(width, base + 0.5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const fill = ctx.createLinearGradient(0, base - scale * peak, 0, base);
+      fill.addColorStop(0, 'rgba(96, 165, 250, 0.38)');
+      fill.addColorStop(1, 'rgba(96, 165, 250, 0)');
+      ctx.beginPath();
+      ctx.moveTo(0, base);
+      for (const [px, py] of points) ctx.lineTo(px, py);
+      ctx.lineTo(width, base);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+
+      const stroke = ctx.createLinearGradient(0, 0, width, 0);
+      stroke.addColorStop(0, '#22d3ee');
+      stroke.addColorStop(0.5, '#60a5fa');
+      stroke.addColorStop(1, '#c084fc');
+      ctx.beginPath();
+      points.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.strokeStyle = stroke;
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(96, 165, 250, 0.9)';
+      ctx.shadowBlur = 22;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.stroke();
+      return [m.toFixed(3), p.toFixed(3)];
+    },
+  };
+}
+
+/*
  * The collision fountain: two inclines leaning 30° out from upright, and pairs of balls that meet over the middle at the
  * top of their arcs. Moving straight at each other, equal elastic balls swap velocities, so each goes back the way it
  * came; it falls to its incline, strikes it square on and returns. Each round trip is four falls of u tan θ / g, and
@@ -417,7 +508,7 @@ function scope(figure: HTMLElement): void {
   const canvas = figure.querySelector<HTMLCanvasElement>('.scope-wave')!;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  const slides = [fountain(), incline(), threeStars()];
+  const slides = [solitons(), fountain(), incline(), threeStars()];
   const pick = <T extends Element>(selector: string) => figure.querySelector<T>(selector);
   const clock = pick<HTMLElement>('[data-read="t"]');
   const reads = [pick<HTMLElement>('[data-read="0"]'), pick<HTMLElement>('[data-read="1"]')];
