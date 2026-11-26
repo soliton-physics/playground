@@ -20,7 +20,7 @@ interface Slide {
 }
 
 /*
- * The kissing fountain: two inclines leaning 30° out from upright, and pairs of balls that meet over the middle at the
+ * The collision fountain: two inclines leaning 30° out from upright, and pairs of balls that meet over the middle at the
  * top of their arcs. Moving straight at each other, equal elastic balls swap velocities, so each goes back the way it
  * came; it falls to its incline, strikes it square on and returns. Each round trip is four falls of u tan θ / g, and
  * the pairs make 10, 11, 12 … meetings per cycle, so after one cycle every pair meets at once again.
@@ -52,9 +52,9 @@ function fountain(): Slide {
   const bottom = 4.2;
 
   return {
-    title: 'The kissing fountain',
+    title: 'The collision fountain',
     caption: 'Each pair meets at the top of its arc, falls to an incline, strikes it square on and comes back. Every pair meets at once again after 30 s.',
-    href: '/play?mode=mechanics&scenario=kissing-fountain',
+    href: '/play?mode=mechanics&scenario=collision-fountain',
     labels: ['next time all meet', 'total energy'],
     status: 'conserved',
     length: cycle,
@@ -288,11 +288,136 @@ function incline(): Slide {
   };
 }
 
+/*
+ * Three equal stars on a figure eight (Chenciner and Montgomery, 2000), in units where G = 1 and each mass is 1.
+ * There is no formula for this one: the stars are stepped forward here with a symplectic leapfrog, as the engine
+ * does, and the energy shown is worked out from where they are, so its staying put is the check.
+ */
+function threeStars(): Slide {
+  const period = 6.325913985;
+  const colours = ['#22d3ee', '#c084fc', '#fbbf24'];
+  const h = 0.001;
+  let p: number[][] = [];
+  let v: number[][] = [];
+  let time = 0;
+  let tail: number[][][] = [];
+  let path: number[][] = [];
+  const reset = () => {
+    const [x, y, vx, vy] = [0.97000436, -0.24308753, -0.93240737, -0.86473146];
+    p = [[x, y], [-x, -y], [0, 0]];
+    v = [[-vx / 2, -vy / 2], [-vx / 2, -vy / 2], [vx, vy]];
+    time = 0;
+    tail = [[], [], []];
+    path = [];
+  };
+  const accelerations = () => {
+    const a = [[0, 0], [0, 0], [0, 0]];
+    for (let i = 0; i < 3; i++) {
+      for (let j = i + 1; j < 3; j++) {
+        const dx = p[j]![0]! - p[i]![0]!;
+        const dy = p[j]![1]! - p[i]![1]!;
+        const r3 = Math.hypot(dx, dy) ** 3;
+        a[i]![0]! += dx / r3;
+        a[i]![1]! += dy / r3;
+        a[j]![0]! -= dx / r3;
+        a[j]![1]! -= dy / r3;
+      }
+    }
+    return a;
+  };
+  const energy = () => {
+    let e = 0;
+    for (let i = 0; i < 3; i++) {
+      e += 0.5 * (v[i]![0]! ** 2 + v[i]![1]! ** 2);
+      for (let j = i + 1; j < 3; j++) e -= 1 / Math.hypot(p[j]![0]! - p[i]![0]!, p[j]![1]! - p[i]![1]!);
+    }
+    return e;
+  };
+  let a: number[][] = [];
+  reset();
+  a = accelerations();
+  let steps = 0;
+
+  return {
+    title: 'Three stars on a figure eight',
+    caption: 'Three equal stars, each pulled by the other two, chase one another round a figure eight. One of the very few exact dances of three bodies, found in 1993.',
+    href: '/play?mode=mechanics&scenario=figure-eight',
+    labels: ['laps round the eight', 'total energy'],
+    status: 'conserved',
+    length: 2 * period,
+    rate: 1,
+    draw(ctx, width, height, t) {
+      if (t < time) {
+        reset();
+        a = accelerations();
+      }
+      while (time < t) {
+        for (let i = 0; i < 3; i++) {
+          v[i]![0]! += 0.5 * h * a[i]![0]!;
+          v[i]![1]! += 0.5 * h * a[i]![1]!;
+          p[i]![0]! += h * v[i]![0]!;
+          p[i]![1]! += h * v[i]![1]!;
+        }
+        a = accelerations();
+        for (let i = 0; i < 3; i++) {
+          v[i]![0]! += 0.5 * h * a[i]![0]!;
+          v[i]![1]! += 0.5 * h * a[i]![1]!;
+        }
+        time += h;
+        if (++steps % 8 === 0) {
+          p.forEach((q, i) => {
+            tail[i]!.push([q[0]!, q[1]!]);
+            if (tail[i]!.length > 290) tail[i]!.shift();
+          });
+          if (time < period + 0.02) path.push([p[0]![0]!, p[0]![1]!]);
+        }
+      }
+      const scale = Math.min((width * 0.43) / 1.1, (height * 0.42) / 0.42);
+      const sx = (x: number) => width / 2 + x * scale;
+      const sy = (y: number) => height / 2 - y * scale;
+
+      // The eight itself, faintly, as the first star draws it on its first lap.
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      path.forEach(([x, y], i) => (i ? ctx.lineTo(sx(x!), sy(y!)) : ctx.moveTo(sx(x!), sy(y!))));
+      ctx.stroke();
+      tail.forEach((points, i) => {
+        const colour = colours[i]!;
+        ctx.strokeStyle = colour;
+        ctx.lineCap = 'round';
+        for (let k = 1; k < points.length; k++) {
+          const f = k / points.length;
+          ctx.globalAlpha = 0.75 * f;
+          ctx.lineWidth = 1 + 4 * f;
+          ctx.beginPath();
+          ctx.moveTo(sx(points[k - 1]![0]!), sy(points[k - 1]![1]!));
+          ctx.lineTo(sx(points[k]![0]!), sy(points[k]![1]!));
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowColor = colour;
+        ctx.shadowBlur = 24;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(sx(p[i]![0]!), sy(p[i]![1]!), Math.max(4, scale * 0.045), 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = colour;
+        ctx.globalAlpha = 0.6;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      });
+      return [(time / period).toFixed(2), energy().toFixed(5)];
+    },
+  };
+}
+
 function scope(figure: HTMLElement): void {
   const canvas = figure.querySelector<HTMLCanvasElement>('.scope-wave')!;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  const slides = [fountain(), incline()];
+  const slides = [fountain(), incline(), threeStars()];
   const pick = <T extends Element>(selector: string) => figure.querySelector<T>(selector);
   const clock = pick<HTMLElement>('[data-read="t"]');
   const reads = [pick<HTMLElement>('[data-read="0"]'), pick<HTMLElement>('[data-read="1"]')];
