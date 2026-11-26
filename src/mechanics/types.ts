@@ -197,4 +197,8 @@ export interface SceneFile {
   finish?: { when: Record<string, unknown>; hold?: number }[];
   playback?: number;
   surface?: SurfaceSpec;
+  /** Bodies whose paths are traced, each in its own colour. */
+  trails?: string[];
+  /** Seconds of each traced path kept, fading as it ages; the whole path when not given. */
+  trail_length?: number;
 }

@@ -81,8 +81,10 @@ export function openGallery(catalogue: ScenarioSpec[], current: string | undefin
       list.append(el('h4', { text: 'Build your own' }), el('div', { class: 'gallery-grid' }, own));
     }
     const groups = new Map<string, ScenarioSpec[]>();
-    for (const spec of catalogue.filter(matches)) {
-      const key = `Class ${spec.syllabus.class} · ${spec.syllabus.chapter}`;
+    // The showcase comes first: the scenes to open when you just want to see what physics can do.
+    const ordered = [...catalogue.filter((s) => !s.syllabus.class), ...catalogue.filter((s) => s.syllabus.class)];
+    for (const spec of ordered.filter(matches)) {
+      const key = spec.syllabus.class ? `Class ${spec.syllabus.class} · ${spec.syllabus.chapter}` : 'Showcase: the beauty of mechanics';
       groups.set(key, [...(groups.get(key) ?? []), spec]);
     }
     for (const [group, specs] of groups) {

@@ -30,6 +30,10 @@ export interface Frame {
   selected?: number[];
   /** No metre labels: for thumbnails. */
   plain?: boolean;
+  /** Bodies whose paths are traced in colour, by index, in the scene's order. */
+  traces?: number[];
+  /** Seconds of each traced path to keep. */
+  traceSeconds?: number;
   /** Extra drawing in world space after the bodies: handles, a rope being placed. */
   overlay?: (painter: Painter) => void;
 }
@@ -49,6 +53,13 @@ const FORCE_TOKENS: Record<string, string> = {
 /** The theme token for a force's colour: the same one wherever that force is drawn or listed. */
 export function forceColor(label: string): string {
   return FORCE_TOKENS[label] ?? '--force-other';
+}
+
+/** The colour of the k-th of n traced paths: three to five apart, or a rainbow for a row of them. */
+export function traceColor(k: number, n: number): string {
+  const few = ['#22d3ee', '#c084fc', '#fbbf24', '#34d399', '#f472b6'];
+  if (n <= few.length) return few[k]!;
+  return `hsl(${Math.round((k / (n - 1)) * 300)} 90% 62%)`;
 }
 
 /** Velocity and acceleration are drawn in ink and told apart by their heads, which leaves colour to the forces. */
@@ -113,6 +124,10 @@ export class Renderer implements Painter {
   private width = 0;
   private height = 0;
   private trail: [number, number][] = [];
+  /** Traced paths, by body index: `x, y, t` triples. */
+  private traced = new Map<number, number[]>();
+  /** The colour of each traced body, by index, for this frame. */
+  private tints = new Map<number, string>();
   private labels: Rect[] = [];
   /** The largest each electric field has been, for drawing one that alternates. */
   private strongest = new Map<string, number>();
@@ -138,6 +153,7 @@ export class Renderer implements Painter {
 
   clearTrail(): void {
     this.trail = [];
+    this.traced.clear();
   }
 
   resize(): void {
@@ -169,7 +185,11 @@ export class Renderer implements Painter {
     bodies.forEach((body, i) => body.kind === 'static' && this.drawBody(body, state, i, false, frame.selected?.includes(i)));
     for (const sketch of frame.sketches) this.drawSketch(sketch);
 
-    if (frame.showTrail && frame.focus >= 0 && bodies[frame.focus]) {
+    const traces = frame.traces ?? [];
+    this.tints.clear();
+    traces.forEach((index, k) => this.tints.set(index, traceColor(k, traces.length)));
+    if (traces.length && frame.showTrail) this.drawTraces(traces, state, frame.time, frame.traceSeconds ?? Infinity);
+    else if (frame.showTrail && frame.focus >= 0 && bodies[frame.focus]) {
       const i = frame.focus * STATE_STRIDE;
       const last = this.trail[this.trail.length - 1];
       const point: [number, number] = [state[i]!, state[i + 1]!];
@@ -196,6 +216,68 @@ export class Renderer implements Painter {
     if (frame.surface) this.drawSurface(frame.surface);
     frame.overlay?.(this);
     if (!frame.plain) this.drawAxisLabels();
+  }
+
+  /** Each traced body leaves a glowing path in its own colour that fades as it ages. */
+  private drawTraces(traces: number[], state: Float64Array, time: number, seconds: number): void {
+    const { ctx } = this;
+    const k = stageScale();
+    const step = 1.5 / this.camera.scale;
+    for (const index of traces) {
+      let path = this.traced.get(index);
+      if (!path) this.traced.set(index, (path = []));
+      // Scrubbed back: forget what lies ahead of now.
+      while (path.length && path[path.length - 1]! > time + 1e-9) path.length -= 3;
+      const [x, y] = [state[index * STATE_STRIDE]!, state[index * STATE_STRIDE + 1]!];
+      const n = path.length;
+      if (!n || Math.hypot(path[n - 3]! - x, path[n - 2]! - y) > step) path.push(x, y, time);
+      if (Number.isFinite(seconds)) {
+        let drop = 0;
+        while (drop < path.length && path[drop + 2]! < time - seconds) drop += 3;
+        if (drop) path.splice(0, drop);
+      }
+      if (path.length > 3 * 6000) path.splice(0, path.length - 3 * 6000);
+    }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // Drawn in bands of age, oldest first and faintest; with a whole path kept, only the start fades a little.
+    const bands = 14;
+    for (const index of traces) {
+      const path = this.traced.get(index)!;
+      const count = path.length / 3;
+      if (count < 2) continue;
+      const color = this.tints.get(index)!;
+      const oldest = path[2]!;
+      const span = Number.isFinite(seconds) ? seconds : Math.max(time - oldest, 1e-9);
+      for (let band = 0; band < bands; band++) {
+        const from = time - span * (1 - band / bands);
+        const to = time - span * (1 - (band + 1) / bands);
+        const age = (band + 1) / bands;
+        ctx.beginPath();
+        let open = false;
+        for (let i = 0; i < count; i++) {
+          const pt = path[3 * i + 2]!;
+          if (pt < from - 1e-9) continue;
+          const [sx, sy] = this.camera.toScreen(path[3 * i]!, path[3 * i + 1]!);
+          if (!open) {
+            ctx.moveTo(sx, sy);
+            open = true;
+          } else ctx.lineTo(sx, sy);
+          if (pt > to) break;
+        }
+        if (!open) continue;
+        const strength = Number.isFinite(seconds) ? age * age : 0.35 + 0.65 * age;
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.18 * strength;
+        ctx.lineWidth = 7 * k;
+        ctx.stroke();
+        ctx.globalAlpha = 0.9 * strength;
+        ctx.lineWidth = 2 * k;
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   // ---- painter ----
@@ -419,6 +501,11 @@ export class Renderer implements Painter {
     ctx.lineWidth = (focused ? 3 : 1.75) * stageScale();
     ctx.strokeStyle = edge;
     ctx.fillStyle = isStatic ? cssVar('--canvas-static') : cssVar('--canvas-body-fill');
+    const tint = this.tints.get(index);
+    if (tint) {
+      ctx.strokeStyle = tint;
+      ctx.fillStyle = tint;
+    }
     const charge = body.charge ? cssVar(body.charge > 0 ? '--charge-positive' : '--charge-negative') : undefined;
     if (charge) {
       ctx.strokeStyle = charge;

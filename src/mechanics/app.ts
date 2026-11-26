@@ -50,6 +50,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   const renderer = new Renderer(canvas);
   const view: ViewOptions = { forces: true, velocity: true, acceleration: false, trail: true, field: true };
+  /** The arrows as they were before a scene that hides them. */
+  let arrowsBefore: { forces: boolean; velocity: boolean } | null = null;
   let session!: Session;
   let sandbox = false;
   let spec: ScenarioSpec = catalogue[0]!;
@@ -148,6 +150,18 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     session = next;
     banner.hidden = true;
     renderer.clearTrail();
+    // A scene that traces paths is for watching: its arrows start hidden, and come back when you leave it.
+    if (!keepCamera) {
+      if (session.traces.length && !arrowsBefore) {
+        arrowsBefore = { forces: view.forces, velocity: view.velocity };
+        dock.show('forces', false);
+        dock.show('velocity', false);
+      } else if (!session.traces.length && arrowsBefore) {
+        dock.show('forces', arrowsBefore.forces);
+        dock.show('velocity', arrowsBefore.velocity);
+        arrowsBefore = null;
+      }
+    }
     inspector.reset(session);
     answers.reset(session);
     if (!keepCamera) {
@@ -257,7 +271,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
         }),
       );
     } else {
-      shell.setTitle(`Class ${spec.syllabus.class} · ${spec.syllabus.chapter}`, spec.title);
+      shell.setTitle(spec.syllabus.class ? `Class ${spec.syllabus.class} · ${spec.syllabus.chapter}` : `Beyond the textbook · ${spec.syllabus.chapter}`, spec.title);
       description.textContent = spec.description;
       actions.replaceChildren(
         action('sliders', 'Parameters', (button) => openParameters(button)),
@@ -827,6 +841,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       showVelocity: view.velocity,
       showAcceleration: view.acceleration,
       showTrail: view.trail,
+      traces: session.traces,
+      traceSeconds: session.traceSeconds,
       fields: view.field && session.fieldful ? (session.world.fields() as FieldInfo[]) : undefined,
       fieldLines: view.field && session.coulomb ? fieldLines() : undefined,
       magneticLines: view.field && session.magnets ? fieldLines(true) : undefined,

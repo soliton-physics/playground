@@ -41,6 +41,10 @@ export class Session {
   surface?: SurfaceSpec;
   /** There is an electric or magnetic field of some kind to show and to read. */
   fieldful = false;
+  /** Bodies whose paths the scene asks to be traced, by index, in order. */
+  traces: number[] = [];
+  /** Seconds of each traced path to keep; infinite for the whole path. */
+  traceSeconds = Infinity;
   steps = 0;
   /** The furthest step this run has reached; the timeline can scrub up to here. */
   reached = 0;
@@ -80,6 +84,9 @@ export class Session {
     this.magnets = (scene.forces ?? []).some((f) => 'magnetostatics' in f);
     this.distributions = world.distributions() as DistributionInfo[];
     this.surface = scene.surface;
+    const ids = scene.bodies.map((b) => b.id);
+    this.traces = (scene.trails ?? []).map((id) => ids.indexOf(id)).filter((i) => i >= 0);
+    this.traceSeconds = scene.trail_length ?? Infinity;
     this.fieldful = this.coulomb || this.magnets || (world.fields() as FieldInfo[]).length > 0;
     this.events = world.events() as EventInfo[];
     this.finishes = [];

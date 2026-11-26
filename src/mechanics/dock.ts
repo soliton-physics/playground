@@ -38,6 +38,7 @@ export class Dock {
   private playing: boolean | undefined;
   private tickKey = '';
   private span = 1;
+  private toggles = new Map<'forces' | 'velocity' | 'acceleration' | 'trail', HTMLButtonElement>();
 
   constructor(readonly view: ViewOptions, private readonly handlers: DockHandlers) {
     this.play = iconButton('play', 'Play (Space)', handlers.toggle, 'play');
@@ -51,9 +52,11 @@ export class Dock {
     this.speedChip = el('button', { type: 'button', class: 'speed-chip wide-only', title: 'Playback speed', text: '×1' });
     this.speedChip.addEventListener('click', () => this.openSpeeds());
 
-    const toggles = (['forces', 'velocity', 'acceleration', 'trail'] as const).map((key) =>
-      toggleButton(key, `Show ${key}`, view[key], (on) => (view[key] = on)),
-    );
+    const toggles = (['forces', 'velocity', 'acceleration', 'trail'] as const).map((key) => {
+      const button = toggleButton(key, `Show ${key}`, view[key], (on) => (view[key] = on));
+      this.toggles.set(key, button);
+      return button;
+    });
     this.fieldToggle = toggleButton('field', 'Show the field', view.field, (on) => (view.field = on));
     this.fieldToggle.hidden = true;
     toggles.push(this.fieldToggle);
@@ -71,6 +74,12 @@ export class Dock {
       iconButton('fit', 'Fit view (F)', handlers.fit),
     ]);
     this.bindTimeline();
+  }
+
+  /** Turns an overlay on or off from outside, keeping its button in step. */
+  show(key: 'forces' | 'velocity' | 'acceleration' | 'trail', on: boolean): void {
+    this.view[key] = on;
+    this.toggles.get(key)?.setAttribute('aria-pressed', String(on));
   }
 
   private bindTimeline(): void {
