@@ -1,3 +1,4 @@
+import { openFeedback } from './feedback';
 import { iconButton, popover } from './controls';
 import { icon, type IconName } from './icons';
 import { el, presenting, setPresenting, toggleTheme } from './ui';
@@ -56,6 +57,8 @@ export function buildShell(active: Mode): Shell {
   const docs = import.meta.env.VITE_DOCS_URL ?? 'https://docs.solitonplay.com';
   const shareButton = el('button', { type: 'button', class: 'text-button' }, [icon('share', 16), el('span', { class: 'wide-only', text: 'Share' })]);
   shareButton.addEventListener('click', () => share());
+  const feedbackButton = el('button', { type: 'button', class: 'text-button', title: 'Something wrong? An idea? Tell us' }, [icon('feedback', 16), el('span', { class: 'wide-only', text: 'Feedback' })]);
+  feedbackButton.addEventListener('click', openFeedback);
 
   const root = el('header', { class: 'topbar' }, [
     el('div', { class: 'topbar-left' }, [
@@ -68,6 +71,7 @@ export function buildShell(active: Mode): Shell {
     titleButton,
     el('div', { class: 'topbar-right' }, [
       shareButton,
+      feedbackButton,
       el('a', { class: 'text-button', href: docs, title: 'Read the docs' }, [icon('docs', 16), el('span', { class: 'wide-only', text: 'Docs' })]),
       iconButton('present', 'For a projector: bigger and bolder ( T )', () => setPresenting(!presenting())),
       iconButton('theme', 'Light or dark', toggleTheme),

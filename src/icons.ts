@@ -17,6 +17,7 @@ const paths = {
   present: '<rect x="3" y="4.5" width="18" height="12" rx="1.5"/><path d="M12 16.5V20M8 20h8"/>',
   share: '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v6h14v-6"/>',
   theme: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  feedback: '<path d="M4.5 5.5h15v10h-8l-4.5 4v-4H4.5z"/><path d="M8.5 9.5h7M8.5 12.5h4.5"/>',
   docs: '<path d="M6 4h9l4 4v12H6z"/><path d="M14 4v5h5M9 13h7M9 16.5h7"/>',
   panel: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/>',
   cursor: '<path d="m5 3 6 16 2.5-6.5L20 10z"/>',

@@ -1969,3 +1969,112 @@ body.embed .banner {
 .wheel-hint.shown {
   opacity: 1;
 }
+
+/* Feedback: a short note from anywhere in the playground. */
+.feedback {
+  width: min(32rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.feedback::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.3rem 1.4rem 1.2rem;
+}
+
+.feedback-form h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.feedback-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.feedback-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.feedback-kind:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.feedback-kind input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.feedback textarea {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.feedback textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.feedback-context,
+.feedback-status {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.feedback-status:empty {
+  display: none;
+}
+
+.feedback-status {
+  color: var(--accent);
+}
+
+.feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.feedback-actions button {
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.feedback-actions .feedback-send {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}

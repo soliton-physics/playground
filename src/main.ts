@@ -10,6 +10,7 @@ import { mountModern } from './modern/app';
 import { mountOptics } from './optics/app';
 import { mountThermal, thermalCatalogue } from './thermal/app';
 import { mountStatistics, statisticalCatalogue } from './thermal/statistics';
+import { trackScenes } from './analytics';
 import { buildShell, type Mode } from './shell';
 import { el, presenting, setPresenting } from './ui';
 import { mountWaves } from './waves/app';
@@ -44,3 +45,5 @@ else if (mode === 'matter') mountMatter(main, query, embedded, shell);
 else if (mode === 'magnetism') mountMagnetism(main, query, embedded, shell);
 else if (mode === 'maths') mountMaths(main, query, embedded, shell);
 else await mountMechanics(main, query, embedded, shell);
+// Counted once the subject has put its scene in the address, and again each time it moves to another.
+trackScenes();
