@@ -150,7 +150,7 @@ for (const card of document.querySelectorAll<HTMLElement>('.card')) {
 }
 
 // Sections rise into view as they are reached.
-const rising = document.querySelectorAll<HTMLElement>('.section-head, .screen, .card, .class, .package, .teachers-box, .stats');
+const rising = document.querySelectorAll<HTMLElement>('.section-head, .screen, .card, .class, .package, .faq details, .teachers-box, .stats');
 const watcher = new IntersectionObserver(
   (entries) => {
     for (const entry of entries) {

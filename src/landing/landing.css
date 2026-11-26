@@ -991,3 +991,62 @@ kbd {
 .package-note a:hover {
   text-decoration: underline;
 }
+
+/* Questions */
+.faq-list {
+  display: grid;
+  gap: 0.8rem;
+  max-width: 52rem;
+}
+
+.faq details {
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.faq details[open] {
+  background: var(--panel-strong);
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+.faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.4rem;
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq summary::after {
+  content: '+';
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  color: var(--cyan);
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.faq details[open] summary::after {
+  content: '−';
+}
+
+.faq details p {
+  margin: 0;
+  padding: 0 1.4rem 1.3rem;
+  color: var(--muted);
+}

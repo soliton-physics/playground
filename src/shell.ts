@@ -79,7 +79,7 @@ export function buildShell(active: Mode): Shell {
     setTitle(groupText, titleText) {
       group.textContent = groupText;
       title.textContent = titleText;
-      document.title = `${titleText} · Soliton Playground`;
+      document.title = groupText ? `${titleText} · ${groupText} | Soliton physics simulation` : `${titleText} | Soliton physics simulation`;
     },
     onTitle: (handler) => (open = handler),
     onShare: (handler) => (share = handler),

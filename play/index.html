@@ -3,10 +3,37 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="A physics playground: grab things, throw them, build your own worlds. Computed live by the Soliton Physics engine in WebAssembly." />
+    <meta name="description" content="Live physics simulations for class 11 and 12: grab things, throw them, change the numbers and see the textbook answer beside the measured one. Mechanics, waves, thermodynamics, circuits, magnetism, optics and modern physics." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Soliton" />
+    <meta property="og:title" content="Soliton Physics Playground" />
+    <meta property="og:description" content="Live physics simulations for every NCERT class 11 and 12 chapter." />
+    <meta property="og:image" content="https://solitonplay.com/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#e4e6ea" />
     <title>Soliton Playground</title>
-    <link rel="icon" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+      // One address per simulation for search engines: the canonical keeps only what picks the scene, and an
+      // embedded copy is kept out of the index altogether.
+      (() => {
+        const query = new URLSearchParams(location.search);
+        const kept = new URLSearchParams();
+        for (const key of ['mode', 'scenario', 'preset']) if (query.has(key)) kept.set(key, query.get(key));
+        const link = document.createElement('link');
+        link.rel = 'canonical';
+        link.href = 'https://solitonplay.com/play' + (kept.size ? '?' + kept : '');
+        document.head.append(link);
+        if (query.has('embed')) {
+          const robots = document.createElement('meta');
+          robots.name = 'robots';
+          robots.content = 'noindex';
+          document.head.append(robots);
+        }
+      })();
+    </script>
     <script>
       try {
         const asked = new URLSearchParams(location.search).get('theme');

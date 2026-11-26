@@ -3,14 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Soliton: live physics for the classroom</title>
-    <meta name="description" content="Every NCERT physics chapter of class 11 and 12 as a live simulation. Real forces, real graphs, checked against the textbook answer. Free, in the browser, made for the projector." />
+    <title>Soliton: Free Physics Simulations for Class 11 &amp; 12 (NCERT, JEE, NEET)</title>
+    <meta name="description" content="147 free, live physics simulations covering every NCERT class 11 and 12 chapter: motion, forces, energy, waves, thermodynamics, circuits, magnetism, optics and modern physics. Real forces and graphs, checked against the textbook answer. Made for the classroom projector." />
+    <link rel="canonical" href="https://solitonplay.com/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#05070f" />
-    <link rel="icon" href="/favicon.svg" />
-    <meta property="og:title" content="Soliton: live physics for the classroom" />
-    <meta property="og:description" content="Every NCERT physics chapter of class 11 and 12 as a live simulation, checked against the textbook answer." />
-    <meta property="og:url" content="https://solitonplay.com/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Soliton" />
+    <meta property="og:url" content="https://solitonplay.com/" />
+    <meta property="og:title" content="Soliton: free physics simulations for class 11 &amp; 12" />
+    <meta property="og:description" content="Every NCERT physics chapter as a live simulation, checked against the textbook answer. Free, in the browser, made for the projector." />
+    <meta property="og:image" content="https://solitonplay.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Soliton: physics your class can see and check. Two solitons on a live scope." />
+    <meta property="og:locale" content="en_IN" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Soliton: free physics simulations for class 11 &amp; 12" />
+    <meta name="twitter:description" content="Every NCERT physics chapter as a live simulation, checked against the textbook answer." />
+    <meta name="twitter:image" content="https://solitonplay.com/og.png" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://solitonplay.com/#website", "url": "https://solitonplay.com/", "name": "Soliton", "description": "Free live physics simulations for every NCERT class 11 and 12 chapter.", "inLanguage": "en-IN", "publisher": {"@id": "https://solitonplay.com/#org"}}, {"@type": "Organization", "@id": "https://solitonplay.com/#org", "name": "Soliton Physics", "url": "https://solitonplay.com/", "logo": "https://solitonplay.com/icon-512.png", "email": "developer.zang.000@gmail.com", "sameAs": ["https://github.com/soliton-physics", "https://www.npmjs.com/package/@soliton-physics/engine", "https://pypi.org/project/soliton-physics/"]}, {"@type": ["WebApplication", "LearningResource"], "name": "Soliton Physics Playground", "url": "https://solitonplay.com/play", "applicationCategory": "EducationalApplication", "operatingSystem": "Any (runs in the browser)", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "INR"}, "isAccessibleForFree": true, "educationalLevel": ["Class 11", "Class 12"], "learningResourceType": "Simulation", "educationalAlignment": {"@type": "AlignmentObject", "alignmentType": "educationalSubject", "targetName": "NCERT Physics"}, "audience": {"@type": "EducationalAudience", "educationalRole": ["teacher", "student"]}, "teaches": ["Laws of motion", "Work, energy and power", "Rotational motion", "Gravitation", "Properties of matter", "Thermodynamics", "Kinetic theory", "Oscillations and waves", "Electrostatics", "Current electricity", "Magnetism", "Electromagnetic induction", "Alternating current", "Ray optics", "Wave optics", "Modern physics", "Semiconductor electronics"], "image": "https://solitonplay.com/og.png", "publisher": {"@id": "https://solitonplay.com/#org"}}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is Soliton free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. The playground and every simulation are free to use, for teachers, students and schools. Nothing to sign up for."}}, {"@type": "Question", "name": "Which syllabus does it cover?", "acceptedAnswer": {"@type": "Answer", "text": "Every chapter of NCERT physics for class 11 and class 12, from motion in a straight line to semiconductor electronics. It serves CBSE and state boards, and the same physics JEE and NEET ask about."}}, {"@type": "Question", "name": "Do students need to install anything?", "acceptedAnswer": {"@type": "Answer", "text": "No. It runs in any modern browser, on a laptop, a phone or a smartboard. Share a link and it opens exactly the scene you showed."}}, {"@type": "Question", "name": "Can I use it on a projector in class?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Press T for projector mode: text, arrows and lines grow bigger and bolder so the back row can read them."}}, {"@type": "Question", "name": "How is it different from an animation or a video?", "acceptedAnswer": {"@type": "Answer", "text": "Nothing is pre-recorded. A physics engine computes every force, path and graph as you watch, and the result is set beside the textbook's formula, so students can see the formula come true and change the numbers themselves."}}, {"@type": "Question", "name": "Can I put the simulations in my own website or app?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Any simulation can be embedded, and the engine itself is on npm as @soliton-physics/engine and on PyPI as soliton-physics, free to use including commercially."}}]}]}</script>
     <script>
       // Links made before the playground moved to /play carry its settings on the home address: send them on.
       if (location.pathname === '/' && (location.search || location.hash)) location.replace('/play' + location.search + location.hash);
@@ -35,11 +50,11 @@
     <section class="hero">
       <div class="wrap hero-grid">
         <div class="hero-text">
-          <p class="pill"><span class="dot"></span>Live physics engine · NCERT class 11 &amp; 12</p>
+          <p class="pill"><span class="dot"></span>Free physics simulations · NCERT class 11 &amp; 12</p>
           <h1>Physics your class can <span class="gradient">see</span> and <span class="gradient">check</span>.</h1>
           <p class="lead">
-            Every chapter as a live simulation. Forces, graphs and energy are computed as you watch, and set right
-            beside the textbook's answer.
+            Every chapter of class 11 and 12 physics as a live simulation, for boards, JEE and NEET. Forces, graphs
+            and energy are computed as you watch, and set right beside the textbook's answer.
           </p>
           <div class="actions">
             <a class="button" href="/play">Open the playground <span class="arrow">→</span></a>
@@ -199,6 +214,41 @@
             <button class="command" type="button" data-copy="pip install soliton-physics"><code><span class="prompt">$</span> pip install soliton-physics</code><span class="copy">Copy</span></button>
             <p class="package-note">NumPy in and out, for notebooks and research. <a href="https://docs.solitonplay.com/start/install/">Python guide →</a></p>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq" id="faq">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">Questions</p>
+          <h2>Asked by teachers</h2>
+        </div>
+        <div class="faq-list">
+          <details>
+            <summary>Is Soliton free?</summary>
+            <p>Yes. The playground and every simulation are free to use, for teachers, students and schools. Nothing to sign up for.</p>
+          </details>
+          <details>
+            <summary>Which syllabus does it cover?</summary>
+            <p>Every chapter of NCERT physics for class 11 and class 12, from motion in a straight line to semiconductor electronics. It serves CBSE and state boards, and the same physics JEE and NEET ask about.</p>
+          </details>
+          <details>
+            <summary>Do students need to install anything?</summary>
+            <p>No. It runs in any modern browser, on a laptop, a phone or a smartboard. Share a link and it opens exactly the scene you showed.</p>
+          </details>
+          <details>
+            <summary>Can I use it on a projector in class?</summary>
+            <p>Yes. Press T for projector mode: text, arrows and lines grow bigger and bolder so the back row can read them.</p>
+          </details>
+          <details>
+            <summary>How is it different from an animation or a video?</summary>
+            <p>Nothing is pre-recorded. A physics engine computes every force, path and graph as you watch, and the result is set beside the textbook's formula, so students can see the formula come true and change the numbers themselves.</p>
+          </details>
+          <details>
+            <summary>Can I put the simulations in my own website or app?</summary>
+            <p>Yes. Any simulation can be embedded, and the engine itself is on npm as @soliton-physics/engine and on PyPI as soliton-physics, free to use including commercially.</p>
+          </details>
         </div>
       </div>
     </section>
