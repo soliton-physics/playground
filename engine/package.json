@@ -5,7 +5,7 @@
     "Soliton Physics contributors"
   ],
   "description": "Physics engine for education in WebAssembly: live simulations for every NCERT class 11 and 12 physics chapter, checked against the textbook answer",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "license": "SEE LICENSE IN ../../LICENSE",
   "files": [
     "soliton_wasm_bg.wasm",
