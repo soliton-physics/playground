@@ -30,6 +30,8 @@
       // Links made before the playground moved to /play carry its settings on the home address: send them on.
       if (location.pathname === '/' && (location.search || location.hash)) location.replace('/play' + location.search + location.hash);
     </script>
+    <!-- Vercel Web Analytics: visits counted without cookies. -->
+    <script defer src="/_vercel/insights/script.js"></script>
   </head>
   <body>
     <div class="backdrop" aria-hidden="true"><span class="orb orb-1"></span><span class="orb orb-2"></span><span class="orb orb-3"></span></div>
