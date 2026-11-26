@@ -1,0 +1,274 @@
+/* The simulation pages: one per simulation, and the index of them all. They share the landing page's look. */
+
+.sim {
+  padding-top: 2.2rem;
+  padding-bottom: 4rem;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+
+.crumbs a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.crumbs a:hover {
+  color: var(--text);
+}
+
+.sim-head {
+  max-width: 52rem;
+  margin: 1.4rem 0 2rem;
+}
+
+.sim-head h1 {
+  margin: 1rem 0 0.8rem;
+  font-family: var(--display);
+  font-size: clamp(2.1rem, 4.6vw, 3.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.sim-head .lead {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.sim-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+
+.sim-jump a {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  color: var(--text);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.sim-jump a:hover {
+  border-color: var(--cyan);
+}
+
+/* The stage: a poster until asked, then the live playground. */
+.sim-stage {
+  position: relative;
+  margin: 0 0 2rem;
+  aspect-ratio: 16 / 9;
+  max-height: 78vh;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(96, 165, 250, 0.16), transparent 65%),
+    linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px) 0 0 / 40px 40px,
+    #080c1c;
+  box-shadow: 0 30px 100px -40px rgba(96, 165, 250, 0.5);
+}
+
+.sim-poster {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.sim-run {
+  font-size: 1.05rem;
+  padding: 0.95rem 1.6rem;
+  border: 0;
+  cursor: pointer;
+}
+
+.sim-full {
+  color: var(--cyan);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.sim-full:hover {
+  text-decoration: underline;
+}
+
+.sim-poster small {
+  color: var(--dim);
+  max-width: 30rem;
+}
+
+.sim-stage iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+@media (max-width: 720px) {
+  .sim-stage {
+    aspect-ratio: auto;
+    height: 72vh;
+    max-height: none;
+  }
+}
+
+/* The answers and the settings, side by side on a wide screen. */
+.sim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.sim-card {
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+}
+
+.sim-card h2,
+.sim-more h2,
+.sim-class h2 {
+  margin: 0 0 0.4rem;
+  font-family: var(--display);
+  font-size: 1.35rem;
+}
+
+.sim-card p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.sim-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.sim-card th,
+.sim-card td {
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.sim-card thead th {
+  border-top: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.sim-card tbody th {
+  font-weight: 500;
+  color: var(--text);
+  padding-right: 1rem;
+}
+
+.sim-card td {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.sim-card td + td {
+  padding-left: 1rem;
+}
+
+/* Lists of simulations: under a page, and on the index. */
+.sim-more {
+  margin-top: 2.6rem;
+}
+
+.sim-class {
+  margin-top: 3rem;
+  scroll-margin-top: 5rem;
+}
+
+.sim-class h2 {
+  font-size: 1.9rem;
+}
+
+.sim-chapter {
+  margin-top: 1.6rem;
+  scroll-margin-top: 5rem;
+}
+
+.sim-chapter h3 {
+  margin: 0 0 0.7rem;
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.sim-chapter h3 small {
+  margin-left: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+
+.sim-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.7rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sim-list a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  height: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.sim-list a:hover {
+  border-color: var(--cyan);
+  background: var(--panel-strong);
+}
+
+.sim-list b {
+  font-weight: 600;
+}
+
+.sim-list span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* The landing page pads every section for its long scroll; here they sit closer. */
+.sim .sim-more,
+.sim .sim-class {
+  padding: 0;
+}
