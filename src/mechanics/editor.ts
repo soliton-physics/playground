@@ -968,6 +968,29 @@ export class Editor {
   }
 
   /** The panel that edits the selected body. */
+  /**
+   * Where two surfaces touch, the engine uses the larger of their two friction coefficients: a rough slope stays rough
+   * under a smooth ball. Says which value really applies against the other bodies in the scene, when it is not this
+   * body's own.
+   */
+  private frictionAgainst(index: number): string | undefined {
+    const self = this.scene.bodies[index];
+    if (!self) return undefined;
+    const own = self.friction?.[0] ?? 0;
+    const name = (b: BodySpec) => ('halfplane' in b.shape && b.id === 'ground' ? 'the ground' : b.id);
+    // Only what this body can actually meet: anything that moves can meet anything; fixed things meet only movers.
+    const others = this.scene.bodies.filter((b, i) => i !== index && (self.kind !== 'static' || b.kind !== 'static'));
+    const rougher = others.filter((b) => (b.friction?.[0] ?? 0) > own);
+    if (!rougher.length) return undefined;
+    const byValue = new Map<number, string[]>();
+    for (const b of rougher) byValue.set(b.friction?.[0] ?? 0, [...(byValue.get(b.friction?.[0] ?? 0) ?? []), name(b)]);
+    const parts = [...byValue].map(([mu, names]) => {
+      const list = names.length > 3 ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more` : names.join(', ');
+      return `on ${list}, μ = ${formatNumber(mu, 2)}`;
+    });
+    return `Where it touches others the larger μ of the two applies: ${parts.join('; ')}.`;
+  }
+
   properties(measured?: SceneFile): HTMLElement | undefined {
     if (this.pickedLink) return this.linkProperties(this.pickedLink, measured);
     if (this.selection.length > 1) return this.groupProperties();
@@ -999,6 +1022,16 @@ export class Editor {
         kinds.append(button);
       }
       rows.push(kinds);
+    }
+    // A ball can roll, or be the textbook's point-like particle, which never turns and so can only slide.
+    if (!isStatic && 'circle' in spec.shape) {
+      const motion = el('div', { class: 'kind-switch', title: 'A point-like ball never turns: on a rough slope it slides, or rests, like a block' });
+      for (const [label, rolls] of [['Rolls', true], ['Slides only', false]] as const) {
+        const button = el('button', { type: 'button', text: label, 'aria-pressed': String((spec.kind === 'rigid') === rolls) });
+        button.addEventListener('click', () => set('rolling', (b) => (b.kind = rolls ? 'rigid' : 'particle')));
+        motion.append(button);
+      }
+      rows.push(motion);
     }
     if (!isStatic) {
       rows.push(slider({ label: 'Mass', min: 0.1, max: 20, step: 0.1, hardMin: 0.001, hardMax: 1e6, value: spec.mass ?? 1, format: (v) => `${formatNumber(v)} kg`, onInput: (v) => set('mass', (b) => (b.mass = v)) }).root);
@@ -1039,6 +1072,8 @@ export class Editor {
     rows.push(
       slider({ label: 'Friction μ', min: 0, max: 1, step: 0.05, hardMax: 10, value: spec.friction?.[0] ?? 0, format: (v) => formatNumber(v, 2), onInput: (v) => set('friction', (b) => (b.friction = [v, round(0.8 * v, 0.01)])) }).root,
     );
+    const used = this.frictionAgainst(index);
+    if (used) rows.push(el('p', { class: 'empty friction-used', text: used }));
     if (!isStatic) {
       rows.push(slider({ label: 'Bounce e', min: 0, max: 1, step: 0.05, value: spec.restitution ?? 1, format: (v) => formatNumber(v, 2), onInput: (v) => set('bounce', (b) => (b.restitution = v)) }).root);
     }
@@ -1051,4 +1086,17 @@ export class Editor {
     head.append(iconButton('erase', 'Delete (Del)', () => this.remove(index)));
     return el('div', { class: 'properties' }, [head, ...rows]);
   }
+}
+
+/**
+ * A remixed scenario becomes a sandbox, where balls are expected to behave like balls. The textbook's point-like
+ * particles never turn, so on a rough slope one would slide or rest like a block; here every such ball is made one
+ * that can roll. Points without a size stay points.
+ */
+export function rollingBalls(json: string): string {
+  const scene = JSON.parse(json) as SceneFile;
+  for (const body of scene.bodies) {
+    if (body.kind === 'particle' && 'circle' in body.shape && body.shape.circle > 0) body.kind = 'rigid';
+  }
+  return JSON.stringify(scene);
 }

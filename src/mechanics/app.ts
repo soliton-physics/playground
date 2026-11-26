@@ -5,7 +5,7 @@ import type { Shell } from '../shell';
 import { clamp, el, formatNumber, formatPrefixed, formatSize, formatTime, layoutPx, wheelZooms } from '../ui';
 import { Answers } from './answers';
 import { Dock, type ViewOptions } from './dock';
-import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox, type Grip, type Sized } from './editor';
+import { Editor, TOOL_KEYS, emptySandbox, orbitSandbox, rollingBalls, type Grip, type Sized } from './editor';
 import { openGallery, type GalleryChoice } from './gallery';
 import { HANDLES, type Handle } from './handles';
 import { Inspector } from './inspector';
@@ -276,7 +276,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       actions.replaceChildren(
         action('sliders', 'Parameters', (button) => openParameters(button)),
         action('remix', 'Remix', () => {
-          openSandbox(session.world.scene_json());
+          openSandbox(rollingBalls(session.world.scene_json()));
           toast('This is now your copy. Move things, add things, break it.');
         }),
       );
