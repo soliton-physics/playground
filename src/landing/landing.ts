@@ -141,7 +141,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('.scope-wave');
 if (canvas) scope(canvas);
 
 // The feature cards light up where the pointer is.
-for (const card of document.querySelectorAll<HTMLElement>('.card')) {
+for (const card of document.querySelectorAll<HTMLElement>('.card, .builder')) {
   card.addEventListener('pointermove', (e) => {
     const box = card.getBoundingClientRect();
     card.style.setProperty('--x', `${e.clientX - box.left}px`);
@@ -150,7 +150,7 @@ for (const card of document.querySelectorAll<HTMLElement>('.card')) {
 }
 
 // Sections rise into view as they are reached.
-const rising = document.querySelectorAll<HTMLElement>('.section-head, .screen, .card, .class, .package, .faq details, .teachers-box, .stats');
+const rising = document.querySelectorAll<HTMLElement>('.section-head, .screen, .card, .builder, .class, .package, .faq details, .teachers-box, .stats');
 const watcher = new IntersectionObserver(
   (entries) => {
     for (const entry of entries) {

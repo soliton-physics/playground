@@ -1050,3 +1050,127 @@ kbd {
   padding: 0 1.4rem 1.3rem;
   color: var(--muted);
 }
+
+/* Build anything */
+.builders {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  grid-auto-rows: auto;
+  gap: 1.2rem;
+}
+
+.builder {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 1.7rem;
+  border-radius: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-decoration: none;
+  overflow: hidden;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.builder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(420px circle at var(--x, 80%) var(--y, 0%), rgba(96, 165, 250, 0.14), transparent 50%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.builder:hover {
+  transform: translateY(-4px);
+  border-color: rgba(96, 165, 250, 0.5);
+  box-shadow: 0 30px 80px -40px rgba(96, 165, 250, 0.6);
+}
+
+.builder:hover::before {
+  opacity: 1;
+}
+
+.builder.big {
+  grid-row: span 3;
+  padding: 2.4rem;
+  background:
+    radial-gradient(70% 60% at 100% 0%, rgba(192, 132, 252, 0.16), transparent 70%),
+    radial-gradient(60% 60% at 0% 100%, rgba(34, 211, 238, 0.14), transparent 70%),
+    var(--panel);
+  border-color: var(--line-strong);
+}
+
+.builder h3 {
+  font-size: 1.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.builder.big h3 {
+  font-size: clamp(1.7rem, 2.6vw, 2.2rem);
+  margin: 0.4rem 0 0.9rem;
+}
+
+.builder p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.builder.big p {
+  font-size: 1.08rem;
+}
+
+.builder .icon {
+  margin-bottom: 1.1rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tags li {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: #e9d5ff;
+  background: rgba(192, 132, 252, 0.1);
+  box-shadow: 0 0 0 1px rgba(192, 132, 252, 0.3) inset;
+}
+
+.go {
+  margin-top: auto;
+  padding-top: 1.3rem;
+  font-family: var(--display);
+  font-weight: 600;
+  color: var(--cyan);
+}
+
+.builder:hover .go {
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .builders {
+    grid-template-columns: 1fr;
+  }
+
+  .builder.big {
+    grid-row: auto;
+  }
+}
+
+.builder-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 1.6rem;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.9);
+}

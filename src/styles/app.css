@@ -1482,6 +1482,30 @@ body.embed .banner {
   left: 8.286rem;
 }
 
+/* In the mechanics sandbox: the info card clear of the tool rail, and the tool hints above the playback dock. */
+.info.beside-rail {
+  left: 4.857rem;
+  width: min(22.857rem, calc(100% - 5.714rem));
+}
+
+.hint.hint-low {
+  top: auto;
+  bottom: 9.4rem;
+  left: 4.857rem;
+  right: 23rem;
+  width: fit-content;
+  margin-inline: auto;
+  transform: none;
+  white-space: normal;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .hint.hint-low {
+    right: 0.857rem;
+  }
+}
+
 /* A rail with more tools than one column has room for. */
 .rail.two {
   display: grid;

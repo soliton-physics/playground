@@ -237,6 +237,9 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     // A remixed scene is no longer the textbook's problem, so its answers no longer apply.
     answers.root.hidden = sandbox;
     notes.classList.toggle('beside-rail', sandbox);
+    // The tool rail runs up the left in a sandbox: the card moves beside it and the tool hints sit low, clear of both.
+    info.classList.toggle('beside-rail', sandbox);
+    hint.classList.toggle('hint-low', sandbox);
     properties.hidden = true;
     propertiesKey = '';
     hint.hidden = true;
