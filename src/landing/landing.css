@@ -200,12 +200,6 @@ section {
   box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.6) inset, 0 10px 40px -10px rgba(96, 165, 250, 0.5);
 }
 
-.button.whatsapp {
-  background: linear-gradient(90deg, #22c55e, #25d366);
-  color: #03200d;
-  box-shadow: 0 10px 40px -8px rgba(37, 211, 102, 0.6);
-}
-
 /* Navigation */
 .nav {
   position: sticky;
@@ -789,7 +783,8 @@ kbd {
 
 .contact .button {
   padding-block: 1rem;
-  overflow-wrap: anywhere;
+  /* A long address wraps where it is marked to, before the @, and not in the middle of a word. */
+  overflow-wrap: break-word;
 }
 
 /* Footer */
