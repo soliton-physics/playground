@@ -1110,6 +1110,19 @@ body.embed .scale-chip {
   background: var(--surface);
 }
 
+/* A spring's panel says how it starts: relaxed, stretched or squeezed, and offers to relax it. */
+.spring-relax {
+  padding: 0.43rem 0.7rem;
+  font-size: 0.86rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+
+.spring-relax:hover {
+  background: var(--surface-3, var(--surface-2));
+}
+
 /* ---------- waves ---------- */
 
 .wave-readout {

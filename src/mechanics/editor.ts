@@ -2,9 +2,10 @@ import { iconButton, slider } from '../controls';
 import type { IconName } from '../icons';
 import { el, formatNumber } from '../ui';
 import { KNOB_COLOR, scales, type Painter } from './stage/renderer';
+import { asValley, followValley, valleyBody, valleyHeight, type Placement, type Valley } from './track';
 import type { AnchorSpec, BodySpec, ConstraintSpec, ForceSpec, RopeNodeSpec, SceneFile, ShapeSpec, Vec } from './types';
 
-export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
+export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'valley' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
 
 const TOOLS: [Tool, IconName, string][] = [
   ['select', 'cursor', 'Select and move (V)'],
@@ -14,6 +15,7 @@ const TOOLS: [Tool, IconName, string][] = [
   ['platform', 'platform', 'Fixed platform (P)'],
   ['incline', 'incline', 'Incline: drag from its foot to its top (I)'],
   ['wall', 'wall', 'Wall or ramp: drag along it (W)'],
+  ['valley', 'valley', 'Curved ramp (U)'],
   ['rope', 'rope', 'Rope: click two ends (O)'],
   ['rod', 'rod', 'Rigid rod: click two ends (D)'],
   ['spring', 'spring', 'Spring: click two ends (S)'],
@@ -21,7 +23,7 @@ const TOOLS: [Tool, IconName, string][] = [
   ['erase', 'erase', 'Erase (E)'],
 ];
 
-export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', g: 'polygon', p: 'platform', i: 'incline', w: 'wall', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
+export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', g: 'polygon', p: 'platform', i: 'incline', w: 'wall', u: 'valley', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
 
 const HINTS: Record<Tool, string> = {
   select: 'Drag a body to move it, its arrow to launch it, or a knob on its edge to resize it. Click a rope or spring to edit it. Shift-click selects several.',
@@ -31,6 +33,7 @@ const HINTS: Record<Tool, string> = {
   platform: 'Click to place a fixed platform.',
   incline: 'Drag from the foot of the slope to its top.',
   wall: 'Drag along where the wall or ramp should be.',
+  valley: 'Click where the bottom of the curved ramp should be. Select it to change its curve.',
   rope: 'Click a body, then another body or an empty point.',
   rod: 'Click a body, then another body or an empty point.',
   spring: 'Click a body, then another body or an empty point.',
@@ -348,7 +351,8 @@ export class Editor {
     const angle = spec.angle ?? 0;
     const [dx, dy] = [hit.at[0] - px, hit.at[1] - py];
     const local: Vec = [dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle)];
-    const offCentre = ('rectangle' in spec.shape || 'polygon' in spec.shape) && Math.hypot(local[0], local[1]) > 0.08 * u;
+    // A track's position is where it starts, so a point on it always needs saying where.
+    const offCentre = 'track' in spec.shape || (('rectangle' in spec.shape || 'polygon' in spec.shape) && Math.hypot(local[0], local[1]) > 0.08 * u);
     return { body: offCentre ? { id: spec.id, local: [round(local[0], 0.01 * u), round(local[1], 0.01 * u)] } : { id: spec.id } };
   }
 
@@ -369,6 +373,11 @@ export class Editor {
       case 'wall':
         this.stretch = { from: [x, y], to: [x, y] };
         return true;
+      case 'valley': {
+        const { pieces, ...placement } = valleyBody({ bottom: [x, y], radius: 2 * u, side: Math.PI / 2, flat: 2 * u, left: 'curve', right: 'curve' });
+        // Smooth: whatever is put on it brings its own friction, since a pair takes the larger of the two.
+        return this.add({ id: this.uniqueId('ramp'), kind: 'static', shape: { track: { pieces, thickness: 0.12 * u } }, ...placement, friction: [0, 0] });
+      }
       case 'platform':
         return this.add({ id: this.uniqueId('platform'), kind: 'static', shape: { rectangle: [3 * u, 0.3 * u] }, position: [x, y], friction: [0.6, 0.5] });
       case 'erase':
@@ -390,6 +399,11 @@ export class Editor {
       default:
         return this.link(hit);
     }
+  }
+
+  /** Whether the current tool joins things: its clicks land on bodies, or on points in space. */
+  get joining(): boolean {
+    return this.tool === 'rope' || this.tool === 'rod' || this.tool === 'spring' || this.tool === 'pin';
   }
 
   /** Whether a press with the current tool starts a drag that `stretchTo` and `release` should follow. */
@@ -521,27 +535,86 @@ export class Editor {
         return true;
       }
       this.pending = { tool: this.tool, anchor, at: hit.at };
-      this.hint('Now click the other end: a body or an empty point.');
+      this.hint(`Started on ${this.bodyName(anchor)}. Now click the other end: on a body to join it, or on empty space to pin the end there.`);
       return true;
     }
-    const first = this.pending.anchor;
+    const start = this.pending;
     this.pending = undefined;
-    if ('body' in first && 'body' in anchor && first.body.id === anchor.body.id) {
+    if ('body' in start.anchor && 'body' in anchor && start.anchor.body.id === anchor.body.id) {
       this.hint('Both ends are on the same body. Pick another body or an empty point.');
       return true;
     }
+    // Each end on a moving box goes to the middle of the side that faces the other end, as a textbook draws it: the
+    // pull then runs through the box's centre and does not twist it.
+    const first = this.facing(start.anchor, hit.at);
+    const second = this.facing(anchor, start.at);
     this.checkpoint('');
     if (this.tool === 'rope') {
       const node = (a: AnchorSpec): RopeNodeSpec => ('fixed' in a ? { peg: a.fixed } : { attach: { body: a.body.id, ...(a.body.local ? { local: a.body.local } : {}) } });
-      this.constraints().push({ rope: { nodes: [node(first), node(anchor)] } });
+      this.constraints().push({ rope: { nodes: [node(first), node(second)] } });
     } else if (this.tool === 'rod') {
-      this.constraints().push({ rod: { a: first, b: anchor } });
+      this.constraints().push({ rod: { a: first, b: second } });
     } else {
-      (this.scene.forces ??= []).push({ spring: { a: first, b: anchor, stiffness: 60 } });
+      (this.scene.forces ??= []).push({ spring: { a: first, b: second, stiffness: 60 } });
     }
-    this.hint(HINTS[this.tool]);
+    const name = { rope: 'Rope', rod: 'Rod', spring: 'Spring' }[this.tool as 'rope' | 'rod' | 'spring'];
+    this.hint(`${name} added from ${this.bodyName(first)} to ${this.bodyName(second)}. ${HINTS[this.tool]}`);
     this.changed();
     return true;
+  }
+
+  /**
+   * Where an end on a body really goes, given where the other end is. On a moving box or shape, the middle of its side
+   * that faces the other end; a ball is joined at its centre already; on a fixed wall, platform or ramp, the point
+   * clicked, since a long surface can be joined anywhere along it.
+   */
+  private facing(anchor: AnchorSpec, toward: Vec): AnchorSpec {
+    if (!('body' in anchor)) return anchor;
+    const spec = this.scene.bodies.find((b) => b.id === anchor.body.id);
+    if (!spec || spec.kind === 'static') return anchor;
+    const corners: Vec[] | undefined =
+      'rectangle' in spec.shape
+        ? [
+            [-spec.shape.rectangle[0] / 2, -spec.shape.rectangle[1] / 2],
+            [spec.shape.rectangle[0] / 2, -spec.shape.rectangle[1] / 2],
+            [spec.shape.rectangle[0] / 2, spec.shape.rectangle[1] / 2],
+            [-spec.shape.rectangle[0] / 2, spec.shape.rectangle[1] / 2],
+          ]
+        : 'polygon' in spec.shape
+          ? spec.shape.polygon
+          : undefined;
+    if (!corners) return anchor;
+    // The other end, seen from the body's centre in its own frame.
+    const [px, py] = spec.position ?? [0, 0];
+    const angle = spec.angle ?? 0;
+    const [dx, dy] = [toward[0] - px, toward[1] - py];
+    const [lx, ly] = [dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle)];
+    if (Math.hypot(lx, ly) === 0) return anchor;
+    // Corners go round either way: the outward normal of each side is the one pointing away from the centre.
+    let best: { score: number; middle: Vec } | undefined;
+    corners.forEach((a, i) => {
+      const b = corners[(i + 1) % corners.length]!;
+      const middle: Vec = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      let [nx, ny] = [b[1] - a[1], a[0] - b[0]];
+      if (nx * middle[0] + ny * middle[1] < 0) [nx, ny] = [-nx, -ny];
+      const score = (nx * lx + ny * ly) / (Math.hypot(nx, ny) * Math.hypot(lx, ly));
+      if (!best || score > best.score) best = { score, middle };
+    });
+    const u = this.unit;
+    const [mx, my] = best!.middle;
+    return { body: { id: spec.id, local: [round(mx, 0.001 * u), round(my, 0.001 * u)] } };
+  }
+
+  /** Where an end is in the world. */
+  private endPoint(anchor: AnchorSpec): Vec | undefined {
+    return 'fixed' in anchor ? anchor.fixed : this.bodyPoint(anchor.body.id, anchor.body.local ?? [0, 0]);
+  }
+
+  /** How an end is spoken of: the body it is on, or the point in space it is pinned to. */
+  private bodyName(anchor: AnchorSpec): string {
+    if ('fixed' in anchor) return 'a point in space';
+    const spec = this.scene.bodies.find((b) => b.id === anchor.body.id);
+    return spec && 'halfplane' in spec.shape && spec.id === 'ground' ? 'the ground' : anchor.body.id;
   }
 
   remove(index: number): void {
@@ -843,8 +916,29 @@ export class Editor {
     return still ? [x + reach, y + reach] : [x + vx * scales.velocity, y + vy * scales.velocity];
   }
 
-  overlay(painter: Painter, pointer: Vec | undefined): void {
-    if (this.pending && pointer) painter.dashed([this.pending.at, pointer], '--force-other');
+  overlay(painter: Painter, pointer: Vec | undefined, target?: { body?: number; at: Vec }): void {
+    // Joining things: where the first end is, where the other would land, and what it would land on.
+    if (this.joining && target) {
+      const spec = target.body === undefined ? undefined : this.scene.bodies[target.body];
+      const name = spec && (spec.id === 'ground' && 'halfplane' in spec.shape ? 'the ground' : spec.id);
+      // The first end, and a pin, need a body; only a second end can be pinned to a point in space.
+      const onto = name ? (this.tool === 'pin' ? `pins ${name} here` : `joins ${name}`) : this.pending ? 'pins to this point' : undefined;
+      // Where the ends will really go: on a moving box, the middle of the side facing the other end.
+      let [from, to] = [this.pending?.at, target.at];
+      if (this.pending && this.tool !== 'pin') {
+        const start = this.pending.at;
+        from = this.endPoint(this.facing(this.pending.anchor, target.at)) ?? start;
+        if (spec) to = this.endPoint(this.facing(this.anchorAt({ at: target.at, body: target.body }), start)) ?? target.at;
+      }
+      if (this.pending && from) {
+        painter.dashed([from, to], KNOB_COLOR);
+        painter.knob(from[0], from[1], KNOB_COLOR, true);
+      }
+      if (onto) {
+        painter.knob(to[0], to[1], KNOB_COLOR, spec !== undefined);
+        painter.label(onto, to[0], to[1] + 0.3 * this.unit, KNOB_COLOR);
+      }
+    }
     const guide = KNOB_COLOR;
     const chosen = this.pickedLink?.kind === 'constraint' ? this.scene.constraints?.[this.pickedLink.index] : this.pickedLink ? this.scene.forces?.[this.pickedLink.index] : undefined;
     if (chosen && !('gravitation' in chosen)) {
@@ -933,27 +1027,61 @@ export class Editor {
       this.changed();
     };
     const lengthSlider = (label: string, value: number, apply: (v: number) => void) =>
-      slider({ label, min: 0.1 * u, max: Math.max(2 * value, 2 * u), step: 0.05 * u, hardMin: 1e-3, hardMax: 1e12, value, format: length, onInput: (v) => set('length', () => apply(v)) }).root;
+      slider({ label, min: 0.1 * u, max: Math.max(2 * value, 2 * u), step: 0.05 * u, hardMin: 1e-3, hardMax: 1e12, value, format: length, onInput: (v) => set('length', () => apply(v)) });
     let name = 'Link';
     const rows: HTMLElement[] = [];
     const note = (text: string) => rows.push(el('p', { class: 'empty', text }));
     if ('rope' in spec) {
       name = 'Rope';
       const from = built && 'rope' in built ? built.rope.length : undefined;
-      rows.push(lengthSlider('Length', spec.rope.length ?? from ?? span(), (v) => (spec.rope.length = v)));
+      rows.push(lengthSlider('Length', spec.rope.length ?? from ?? span(), (v) => (spec.rope.length = v)).root);
       note('Longer than the path between its ends and it starts slack. Shorter, and it pulls the ends together at the start.');
     } else if ('rod' in spec) {
       name = 'Rod';
       const from = built && 'rod' in built ? built.rod.length : undefined;
-      rows.push(lengthSlider('Length', spec.rod.length ?? from ?? span(), (v) => (spec.rod.length = v)));
+      rows.push(lengthSlider('Length', spec.rod.length ?? from ?? span(), (v) => (spec.rod.length = v)).root);
       note('A rod keeps its ends exactly this far apart. Change it and they are moved to fit when the run starts.');
     } else if ('spring' in spec) {
       name = 'Spring';
-      const from = built && 'spring' in built ? built.spring.rest_length : undefined;
-      rows.push(
-        slider({ label: 'Stiffness k', min: 1, max: 500, step: 1, hardMin: 0.001, hardMax: 1e12, value: spec.spring.stiffness, format: (v) => `${formatNumber(v)} N/m`, onInput: (v) => set('stiffness', () => (spec.spring.stiffness = v)) }).root,
-        lengthSlider('Natural length', spec.spring.rest_length ?? from ?? span(), (v) => (spec.spring.rest_length = v)),
+      const spring = spec.spring;
+      // What the engine measured when the scene was built; stale once the spring is relaxed here.
+      let from = built && 'spring' in built ? built.spring.rest_length : undefined;
+      // Whether it starts relaxed, stretched or squeezed, and how hard it pulls or pushes: a spring set to a natural
+      // length that no longer fits the space between its ends pushes or pulls from the very start.
+      const state = el('p', { class: 'empty spring-state' });
+      const relax = el('button', { type: 'button', class: 'spring-relax', text: 'Relax at this length' });
+      const show = () => {
+        const now = span();
+        const natural = spring.rest_length ?? from ?? now;
+        const change = now - natural;
+        const force = formatNumber(Math.abs(spring.stiffness * change));
+        const relaxed = Math.abs(change) < 0.005 * u;
+        state.textContent = relaxed
+          ? `Relaxed: ${length(now)} long, its natural length. It pushes or pulls only once the ends move.`
+          : change > 0
+            ? `Stretched by ${length(change)} at the start: it pulls its ends together with ${force} N.`
+            : `Squeezed by ${length(-change)} at the start: it pushes its ends apart with ${force} N.`;
+        relax.hidden = relaxed;
+      };
+      const natural = lengthSlider('Natural length', spring.rest_length ?? from ?? span(), (v) => {
+        spring.rest_length = v;
+        show();
+      });
+      relax.addEventListener('click', () =>
+        set('relax', () => {
+          // Left out, the natural length is whatever the ends are apart when the run starts.
+          delete spring.rest_length;
+          from = undefined;
+          natural.set(span());
+          show();
+        }),
       );
+      const stiffness = slider({ label: 'Stiffness k', min: 1, max: 500, step: 1, hardMin: 0.001, hardMax: 1e12, value: spring.stiffness, format: (v) => `${formatNumber(v)} N/m`, onInput: (v) => set('stiffness', () => {
+        spring.stiffness = v;
+        show();
+      }) });
+      rows.push(stiffness.root, natural.root, state, relax);
+      show();
       note('The spring pulls when it is longer than its natural length and pushes when it is shorter.');
     } else if ('pin' in spec) {
       name = 'Pin';
@@ -1006,7 +1134,8 @@ export class Editor {
     const isStatic = spec.kind === 'static';
     const u = this.unit;
     const length = (v: number) => (Math.abs(v) >= 1000 ? `${formatNumber(v / 1000)} km` : `${formatNumber(v)} m`);
-    if (!('halfplane' in spec.shape)) {
+    // The ground and tracks are fixed by nature: a track is a surface, not something that can be picked up.
+    if (!('halfplane' in spec.shape) && !('track' in spec.shape)) {
       const kinds = el('div', { class: 'kind-switch' });
       for (const [label, fixed] of [['Moves', false], ['Fixed', true]] as const) {
         const button = el('button', { type: 'button', text: label, 'aria-pressed': String(isStatic === fixed) });
@@ -1029,6 +1158,23 @@ export class Editor {
       for (const [label, rolls] of [['Rolls', true], ['Slides only', false]] as const) {
         const button = el('button', { type: 'button', text: label, 'aria-pressed': String((spec.kind === 'rigid') === rolls) });
         button.addEventListener('click', () => set('rolling', (b) => (b.kind = rolls ? 'rigid' : 'particle')));
+        motion.append(button);
+      }
+      rows.push(motion);
+    }
+    // A box or any other shape can tip over and tumble, or be the textbook's block, which only ever slides: hit or
+    // pulled off its centre, a box that can turn will.
+    if (!isStatic && ('rectangle' in spec.shape || 'polygon' in spec.shape)) {
+      const motion = el('div', { class: 'kind-switch', title: 'A block that stays upright never turns: it slides, as in the textbook, however it is hit or pulled' });
+      for (const [label, turns] of [['Can tip over', true], ['Stays upright', false]] as const) {
+        const button = el('button', { type: 'button', text: label, 'aria-pressed': String((spec.kind === 'rigid') === turns) });
+        button.addEventListener('click', () =>
+          set('upright', (b) => {
+            b.kind = turns ? 'rigid' : 'particle';
+            // Upright means upright: it keeps the tilt it has, and stops spinning.
+            if (!turns) delete b.angular_velocity;
+          }),
+        );
         motion.append(button);
       }
       rows.push(motion);
@@ -1069,6 +1215,7 @@ export class Editor {
         slider({ label: 'Tilt', min: -90, max: 90, step: 1, hardMin: -180, hardMax: 180, value: Number((((spec.angle ?? 0) * 180) / Math.PI).toFixed(3)), format: (v) => `${formatNumber(v)}°`, onInput: (v) => set('tilt', (b) => (b.angle = (v * Math.PI) / 180)) }).root,
       );
     }
+    if ('track' in spec.shape) rows.push(...this.trackProperties(spec, set));
     rows.push(
       slider({ label: 'Friction μ', min: 0, max: 1, step: 0.05, hardMax: 10, value: spec.friction?.[0] ?? 0, format: (v) => formatNumber(v, 2), onInput: (v) => set('friction', (b) => (b.friction = [v, round(0.8 * v, 0.01)])) }).root,
     );
@@ -1085,6 +1232,99 @@ export class Editor {
     const head = el('div', { class: 'properties-head' }, [el('b', { text: spec.id })]);
     head.append(iconButton('erase', 'Delete (Del)', () => this.remove(index)));
     return el('div', { class: 'properties' }, [head, ...rows]);
+  }
+
+  /**
+   * Moves every rope, rod, spring and pin end stuck to a ramp along with its surface as the ramp changes shape, so an
+   * end on its wall stays on its wall.
+   */
+  private carryAnchors(id: string, before: Placement, after: Placement): void {
+    const carry = (local: Vec | undefined): Vec | undefined => {
+      if (!local) return local;
+      const [x, y] = followValley(before, after, local);
+      return [round(x, 1e-6 * this.unit), round(y, 1e-6 * this.unit)];
+    };
+    const anchor = (a: AnchorSpec) => {
+      if ('body' in a && a.body.id === id && a.body.local) a.body.local = carry(a.body.local);
+    };
+    for (const force of this.scene.forces ?? []) {
+      if ('spring' in force) [force.spring.a, force.spring.b].forEach(anchor);
+    }
+    for (const constraint of this.scene.constraints ?? []) {
+      if ('pin' in constraint) [constraint.pin.a, constraint.pin.b].forEach(anchor);
+      if ('rod' in constraint) [constraint.rod.a, constraint.rod.b].forEach(anchor);
+      if ('rope' in constraint) {
+        for (const node of constraint.rope.nodes) {
+          if ('attach' in node && node.attach.body === id && node.attach.local) node.attach.local = carry(node.attach.local);
+        }
+      }
+    }
+  }
+
+  /** A curved ramp's curve, wall and floor, changed about the bottom of the valley so it stays where it was put. */
+  private trackProperties(spec: BodySpec, set: (key: string, apply: (b: BodySpec) => void) => void): HTMLElement[] {
+    if (!('track' in spec.shape)) return [];
+    const u = this.unit;
+    const length = (v: number) => (Math.abs(v) >= 1000 ? `${formatNumber(v / 1000)} km` : `${formatNumber(v)} m`);
+    const thickness = spec.shape.track.thickness ?? 0.1;
+    const rows: HTMLElement[] = [];
+    const valley = asValley(spec);
+    if (valley) {
+      const reshape = (key: string, change: Partial<Valley>) =>
+        set(key, (b) => {
+          const now = asValley(b);
+          if (!now || !('track' in b.shape)) return;
+          const before = { pieces: b.shape.track.pieces, thickness: b.shape.track.thickness ?? 0.1 };
+          const { pieces, position, angle } = valleyBody({ ...now, ...change });
+          b.shape = { track: { ...b.shape.track, pieces } };
+          b.position = position;
+          b.angle = angle;
+          this.carryAnchors(b.id, before, { pieces, thickness: before.thickness });
+        });
+      const degrees = (radians: number) => Number(((radians * 180) / Math.PI).toFixed(3));
+      for (const which of ['left', 'right'] as const) {
+        const row = el('div', { class: 'kind-switch', title: `How the ${which} side rises from the floor` });
+        for (const [label, style] of [[`${which === 'left' ? 'Left' : 'Right'}: curved`, 'curve'], ['Vertical', 'wall']] as const) {
+          const button = el('button', { type: 'button', text: label, 'aria-pressed': String(valley[which] === style) });
+          button.addEventListener('click', () => reshape(which, { [which]: style }));
+          row.append(button);
+        }
+        rows.push(row);
+      }
+      if (valley.left === 'curve' || valley.right === 'curve') {
+        rows.push(
+          slider({ label: 'Curve radius', min: 0.3 * u, max: 8 * u, step: 0.05 * u, hardMin: 1e-3, hardMax: 1e12, value: valley.radius, format: length, onInput: (v) => reshape('radius', { radius: v }) }).root,
+          slider({ label: 'Curve turns', min: 10, max: 180, step: 1, hardMin: 1, hardMax: 360, value: degrees(valley.side), format: (v) => `${formatNumber(v)}°`, onInput: (v) => reshape('side', { side: (v * Math.PI) / 180 }) }).root,
+        );
+      } else {
+        // Two vertical walls: only their height matters.
+        rows.push(slider({ label: 'Wall height', min: 0.2 * u, max: 8 * u, step: 0.05 * u, hardMin: 1e-3, hardMax: 1e12, value: valleyHeight(valley), format: length, onInput: (v) => reshape('height', { radius: v, side: Math.PI / 2 }) }).root);
+      }
+      rows.push(slider({ label: 'Flat floor', min: 0, max: 10 * u, step: 0.05 * u, hardMin: 0, hardMax: 1e12, value: valley.flat, format: length, onInput: (v) => reshape('flat', { flat: v }) }).root);
+    } else {
+      const n = spec.shape.track.pieces.length;
+      rows.push(el('p', { class: 'empty', text: `A track of ${n} piece${n === 1 ? '' : 's'}, written in the scene file.` }));
+    }
+    rows.push(
+      slider({
+        label: 'Thickness',
+        min: 0.02 * u,
+        max: 0.6 * u,
+        step: 0.01 * u,
+        hardMin: 1e-3,
+        hardMax: 1e12,
+        value: thickness,
+        format: length,
+        onInput: (v) =>
+          set('thickness', (b) => {
+            if (!('track' in b.shape)) return;
+            const before = { pieces: b.shape.track.pieces, thickness: b.shape.track.thickness ?? 0.1 };
+            b.shape = { track: { ...b.shape.track, thickness: v } };
+            if (asValley(b)) this.carryAnchors(b.id, before, { pieces: before.pieces, thickness: v });
+          }),
+      }).root,
+    );
+    return rows;
   }
 }
 

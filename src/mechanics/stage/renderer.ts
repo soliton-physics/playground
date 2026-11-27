@@ -1,6 +1,7 @@
 import { clamp, cssVar, formatLength, formatNumber, formatPrefixed, paint, stageFont, stageScale } from '../../ui';
 import { STATE_STRIDE, type BodyInfo, type DistributionInfo, type FieldInfo, type ForceInfo, type GrabInfo, type SketchInfo, type SurfaceSpec } from '../types';
 import { Camera, type Box } from './camera';
+import { centreLine, placed } from '../track';
 
 export interface Frame {
   bodies: BodyInfo[];
@@ -36,6 +37,11 @@ export interface Frame {
   traceSeconds?: number;
   /** Extra drawing in world space after the bodies: handles, a rope being placed. */
   overlay?: (painter: Painter) => void;
+  /**
+   * The moment the panels last showed: the numbers written on the stage's arrows come from here, so they always match
+   * the panel beside them. The arrows themselves follow every frame.
+   */
+  readings?: { state: Float64Array; forces: ForceInfo[] };
 }
 
 const FORCE_TOKENS: Record<string, string> = {
@@ -203,9 +209,12 @@ export class Renderer implements Painter {
     if (frame.focus >= 0 && bodies[frame.focus]) {
       const i = frame.focus * STATE_STRIDE;
       const [x, y, vx, vy, ax, ay] = [state[i]!, state[i + 1]!, state[i + 3]!, state[i + 4]!, state[i + 6]!, state[i + 7]!];
-      if (frame.showForces) this.drawForces(frame.forces);
-      if (frame.showAcceleration) this.arrow(x, y, ax, ay, scales.acceleration, MOTION_COLOR, `a ${formatNumber(Math.hypot(ax, ay))} m/s²`, 'acceleration');
-      if (frame.showVelocity) this.arrow(x, y, vx, vy, scales.velocity, MOTION_COLOR, `v ${formatNumber(Math.hypot(vx, vy))} m/s`, 'velocity');
+      // The labels read the panel's moment when there is one, so the stage and the panel never disagree.
+      const read = frame.readings?.state ?? state;
+      const [rvx, rvy, rax, ray] = [read[i + 3]!, read[i + 4]!, read[i + 6]!, read[i + 7]!];
+      if (frame.showForces) this.drawForces(frame.forces, frame.readings?.forces);
+      if (frame.showAcceleration) this.arrow(x, y, ax, ay, scales.acceleration, MOTION_COLOR, `a ${formatNumber(Math.hypot(rax, ray))} m/s²`, 'acceleration');
+      if (frame.showVelocity) this.arrow(x, y, vx, vy, scales.velocity, MOTION_COLOR, `v ${formatNumber(Math.hypot(rvx, rvy))} m/s`, 'velocity');
     }
 
     if (frame.grab) {
@@ -323,7 +332,9 @@ export class Renderer implements Painter {
     const [tx, ty] = this.camera.toScreen(x + vx * scale, y + vy * scale);
     const trueLength = Math.hypot(tx - sx, ty - sy);
     if (trueLength < 1e-6) return;
-    const length = legible(trueLength, 30 * k);
+    // Never longer than a third of the stage: a fast body's velocity would otherwise run off the screen. The label
+    // still gives the true value.
+    const length = Math.min(legible(trueLength, 30 * k), 0.3 * Math.min(this.width, this.height));
     if (length < 4) return;
     const ux = (tx - sx) / trueLength;
     const uy = (ty - sy) / trueLength;
@@ -547,6 +558,36 @@ export class Renderer implements Painter {
         ctx.stroke();
         ctx.restore();
       }
+      return;
+    }
+
+    if (shape.kind === 'track') {
+      // A band along the centre line: the edge colour the full thickness, the fill a little narrower inside it.
+      const points = placed(centreLine(shape.segments, 3 / this.camera.scale), x, y, angle);
+      const width = shape.thickness * this.camera.scale;
+      const edgeWidth = ctx.lineWidth;
+      const fill = ctx.fillStyle;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (selected) {
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = cssVar('--text');
+        ctx.lineWidth = width + 14;
+        this.path(points);
+        ctx.stroke();
+        ctx.restore();
+      }
+      this.path(points);
+      ctx.lineWidth = Math.max(width, 2 * edgeWidth + 1);
+      ctx.stroke();
+      if (width > 2 * edgeWidth + 1) {
+        ctx.strokeStyle = fill;
+        ctx.lineWidth = width - 2 * edgeWidth;
+        ctx.stroke();
+      }
+      ctx.restore();
       return;
     }
 
@@ -1044,15 +1085,24 @@ export class Renderer implements Painter {
     ctx.restore();
   }
 
-  private drawForces(forces: ForceInfo[]): void {
+  private drawForces(forces: ForceInfo[], readings?: ForceInfo[]): void {
     const steady = forces.filter((f) => !f.impulsive);
     const largest = Math.max(1e-9, ...steady.map((f) => Math.hypot(f.force[0], f.force[1])));
     const visible = this.camera.bounds;
     const scale = (0.16 * (visible.top - visible.bottom)) / largest;
+    // The value written on each arrow: the same force, by name, at the moment the panel shows.
+    const seen = new Map<string, number>();
+    const reading = (f: ForceInfo) => {
+      const k = seen.get(f.label) ?? 0;
+      seen.set(f.label, k + 1);
+      const match = readings?.filter((r) => !r.impulsive && r.label === f.label)[k];
+      return match ? Math.hypot(match.force[0], match.force[1]) : Math.hypot(f.force[0], f.force[1]);
+    };
     for (const f of steady) {
       const magnitude = Math.hypot(f.force[0], f.force[1]);
+      const shown = reading(f);
       if (magnitude < 1e-6 * largest) continue;
-      this.arrow(f.point[0], f.point[1], f.force[0], f.force[1], scale, forceColor(f.label), `${f.label} ${magnitude < 0.1 ? formatPrefixed(magnitude, 'N') : `${formatNumber(magnitude)} N`}`);
+      this.arrow(f.point[0], f.point[1], f.force[0], f.force[1], scale, forceColor(f.label), `${f.label} ${shown < 0.1 ? formatPrefixed(shown, 'N') : `${formatNumber(shown)} N`}`);
     }
   }
 

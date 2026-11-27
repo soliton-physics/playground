@@ -21,7 +21,14 @@ export interface ScenarioSpec {
 export type ShapeInfo =
   | { kind: 'circle'; radius: number }
   | { kind: 'polygon'; vertices: [number, number][] }
-  | { kind: 'halfplane'; normal: [number, number]; offset: number };
+  | { kind: 'halfplane'; normal: [number, number]; offset: number }
+  /** A smooth fixed track: its centre line in the body's frame, the surface half the thickness either side. */
+  | { kind: 'track'; thickness: number; segments: TrackSegmentInfo[] };
+
+/** One piece of a track's centre line; an arc runs from polar angle `start` about `center` through `sweep` radians. */
+export type TrackSegmentInfo =
+  | { kind: 'line'; from: [number, number]; to: [number, number] }
+  | { kind: 'arc'; center: [number, number]; radius: number; start: number; sweep: number };
 
 export interface BodyInfo {
   label: string;
@@ -124,7 +131,15 @@ export const STATE_STRIDE = 8;
 
 export type Vec = [number, number];
 
-export type ShapeSpec = { circle: number } | { rectangle: Vec } | { polygon: Vec[] } | { halfplane: { normal: Vec; offset: number } };
+export type ShapeSpec =
+  | { circle: number }
+  | { rectangle: Vec }
+  | { polygon: Vec[] }
+  | { halfplane: { normal: Vec; offset: number } }
+  | { track: { pieces: TrackPiece[]; thickness?: number } };
+
+/** Straight ahead for a length, round a circular arc, or a sharp turn on the spot: a positive angle (radians) turns left. */
+export type TrackPiece = { line: number } | { arc: { radius: number; angle: number } } | { corner: number };
 
 export interface BodySpec {
   id: string;

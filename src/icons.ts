@@ -25,6 +25,7 @@ const paths = {
   box: '<rect x="4.5" y="6.5" width="15" height="11" rx="1"/>',
   polygon: '<path d="M12 3.5 20.5 9.7 17.3 19.5H6.7L3.5 9.7z"/>',
   incline: '<path d="M3.5 19.5h17v-13z"/>',
+  valley: '<path d="M3.5 4.5v5.5a8.5 8.5 0 0 0 17 0V4.5"/>',
   wall: '<path d="M9.5 3.5h5v17h-5z"/><path d="M9.5 9h5M9.5 15h5"/>',
   platform: '<path d="M3 15h18v4H3z"/><path d="M5 19l-2 2M10 19l-2 2M15 19l-2 2M20 19l-2 2"/>',
   rope: '<path d="M5 5c6 0 2 14 14 14"/><circle cx="5" cy="5" r="1.6" fill="currentColor"/><circle cx="19" cy="19" r="1.6" fill="currentColor"/>',

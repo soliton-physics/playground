@@ -12,7 +12,9 @@ import { Inspector } from './inspector';
 import { Session, type Source } from './session';
 import { downloadScene, loadSandbox, saveSandbox, sceneFromUrl, shareLink } from './share';
 import { Renderer, aggregateForces, fitArrows, scales, type Frame, type Painter } from './stage/renderer';
-import { STATE_STRIDE, type FieldInfo, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
+import { STATE_STRIDE, type BodySpec, type FieldInfo, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
+import { nearestBody } from './pick';
+import { asValley, centreLine, distanceTo, placed } from './track';
 
 const GRAVITIES: [string, number][] = [
   ['Earth  9.8 m/s²', 9.8],
@@ -120,7 +122,9 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       const points: Vec[] =
         shape.kind === 'circle'
           ? [[x - shape.radius, y], [x + shape.radius, y]]
-          : shape.vertices.map(([vx, vy]) => [x + vx * Math.cos(angle) - vy * Math.sin(angle), y + vx * Math.sin(angle) + vy * Math.cos(angle)]);
+          : shape.kind === 'track'
+            ? placed(centreLine(shape.segments, 0.1 * view.half_height), x, y, angle)
+            : shape.vertices.map(([vx, vy]) => [x + vx * Math.cos(angle) - vy * Math.sin(angle), y + vx * Math.sin(angle) + vy * Math.cos(angle)]);
       for (const [px, py] of points) {
         if (Math.abs(py - view.center[1]) > view.half_height + 0.5) continue;
         reach = Math.max(reach, Math.min(Math.abs(px - view.center[0]), 4 * view.half_height));
@@ -431,6 +435,12 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     fieldChip.replaceChildren(el('span', { text: 'At the pointer' }), el('b', { text: parts.join(' · ') }));
   }
 
+  /** A ramp's panel shows different controls for curved and vertical sides, so changing a side redraws it. */
+  const rampSides = (body: BodySpec) => {
+    const valley = asValley(body);
+    return valley ? `${valley.left}-${valley.right}` : '';
+  };
+
   function refreshProperties(): void {
     // Only with the select tool: while something is being placed or drawn, the panel would be in the way of the stage.
     const active = sandbox && !session.running && editor.tool === 'select';
@@ -442,7 +452,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       : active && editor.selection.length > 1
         ? `group|${editor.selection.join(',')}`
         : body
-          ? `${index}|${body.id}|${body.kind}|${Object.keys(body.shape)[0]}`
+          ? `${index}|${body.id}|${body.kind}|${Object.keys(body.shape)[0]}|${rampSides(body)}`
           : '';
     if (key === propertiesKey) return;
     propertiesKey = key;
@@ -494,7 +504,10 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       const inside =
         shape.kind === 'circle'
           ? Math.hypot(lx, ly) <= shape.radius
-          : shape.vertices.every(([x, y], k) => {
+          : shape.kind === 'track'
+            ? // A thin track is still easy to take hold of: a few pixels either side count.
+              distanceTo(shape.segments, [lx, ly]) <= Math.max(shape.thickness / 2, 6 / renderer.camera.scale)
+            : shape.vertices.every(([x, y], k) => {
               const [nx, ny] = shape.vertices[(k + 1) % shape.vertices.length]!;
               return (nx - x) * (ly - y) - (ny - y) * (lx - x) >= 0;
             });
@@ -505,6 +518,16 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   /** What a press lands on. In the sandbox, paused, fixed bodies can be picked too, so they can be moved and removed. */
   const bodyAt = (at: Vec) => movingAt(at) ?? (sandbox && !session.running ? fixedAt(at) : undefined);
+
+  /**
+   * Where a rope, rod, spring or pin end lands. A click on a body joins it there; a click that misses one by a few
+   * pixels still joins it, at the nearest point of its edge; only a click well clear of everything is a point in space.
+   */
+  function linkTarget(at: Vec): { body?: number; at: Vec } {
+    const direct = bodyAt(at);
+    if (direct !== undefined) return { body: direct, at };
+    return nearestBody(session.bodies, session.world.state(), at, 18 / renderer.camera.scale) ?? { at };
+  }
 
   /** The scenario's knobs, shown before the run starts. */
   function handles(): Handle[] {
@@ -544,7 +567,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     const at = worldAt(e);
     if (sandbox && editor.tool !== 'select') {
       editable();
-      editor.press({ at, body: bodyAt(at), reach: reach() });
+      const target = editor.joining ? linkTarget(at) : { at, body: bodyAt(at) };
+      editor.press({ ...target, reach: reach() });
       // An incline or a wall is dragged out; the other tools are done with the press.
       if (editor.stretching) drag = { kind: 'tool' };
       return;
@@ -802,7 +826,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       painter.knob(at[0], at[1], handle.color, drag?.kind === 'handle' && drag.handle === handle);
       if (drag?.kind === 'handle' && drag.handle === handle) painter.label(handle.label(p), at[0], at[1] + 22 / painter.camera.scale, handle.color);
     }
-    if (sandbox && !session.running) editor.overlay(painter, pointer);
+    if (sandbox && !session.running) editor.overlay(painter, pointer, pointer && editor.joining ? linkTarget(pointer) : undefined);
     if (drag?.kind === 'marquee') {
       const [a, b] = [drag.from, drag.to];
       painter.dashed([a, [b[0], a[1]], b, [a[0], b[1]], a], '--force-other');
@@ -811,6 +835,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   let last = performance.now();
   let lastPanels = 0;
+  /** What the panels show, kept so the numbers on the stage's arrows match them. */
+  let readings: Frame['readings'];
   /** Field lines of the charges as they are now, out to a little beyond the edge of the stage. */
   function fieldLines(magnetic = false): Float64Array {
     const { left, right, top, bottom } = renderer.camera.bounds;
@@ -830,6 +856,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     if (session.advance(elapsed)) showFinish();
     const state = session.world.state();
     const forces = aggregateForces(session.world.forces(session.focus) as ForceInfo[]);
+    const panelsDue = now - lastPanels > 120;
+    if (panelsDue) readings = { state, forces };
     const frame: Frame = {
       bodies: session.bodies,
       state,
@@ -852,10 +880,12 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       grab: session.grabbed(),
       selected: sandbox && !session.running ? editor.selection : undefined,
       overlay,
+      // Paused, everything holds still and the stage can read the present; running, it reads the panel's moment.
+      readings: session.running ? readings : undefined,
     };
     renderer.draw(frame, session.running && drag?.kind !== 'grab');
     dock.update(session);
-    if (now - lastPanels > 120) {
+    if (panelsDue) {
       lastPanels = now;
       inspector.update(session, forces, state);
       answers.update(session, forces, state);
@@ -868,7 +898,13 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   // ---------------------------------------------------------------- first world
 
-  const shared = query.has('sandbox') ? ((await sceneFromUrl()) ?? loadSandbox() ?? JSON.stringify(emptySandbox() satisfies SceneFile)) : undefined;
+  const linked = query.has('sandbox') ? await sceneFromUrl() : undefined;
+  // A link that carries a scene the page cannot read, most often one cut short or broken when copied, must say so:
+  // quietly showing the saved sandbox instead looks as if the link's scene behaved strangely.
+  if (query.has('sandbox') && !linked && new URLSearchParams(location.hash.slice(1)).has('scene')) {
+    toast('The scene in this link could not be read: it may have been cut short when copied. Showing your saved sandbox instead.', 'error');
+  }
+  const shared = query.has('sandbox') ? (linked ?? loadSandbox() ?? JSON.stringify(emptySandbox() satisfies SceneFile)) : undefined;
   if (shared) openSandbox(shared);
   if (!shared || !(session as Session | undefined)) {
     const initial = catalogue.find((s) => s.id === query.get('scenario')) ?? catalogue[0]!;
