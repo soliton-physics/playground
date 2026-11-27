@@ -1,5 +1,6 @@
 import { MechanicsWorld } from '../engine';
-import type { BodyInfo, DistributionInfo, EventInfo, ExactInfo, FieldInfo, FinishInfo, GrabInfo, ScenarioSpec, SceneFile, SurfaceSpec, View } from './types';
+import { findOscillators, type Oscillator } from './stage/reference';
+import type { BodyInfo, DistributionInfo, EventInfo, ExactInfo, FieldInfo, FinishInfo, GrabInfo, ScenarioSpec, SceneFile, SurfaceSpec, Vec, View } from './types';
 
 export type Source =
   | { kind: 'scenario'; spec: ScenarioSpec; params: Record<string, number> }
@@ -41,6 +42,9 @@ export class Session {
   surface?: SurfaceSpec;
   /** There is an electric or magnetic field of some kind to show and to read. */
   fieldful = false;
+  /** Bodies on a single spring to something fixed, which can be shown beside a reference circle. */
+  oscillators: Oscillator[] = [];
+  gravity: Vec = [0, -9.8];
   /** Bodies whose paths the scene asks to be traced, by index, in order. */
   traces: number[] = [];
   /** Seconds of each traced path to keep; infinite for the whole path. */
@@ -88,6 +92,9 @@ export class Session {
     this.traces = (scene.trails ?? []).map((id) => ids.indexOf(id)).filter((i) => i >= 0);
     this.traceSeconds = scene.trail_length ?? Infinity;
     this.fieldful = this.coulomb || this.magnets || (world.fields() as FieldInfo[]).length > 0;
+    // The engine's account of the scene now has every spring's natural length filled in.
+    this.oscillators = findOscillators(JSON.parse(world.scene_json_now()) as SceneFile, this.bodies, world.state());
+    this.gravity = scene.world.gravity;
     this.events = world.events() as EventInfo[];
     this.finishes = [];
     this.steps = 0;

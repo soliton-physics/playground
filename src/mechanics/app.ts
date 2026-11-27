@@ -11,6 +11,7 @@ import { HANDLES, type Handle } from './handles';
 import { Inspector } from './inspector';
 import { Session, type Source } from './session';
 import { downloadScene, loadSandbox, saveSandbox, sceneFromUrl, shareLink } from './share';
+import { ReferenceCircle } from './stage/reference';
 import { Renderer, aggregateForces, fitArrows, scales, type Frame, type Painter } from './stage/renderer';
 import { STATE_STRIDE, type BodySpec, type FieldInfo, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
 import { nearestBody } from './pick';
@@ -51,7 +52,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   main.append(canvas);
 
   const renderer = new Renderer(canvas);
-  const view: ViewOptions = { forces: true, velocity: true, acceleration: false, trail: true, field: true };
+  const view: ViewOptions = { forces: true, velocity: true, acceleration: false, trail: true, field: true, circle: true };
+  const reference = new ReferenceCircle();
   /** The arrows as they were before a scene that hides them. */
   let arrowsBefore: { forces: boolean; velocity: boolean } | null = null;
   let session!: Session;
@@ -154,13 +156,16 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     session = next;
     banner.hidden = true;
     renderer.clearTrail();
-    // A scene that traces paths is for watching: its arrows start hidden, and come back when you leave it.
+    // A scene that traces paths is for watching: its arrows start hidden. So does one with a reference circle, whose
+    // force arrows would run across the circle: its velocity arrow stays. Both come back when you leave the scene.
     if (!keepCamera) {
-      if (session.traces.length && !arrowsBefore) {
-        arrowsBefore = { forces: view.forces, velocity: view.velocity };
+      const tracing = session.traces.length > 0;
+      const circling = !tracing && view.circle && session.oscillators.length > 0;
+      if (tracing || circling) {
+        arrowsBefore ??= { forces: view.forces, velocity: view.velocity };
         dock.show('forces', false);
-        dock.show('velocity', false);
-      } else if (!session.traces.length && arrowsBefore) {
+        dock.show('velocity', tracing ? false : arrowsBefore.velocity);
+      } else if (arrowsBefore) {
         dock.show('forces', arrowsBefore.forces);
         dock.show('velocity', arrowsBefore.velocity);
         arrowsBefore = null;
@@ -168,6 +173,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     }
     inspector.reset(session);
     answers.reset(session);
+    reference.reset();
     if (!keepCamera) {
       fit();
       const state = session.world.state();
@@ -818,6 +824,10 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   // ---------------------------------------------------------------- the frame loop
 
   function overlay(painter: Painter): void {
+    // The focused body's reference circle, or the first body on a spring when the focus is not on one.
+    const oscillator = session.oscillators.find((o) => o.body === session.focus) ?? session.oscillators[0];
+    const body = oscillator && session.bodies[oscillator.body];
+    if (view.circle && oscillator && body) reference.draw(painter, oscillator, body, session.world.state(), session.gravity, session.time);
     const p = current();
     for (const handle of handles()) {
       const at = handle.position(p);

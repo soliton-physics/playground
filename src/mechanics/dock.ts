@@ -9,6 +9,8 @@ export interface ViewOptions {
   acceleration: boolean;
   trail: boolean;
   field: boolean;
+  /** The reference circle beside a body on a spring. */
+  circle: boolean;
 }
 
 export interface DockHandlers {
@@ -35,6 +37,7 @@ export class Dock {
   private readonly speedChip: HTMLButtonElement;
   private readonly timeline: HTMLDivElement;
   private readonly fieldToggle: HTMLButtonElement;
+  private readonly circleToggle: HTMLButtonElement;
   private playing: boolean | undefined;
   private tickKey = '';
   private span = 1;
@@ -60,6 +63,9 @@ export class Dock {
     this.fieldToggle = toggleButton('field', 'Show the field', view.field, (on) => (view.field = on));
     this.fieldToggle.hidden = true;
     toggles.push(this.fieldToggle);
+    this.circleToggle = toggleButton('circle', 'Show the reference circle', view.circle, (on) => (view.circle = on));
+    this.circleToggle.hidden = true;
+    toggles.push(this.circleToggle);
     toggles.forEach((t) => t.classList.add('wide-only'));
 
     this.root = el('div', { class: 'dock glass overlay' }, [
@@ -117,6 +123,7 @@ export class Dock {
 
   update(session: Session): void {
     this.fieldToggle.hidden = !session.fieldful;
+    this.circleToggle.hidden = session.oscillators.length === 0;
     if (this.playing !== session.running) {
       this.playing = session.running;
       this.play.replaceChildren(icon(session.running ? 'pause' : 'play', 20));
