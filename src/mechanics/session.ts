@@ -1,5 +1,5 @@
 import { MechanicsWorld } from '../engine';
-import { findOscillators, type Oscillator } from './stage/reference';
+import { drawable, findOscillators, type Oscillator } from './stage/reference';
 import type { BodyInfo, DistributionInfo, EventInfo, ExactInfo, FieldInfo, FinishInfo, GrabInfo, ScenarioSpec, SceneFile, SurfaceSpec, Vec, View } from './types';
 
 export type Source =
@@ -93,8 +93,12 @@ export class Session {
     this.traceSeconds = scene.trail_length ?? Infinity;
     this.fieldful = this.coulomb || this.magnets || (world.fields() as FieldInfo[]).length > 0;
     // The engine's account of the scene now has every spring's natural length filled in.
-    this.oscillators = findOscillators(JSON.parse(world.scene_json_now()) as SceneFile, this.bodies, world.state());
     this.gravity = scene.world.gravity;
+    // Only those that start in simple harmonic motion: a pendulum sent whirling round its pivot is not one.
+    const state = world.state();
+    this.oscillators = findOscillators(JSON.parse(world.scene_json_now()) as SceneFile, this.bodies, state).filter((o) =>
+      drawable(o, this.bodies[o.body]!, state, this.gravity),
+    );
     this.events = world.events() as EventInfo[];
     this.finishes = [];
     this.steps = 0;

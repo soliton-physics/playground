@@ -248,3 +248,106 @@ export function followValley(before: Placement, after: Placement, local: Vec): V
   const { point, left } = pointOn(now[segment]!, along);
   return [point[0] + left[0] * offset, point[1] + left[1] * offset];
 }
+
+/** Points `step` apart along a path, measured along it, keeping both ends. */
+function resample(points: Vec[], step: number): Vec[] {
+  const out: Vec[] = [points[0]!];
+  let carried = 0;
+  for (let i = 1; i < points.length; i++) {
+    const [a, b] = [points[i - 1]!, points[i]!];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    let along = step - carried;
+    while (along <= length) {
+      out.push([a[0] + ((b[0] - a[0]) * along) / length, a[1] + ((b[1] - a[1]) * along) / length]);
+      along += step;
+    }
+    carried = length - (along - step);
+  }
+  const last = points[points.length - 1]!;
+  const end = out[out.length - 1]!;
+  if (Math.hypot(last[0] - end[0], last[1] - end[1]) > 0.25 * step) out.push(last);
+  else out[out.length - 1] = last;
+  return out;
+}
+
+/** A hand-drawn path with its wobble taken out: each point averaged with its neighbours, the ends kept. */
+function smooth(points: Vec[], passes: number): Vec[] {
+  let p = points;
+  for (let k = 0; k < passes; k++) {
+    p = p.map((q, i) => (i === 0 || i === p.length - 1 ? q : [(p[i - 1]![0] + 2 * q[0] + p[i + 1]![0]) / 4, (p[i - 1]![1] + 2 * q[1] + p[i + 1]![1]) / 4]));
+  }
+  return p;
+}
+
+/** A drawn turn sharper than this, over a short stretch, is a corner, not a curve. */
+const SHARP = (55 * Math.PI) / 180;
+
+const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const heading = (a: Vec, b: Vec) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+
+/**
+ * Where a drawn path turns sharply: the sharpest point of each stretch where the direction over a short span changes
+ * by more than `SHARP`. Found before any smoothing, which would round them off.
+ */
+function corners(points: Vec[]): number[] {
+  const span = 2;
+  const turn = (i: number) => Math.abs(wrap(heading(points[i]!, points[i + span]!) - heading(points[i - span]!, points[i]!)));
+  const found: number[] = [];
+  for (let i = span; i + span < points.length; i++) {
+    if (turn(i) <= SHARP) continue;
+    const previous = found[found.length - 1];
+    if (previous !== undefined && i - previous <= 2 * span) {
+      if (turn(i) > turn(previous)) found[found.length - 1] = i;
+    } else found.push(i);
+  }
+  return found;
+}
+
+/**
+ * A track through a path drawn by hand. Sharp turns become corners; each stretch between them is smoothed and laid as
+ * a chain of circular arcs, each leaving in the direction the last one arrived and passing exactly through the next
+ * point. `step` is the spacing of the points the track passes through.
+ */
+export function trackThrough(drawn: Vec[], step: number): { position: Vec; angle: number; pieces: TrackPiece[] } | undefined {
+  if (drawn.length < 2) return undefined;
+  const fine = resample(drawn, step / 2);
+  if (fine.length < 2) return undefined;
+  const cuts = [0, ...corners(fine), fine.length - 1];
+  const stretches = cuts
+    .slice(1)
+    .map((end, k) => fine.slice(cuts[k]!, end + 1))
+    .filter((part) => part.length >= 2)
+    .map((part) => resample(smooth(part, 3), step));
+  const pieces: TrackPiece[] = [];
+  const first = stretches[0]!;
+  const startHeading = heading(first[0]!, first[1]!);
+  let direction = startHeading;
+  for (const points of stretches) {
+    for (let i = 0; i + 1 < points.length; i++) {
+      const [a, b] = [points[i]!, points[i + 1]!];
+      const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (chord < 1e-9) continue;
+      let turn = wrap(heading(a, b) - direction);
+      // The first chord after a corner sets the new direction: the corner turns onto it.
+      if (i === 0 && pieces.length > 0 && Math.abs(turn) > 1e-4) {
+        if (Math.abs(turn) < Math.PI - 1e-3) {
+          pieces.push({ corner: turn });
+          direction += turn;
+        }
+        turn = 0;
+      }
+      if (Math.abs(turn) < 1e-4) {
+        const last = pieces[pieces.length - 1];
+        if (last && 'line' in last) last.line += chord;
+        else pieces.push({ line: chord });
+      } else {
+        // The circle that leaves along the heading and passes through the next point turns twice the chord's angle.
+        pieces.push({ arc: { radius: chord / (2 * Math.sin(Math.abs(turn))), angle: 2 * turn } });
+        direction += 2 * turn;
+      }
+    }
+  }
+  // A track cannot end on a corner.
+  while (pieces.length && 'corner' in pieces[pieces.length - 1]!) pieces.pop();
+  return pieces.length ? { position: first[0]!, angle: startHeading, pieces } : undefined;
+}

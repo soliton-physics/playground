@@ -5,20 +5,31 @@ import { cssVar, formatNumber, stageFont, stageScale } from '../../ui';
 import { STATE_STRIDE, type AnchorSpec, type BodyInfo, type SceneFile, type Vec } from '../types';
 import type { Painter } from './renderer';
 
-/** A body that oscillates on a single spring tied to something that does not move. */
-export interface Oscillator {
-  body: number;
-  /** N/m. */
-  stiffness: number;
-  /** The spring's natural length, m. */
-  rest: number;
-  /** The fixed end, in the world. */
-  anchor: Vec;
-  /** Where the spring holds the body, in the body's own frame. */
-  local: Vec;
-  /** Unit vector from the fixed end towards the body: the line it oscillates along. */
-  axis: Vec;
-}
+/**
+ * A body in simple harmonic motion: on a single spring tied to something that does not move, or, for small swings,
+ * hanging by a single rod or rope from a fixed point.
+ */
+export type Oscillator =
+  | {
+      kind: 'spring';
+      body: number;
+      /** N/m. */
+      stiffness: number;
+      /** The spring's natural length, m. */
+      rest: number;
+      /** The fixed end, in the world. */
+      anchor: Vec;
+      /** Where the spring holds the body, in the body's own frame. */
+      local: Vec;
+      /** Unit vector from the fixed end towards the body: the line it oscillates along. */
+      axis: Vec;
+    }
+  | {
+      kind: 'pendulum';
+      body: number;
+      /** The point it swings from, in the world. */
+      pivot: Vec;
+    };
 
 const add = (a: Vec, b: Vec): Vec => [a[0] + b[0], a[1] + b[1]];
 const scale = (a: Vec, k: number): Vec => [a[0] * k, a[1] * k];
@@ -62,9 +73,108 @@ export function findOscillators(scene: SceneFile, bodies: BodyInfo[], state: Flo
     const along: Vec = [held[0] - anchor[0], held[1] - anchor[1]];
     const length = Math.hypot(...along);
     if (length < 1e-9) return;
-    found.push({ body: i, stiffness: spring.stiffness, rest: spring.rest_length, anchor, local, axis: scale(along, 1 / length) });
+    found.push({ kind: 'spring', body: i, stiffness: spring.stiffness, rest: spring.rest_length, anchor, local, axis: scale(along, 1 / length) });
+  });
+  // Pendulums: a bob hanging by one rod or two-ended rope from a fixed point, with no spring and no charge, since an
+  // electric field changes how fast it swings.
+  const links = (scene.constraints ?? []).flatMap((c): [AnchorSpec, AnchorSpec][] => {
+    if ('rod' in c) return [[c.rod.a, c.rod.b]];
+    if ('rope' in c && c.rope.nodes.length === 2) {
+      const end = (n: (typeof c.rope.nodes)[number]): AnchorSpec | undefined =>
+        'peg' in n ? { fixed: n.peg } : 'attach' in n ? { body: { id: n.attach.body, local: n.attach.local } } : undefined;
+      const [a, b] = [end(c.rope.nodes[0]!), end(c.rope.nodes[1]!)];
+      return a && b ? [[a, b]] : [];
+    }
+    return [];
+  });
+  const linked = (id: string) => (scene.constraints ?? []).filter((c) => JSON.stringify(c).includes(`"${id}"`)).length;
+  bodies.forEach((body, i) => {
+    const id = ids[i]!;
+    if (body.kind === 'static' || body.charge !== 0 || linked(id) !== 1) return;
+    if (springs.some((s) => [s.a, s.b].some((a) => 'body' in a && a.body.id === id))) return;
+    const link = links.find(([a, b]) => [a, b].some((x) => 'body' in x && x.body.id === id));
+    if (!link) return;
+    const [mine, other] = 'body' in link[0] && link[0].body.id === id ? link : [link[1], link[0]];
+    const pivot = fixedEnd(other);
+    // Hung by its centre: a rod tied off-centre makes a physical pendulum, which swings at another rate.
+    if (!pivot || !('body' in mine) || Math.hypot(...(mine.body.local ?? [0, 0])) > 1e-9) return;
+    found.push({ kind: 'pendulum', body: i, pivot });
   });
   return found;
+}
+
+/** Where a body's swing is, as the shadow of a point on a circle. */
+interface Swing {
+  /** Unit vector along the line the displacement is measured on. */
+  u: Vec;
+  /** Unit vector to the side the circle and graph are drawn on. */
+  n: Vec;
+  /** Displacement from the balance point along `u`, and its rate. */
+  x: number;
+  v: number;
+  omega: number;
+  /** Where the body would be at rest. */
+  centre: Vec;
+  /** The circle is drawn this far along `n` from `base`, clear of what is there. */
+  base: Vec;
+  clearance: number;
+}
+
+function swingOf(osc: Oscillator, body: BodyInfo, state: Float64Array, gravity: Vec): Swing | undefined {
+  const i = osc.body;
+  const position: Vec = [state[i * STATE_STRIDE]!, state[i * STATE_STRIDE + 1]!];
+  const velocity: Vec = [state[i * STATE_STRIDE + 3]!, state[i * STATE_STRIDE + 4]!];
+  if (osc.kind === 'spring') {
+    const u = osc.axis;
+    const omega = Math.sqrt(osc.stiffness / body.mass);
+    // Where the spring's pull balances gravity's along the line, and how far from there the body is and how fast.
+    const balance = osc.rest + (body.mass * dot(gravity, u)) / osc.stiffness;
+    const held = bodyPoint(state, i, osc.local);
+    const x = dot([held[0] - osc.anchor[0], held[1] - osc.anchor[1]], u) - balance;
+    // Beside the body, on its right or above it.
+    let n: Vec = [-u[1], u[0]];
+    if (n[0] + n[1] < 0) n = scale(n, -1);
+    const centre = add(position, scale(u, -x));
+    const size = body.shape.kind === 'circle' ? body.shape.radius : body.shape.kind === 'polygon' ? Math.max(...body.shape.vertices.map((p) => Math.hypot(...p))) : 0;
+    return { u, n, x, v: dot(velocity, u), omega, centre, base: centre, clearance: size };
+  }
+  // A pendulum: sideways displacement and speed, at the small-swing rate √(g/L). The circle goes above the pivot,
+  // clear of the rod and the bob, where there is room.
+  const g = Math.hypot(...gravity);
+  if (g === 0) return undefined;
+  const down = scale(gravity, 1 / g);
+  const arm: Vec = [position[0] - osc.pivot[0], position[1] - osc.pivot[1]];
+  const length = Math.hypot(...arm);
+  if (length < 1e-9) return undefined;
+  // Only small swings are simple harmonic: past 45° the circle would say something untrue.
+  const height = length - dot(arm, down);
+  const widest = Math.acos(Math.max(-1, Math.min(1, 1 - (height + dot(velocity, velocity) / (2 * g)) / length)));
+  if (!(widest <= Math.PI / 4)) return undefined;
+  let u: Vec = [-down[1], down[0]];
+  if (u[0] + u[1] < 0) u = scale(u, -1);
+  const centre = add(osc.pivot, scale(down, length));
+  return { u, n: scale(down, -1), x: dot(arm, u), v: dot(velocity, u), omega: Math.sqrt(g / length), centre, base: osc.pivot, clearance: 0 };
+}
+
+/** Whether an oscillator's motion can be drawn as a reference circle now: a pendulum swinging past 45° cannot. */
+export function drawable(osc: Oscillator, body: BodyInfo, state: Float64Array, gravity: Vec): boolean {
+  return swingOf(osc, body, state, gravity) !== undefined;
+}
+
+/**
+ * The points a reference circle and its graph reach at the oscillator's present swing, so a view can be framed to
+ * show them. Undefined when there is nothing to draw.
+ */
+export function footprint(osc: Oscillator, body: BodyInfo, state: Float64Array, gravity: Vec): Vec[] | undefined {
+  const swing = swingOf(osc, body, state, gravity);
+  if (!swing) return undefined;
+  const { u, n, x, v, omega, base, clearance } = swing;
+  const a = Math.hypot(x, v / omega);
+  if (!(a > 1e-6)) return undefined;
+  const gap = Math.max(0.08, 0.4 * a);
+  const C = add(base, scale(n, clearance + gap + a));
+  const end = add(C, scale(n, 2 * a + gap + 2.5 * a));
+  return [add(C, scale(u, a)), add(C, scale(u, -a)), add(C, scale(n, -a)), add(end, scale(u, a)), add(end, scale(u, -a))];
 }
 
 /** The angle, amplitude and graph of one oscillator, drawn beside it as it runs. */
@@ -88,13 +198,9 @@ export class ReferenceCircle {
     }
     const { ctx, camera } = painter;
     const i = osc.body;
-    const u = osc.axis;
-    const omega = Math.sqrt(osc.stiffness / body.mass);
-    // Where the spring's pull balances gravity's along the line, and how far from there the body is and how fast.
-    const balance = osc.rest + (body.mass * dot(gravity, u)) / osc.stiffness;
-    const held = bodyPoint(state, i, osc.local);
-    const x = dot([held[0] - osc.anchor[0], held[1] - osc.anchor[1]], u) - balance;
-    const v = dot([state[i * STATE_STRIDE + 3]!, state[i * STATE_STRIDE + 4]!], u);
+    const swing = swingOf(osc, body, state, gravity);
+    if (!swing) return;
+    const { u, n, x, v, omega, centre, base, clearance } = swing;
     const amplitude = Math.hypot(x, v / omega);
     if (!Number.isFinite(amplitude) || amplitude < 1e-6) return;
 
@@ -107,13 +213,9 @@ export class ReferenceCircle {
     const window = 1.5 * period;
     while (this.history.length > 2 && time - this.history[0]![0] > window) this.history.shift();
 
-    // Beside the body, on its right or above it: the circle level with the balance point, the graph beyond it.
-    let n: Vec = [-u[1], u[0]];
-    if (n[0] + n[1] < 0) n = scale(n, -1);
-    const centre = add(bodyPoint(state, i, [0, 0]), scale(u, -x));
-    const size = body.shape.kind === 'circle' ? body.shape.radius : body.shape.kind === 'polygon' ? Math.max(...body.shape.vertices.map((p) => Math.hypot(...p))) : 0;
+    // The circle beside the balance point, the graph beyond it.
     const gap = Math.max(0.08, 0.4 * this.reach);
-    const C = add(centre, scale(n, size + gap + this.reach));
+    const C = add(base, scale(n, clearance + gap + this.reach));
     const P = add(add(C, scale(u, x)), scale(n, -v / omega));
     const G = add(C, scale(n, this.reach + gap));
     // The graph takes the room there is on the stage beyond the circle, clear of the panels over its edges, up to
@@ -163,7 +265,7 @@ export class ReferenceCircle {
     ctx.fill();
 
     // The balance line through the body, the circle's centre and the graph's time axis.
-    painter.dashed([add(centre, scale(n, -size)), add(G, scale(n, width))], colour);
+    painter.dashed([add(centre, scale(n, -clearance)), add(G, scale(n, width))], colour);
     // The point's shadow: level with the body, and with the newest point of the graph.
     painter.dashed([bodyPoint(state, i, [0, 0]), add(G, scale(u, x))], colour);
 
@@ -175,8 +277,17 @@ export class ReferenceCircle {
 
     ctx.font = stageFont(11.5);
     ctx.textAlign = 'center';
-    // Under the circle, clear of it however large the swing has been.
-    ctx.fillText(`A ${formatNumber(amplitude)} m · ω ${formatNumber(omega)} rad/s · T ${formatNumber(period)} s`, cx, cy + this.reach * camera.scale + 20 * k);
+    const reading = `A ${formatNumber(amplitude)} m · ω ${formatNumber(omega)} rad/s · T ${formatNumber(period)} s`;
+    if (osc.kind === 'pendulum') {
+      // The graph runs on up above a pendulum's circle, so the reading goes beside the circle.
+      ctx.textAlign = 'left';
+      ctx.fillText('small swings', cx + this.reach * camera.scale + 12 * k, cy - 4 * k);
+      ctx.fillText(reading, cx + this.reach * camera.scale + 12 * k, cy + 12 * k);
+      ctx.textAlign = 'center';
+    } else {
+      // Under the circle, clear of it however large the swing has been.
+      ctx.fillText(reading, cx, cy + this.reach * camera.scale + 20 * k);
+    }
     const [tx, ty] = screen(add(G, scale(n, width)));
     ctx.fillText('t', tx + 8 * k, ty);
     ctx.restore();

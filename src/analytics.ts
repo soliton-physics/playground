@@ -45,3 +45,18 @@ export function trackScenes(): void {
   };
   report();
 }
+
+const done = new Set<string>();
+
+/**
+ * Something a visitor did in the scene on screen, counted as a page of its own, /do/<what>/<mode>/<scene>, since the
+ * free plan counts nothing else: "ran" (pressed play), "watched" (kept it running for 20 seconds), "remixed",
+ * "shared", "built" (added something in the sandbox). Each is counted once per scene per visit, so the numbers say
+ * how many visits did it, not how many clicks.
+ */
+export function action(what: 'ran' | 'watched' | 'remixed' | 'shared' | 'built'): void {
+  const path = `/do/${what}${scenePath(location.search).replace(/^\/(play|embed)/, '')}`;
+  if (done.has(path)) return;
+  done.add(path);
+  pageview(path);
+}

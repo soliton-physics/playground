@@ -2,10 +2,13 @@ import { el } from './ui';
 import { pageview } from './analytics';
 
 /*
- * "Something wrong? An idea?" A short note, written in the playground, that goes out as an email with the page it
- * was written on attached, so the report says exactly which scene and settings it is about.
+ * "Something wrong? An idea?" A short note, written in the playground, with the page it was written on attached, so
+ * the report says exactly which scene and settings it is about. With a Web3Forms access key it goes straight to the
+ * inbox from the page; without one, it opens the visitor's email app, or can be copied.
  */
 const ADDRESS = 'developer.zang.000@gmail.com';
+/** Web3Forms' public access key: it only lets a form deliver to the inbox it was made for. */
+const INBOX = import.meta.env.VITE_WEB3FORMS_KEY as string | undefined;
 const KINDS = [
   ['wrong', 'Something looks wrong'],
   ['idea', 'An idea'],
@@ -27,15 +30,24 @@ function build(): HTMLDialogElement {
     required: true,
     placeholder: 'What did you see, or what would make this better for your class?',
   }) as HTMLTextAreaElement;
+  const reply = el('input', {
+    type: 'email',
+    name: 'email',
+    class: 'feedback-reply',
+    placeholder: 'Your email, if you would like a reply (optional)',
+    autocomplete: 'email',
+  }) as HTMLInputElement;
+  reply.hidden = !INBOX;
   const context = el('p', { class: 'feedback-context' });
   const status = el('p', { class: 'feedback-status', role: 'status' });
-  const send = el('button', { type: 'submit', class: 'feedback-send', text: 'Send by email' });
+  const send = el('button', { type: 'submit', class: 'feedback-send', text: INBOX ? 'Send' : 'Send by email' });
   const copy = el('button', { type: 'button', class: 'feedback-copy', text: 'Copy instead' });
   const cancel = el('button', { type: 'button', class: 'feedback-cancel', text: 'Cancel' });
   const form = el('form', { method: 'dialog', class: 'feedback-form' }, [
     el('h2', { text: 'Tell us what you think' }),
     kinds,
     message,
+    reply,
     context,
     status,
     el('div', { class: 'feedback-actions' }, [cancel, copy, send]),
@@ -49,7 +61,29 @@ function build(): HTMLDialogElement {
     pageview(`/feedback/${kind()}/${how}`);
     status.textContent = '';
     message.value = '';
+    reply.value = '';
     box.close();
+  };
+
+  /** Straight to the inbox. Returns false when it could not be sent, so the visitor can be offered another way. */
+  const deliver = async (): Promise<boolean> => {
+    try {
+      const response = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          access_key: INBOX,
+          subject: subject(),
+          from_name: 'Soliton playground',
+          ...(reply.value.trim() ? { email: reply.value.trim(), replyto: reply.value.trim() } : {}),
+          kind: KINDS.find(([v]) => v === kind())?.[1],
+          message: text(),
+        }),
+      });
+      return response.ok && ((await response.json()) as { success?: boolean }).success === true;
+    } catch {
+      return false;
+    }
   };
 
   box.addEventListener('toggle', () => {
@@ -66,8 +100,22 @@ function build(): HTMLDialogElement {
       message.focus();
       return;
     }
-    location.href = `mailto:${ADDRESS}?subject=${encodeURIComponent(subject())}&body=${encodeURIComponent(text())}`;
-    done('email');
+    if (!INBOX) {
+      location.href = `mailto:${ADDRESS}?subject=${encodeURIComponent(subject())}&body=${encodeURIComponent(text())}`;
+      done('email');
+      return;
+    }
+    send.disabled = true;
+    status.textContent = 'Sending…';
+    void deliver().then((sent) => {
+      send.disabled = false;
+      if (sent) {
+        status.textContent = 'Sent. Thank you!';
+        window.setTimeout(() => done('sent'), 1200);
+      } else {
+        status.textContent = `Couldn't send just now. Use "Copy instead", or email ${ADDRESS}.`;
+      }
+    });
   });
   copy.addEventListener('click', async () => {
     if (!message.value.trim()) {

@@ -1,3 +1,4 @@
+import { action as track } from '../analytics';
 import { closePopover, popover, slider, toast } from '../controls';
 import { mechanics_catalogue } from '../engine';
 import { icon, type IconName } from '../icons';
@@ -11,7 +12,7 @@ import { HANDLES, type Handle } from './handles';
 import { Inspector } from './inspector';
 import { Session, type Source } from './session';
 import { downloadScene, loadSandbox, saveSandbox, sceneFromUrl, shareLink } from './share';
-import { ReferenceCircle } from './stage/reference';
+import { ReferenceCircle, footprint } from './stage/reference';
 import { Renderer, aggregateForces, fitArrows, scales, type Frame, type Painter } from './stage/renderer';
 import { STATE_STRIDE, type BodySpec, type FieldInfo, type ForceInfo, type Param, type SceneFile, type ScenarioSpec, type SketchInfo, type Vec, type View } from './types';
 import { nearestBody } from './pick';
@@ -54,6 +55,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   const renderer = new Renderer(canvas);
   const view: ViewOptions = { forces: true, velocity: true, acceleration: false, trail: true, field: true, circle: true };
   const reference = new ReferenceCircle();
+  /** Whether the reference circle is switched on: read where `view` means the camera's view instead. */
+  const circleShown = () => view.circle;
   /** The arrows as they were before a scene that hides them. */
   let arrowsBefore: { forces: boolean; velocity: boolean } | null = null;
   let session!: Session;
@@ -113,9 +116,17 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   /** The scene's suggested view, widened if the things in it reach further sideways than its height implies. */
   function framing(): View {
-    const view = session.view;
+    let view = session.view;
     if (view.half_width) return view;
     const state = session.world.state();
+    // Room above and below for the reference circle and its graph, which can reach past the scene.
+    const oscillator = session.oscillators.find((o) => o.body === session.focus) ?? session.oscillators[0];
+    const extra = circleShown() && oscillator ? (footprint(oscillator, session.bodies[oscillator.body]!, state, session.gravity) ?? []) : [];
+    if (extra.length) {
+      const [top, bottom] = extra.reduce(([t, b], [, y]) => [Math.max(t, y + 0.25), Math.min(b, y - 0.25)], [view.center[1] + view.half_height, view.center[1] - view.half_height]);
+      view = { ...view, center: [view.center[0], (top + bottom) / 2], half_height: (top - bottom) / 2 };
+    }
+    // Only up and down: sideways, the graph fits itself into whatever width there is.
     let reach = 0;
     session.bodies.forEach((body, i) => {
       const shape = body.shape;
@@ -286,6 +297,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
       actions.replaceChildren(
         action('sliders', 'Parameters', (button) => openParameters(button)),
         action('remix', 'Remix', () => {
+          track('remixed');
           openSandbox(rollingBalls(session.world.scene_json()));
           toast('This is now your copy. Move things, add things, break it.');
         }),
@@ -380,6 +392,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
 
   function setRunning(running: boolean): void {
     session.running = running;
+    if (running) track('ran');
     if (running) banner.hidden = true;
     hint.hidden = running || !sandbox || embedded || !hint.textContent;
   }
@@ -737,6 +750,7 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
   shell.onTitle(gallery);
   shell.onShare(async () => {
     const link = sandbox ? await shareLink(editor.json) : new URL(scenarioUrl(), location.href).toString();
+    track('shared');
     try {
       await navigator.clipboard.writeText(link);
       toast('Link copied. Anyone who opens it gets exactly this.');
@@ -864,6 +878,8 @@ export async function mountMechanics(main: HTMLElement, query: URLSearchParams, 
     const elapsed = Math.min(0.1, (now - last) / 1000);
     last = now;
     if (session.advance(elapsed)) showFinish();
+    // A visit that kept a scene running this long was watching it, not passing through.
+    if (session.running && session.time >= 20) track('watched');
     const state = session.world.state();
     const forces = aggregateForces(session.world.forces(session.focus) as ForceInfo[]);
     const panelsDue = now - lastPanels > 120;

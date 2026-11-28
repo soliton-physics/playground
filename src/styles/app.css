@@ -2037,7 +2037,8 @@ body.embed .banner {
   accent-color: var(--accent);
 }
 
-.feedback textarea {
+.feedback textarea,
+.feedback-reply {
   width: 100%;
   padding: 0.7rem 0.8rem;
   border: 1px solid var(--border-strong);
@@ -2048,7 +2049,16 @@ body.embed .banner {
   resize: vertical;
 }
 
-.feedback textarea:focus {
+.feedback-reply {
+  resize: none;
+}
+
+.feedback-reply[hidden] {
+  display: none;
+}
+
+.feedback textarea:focus,
+.feedback-reply:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }

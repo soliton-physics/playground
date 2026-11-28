@@ -1,11 +1,12 @@
+import { action as track } from '../analytics';
 import { iconButton, slider } from '../controls';
 import type { IconName } from '../icons';
 import { el, formatNumber } from '../ui';
 import { KNOB_COLOR, scales, type Painter } from './stage/renderer';
-import { asValley, followValley, valleyBody, valleyHeight, type Placement, type Valley } from './track';
-import type { AnchorSpec, BodySpec, ConstraintSpec, ForceSpec, RopeNodeSpec, SceneFile, ShapeSpec, Vec } from './types';
+import { asValley, followValley, trackThrough, valleyBody, valleyHeight, type Placement, type Valley } from './track';
+import type { AnchorSpec, BodySpec, ConstraintSpec, ForceSpec, RopeNodeSpec, SceneFile, ShapeSpec, TrackPiece, Vec } from './types';
 
-export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'valley' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
+export type Tool = 'select' | 'ball' | 'box' | 'polygon' | 'platform' | 'incline' | 'wall' | 'valley' | 'draw' | 'rope' | 'rod' | 'spring' | 'pin' | 'erase';
 
 const TOOLS: [Tool, IconName, string][] = [
   ['select', 'cursor', 'Select and move (V)'],
@@ -16,6 +17,7 @@ const TOOLS: [Tool, IconName, string][] = [
   ['incline', 'incline', 'Incline: drag from its foot to its top (I)'],
   ['wall', 'wall', 'Wall or ramp: drag along it (W)'],
   ['valley', 'valley', 'Curved ramp (U)'],
+  ['draw', 'draw', 'Draw a track: drag along its path (C)'],
   ['rope', 'rope', 'Rope: click two ends (O)'],
   ['rod', 'rod', 'Rigid rod: click two ends (D)'],
   ['spring', 'spring', 'Spring: click two ends (S)'],
@@ -23,7 +25,7 @@ const TOOLS: [Tool, IconName, string][] = [
   ['erase', 'erase', 'Erase (E)'],
 ];
 
-export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', g: 'polygon', p: 'platform', i: 'incline', w: 'wall', u: 'valley', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
+export const TOOL_KEYS: Record<string, Tool> = { v: 'select', b: 'ball', x: 'box', g: 'polygon', p: 'platform', i: 'incline', w: 'wall', u: 'valley', c: 'draw', o: 'rope', d: 'rod', s: 'spring', n: 'pin', e: 'erase' };
 
 const HINTS: Record<Tool, string> = {
   select: 'Drag a body to move it, its arrow to launch it, or a knob on its edge to resize it. Click a rope or spring to edit it. Shift-click selects several.',
@@ -34,6 +36,7 @@ const HINTS: Record<Tool, string> = {
   incline: 'Drag from the foot of the slope to its top.',
   wall: 'Drag along where the wall or ramp should be.',
   valley: 'Click where the bottom of the curved ramp should be. Select it to change its curve.',
+  draw: 'Drag along the path the track should take: hills, dips, jumps. Turn sharply for a corner.',
   rope: 'Click a body, then another body or an empty point.',
   rod: 'Click a body, then another body or an empty point.',
   spring: 'Click a body, then another body or an empty point.',
@@ -189,6 +192,8 @@ export class Editor {
   private corners: Vec[] = [];
   /** The incline or wall being dragged out. */
   private stretch: { from: Vec; to: Vec } | undefined;
+  /** The path dragged out so far with the draw tool. */
+  private drawing: Vec[] | undefined;
   private history: string[] = [];
   private future: string[] = [];
   private lastEdit = { key: '', time: 0 };
@@ -274,6 +279,7 @@ export class Editor {
     this.pending = undefined;
     this.corners = [];
     this.stretch = undefined;
+    this.drawing = undefined;
     for (const [id, button] of this.buttons) button.setAttribute('aria-pressed', String(id === tool));
     this.hint(HINTS[tool]);
   }
@@ -373,6 +379,10 @@ export class Editor {
       case 'wall':
         this.stretch = { from: [x, y], to: [x, y] };
         return true;
+      case 'draw':
+        // The drawn path keeps the pointer's own positions: rounding to the grid would put steps in a curve.
+        this.drawing = [hit.at];
+        return true;
       case 'valley': {
         const { pieces, ...placement } = valleyBody({ bottom: [x, y], radius: 2 * u, side: Math.PI / 2, flat: 2 * u, left: 'curve', right: 'curve' });
         // Smooth: whatever is put on it brings its own friction, since a pair takes the larger of the two.
@@ -408,16 +418,27 @@ export class Editor {
 
   /** Whether a press with the current tool starts a drag that `stretchTo` and `release` should follow. */
   get stretching(): boolean {
-    return this.stretch !== undefined;
+    return this.stretch !== undefined || this.drawing !== undefined;
   }
 
   stretchTo(at: Vec): void {
     const u = this.unit;
+    if (this.drawing) {
+      const last = this.drawing[this.drawing.length - 1]!;
+      if (Math.hypot(at[0] - last[0], at[1] - last[1]) > 0.02 * u) this.drawing.push(at);
+      return;
+    }
     if (this.stretch) this.stretch.to = [round(at[0], 0.05 * u), round(at[1], 0.05 * u)];
   }
 
-  /** The pointer came up: the incline or wall dragged out becomes a body. */
+  /** The pointer came up: the incline, wall or track dragged out becomes a body. */
   release(): void {
+    if (this.drawing) {
+      const path = this.drawing;
+      this.drawing = undefined;
+      this.addDrawnTrack(path);
+      return;
+    }
     const drawn = this.stretch;
     this.stretch = undefined;
     if (!drawn) return;
@@ -450,6 +471,21 @@ export class Editor {
     }
   }
 
+  /** A track along a path drawn by hand, smooth where it was drawn smoothly and cornered where it turned sharply. */
+  private addDrawnTrack(path: Vec[]): void {
+    const u = this.unit;
+    const length = path.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - path[i]![0], p[1] - path[i]![1]), 0);
+    const track = length >= 0.5 * u ? trackThrough(path, 0.3 * u) : undefined;
+    if (!track) {
+      this.hint('Drag a longer path: press, then move along where the track should go.');
+      return;
+    }
+    const r = (v: number) => round(v, 1e-6 * u);
+    const pieces = track.pieces.map((p): TrackPiece => ('line' in p ? { line: r(p.line) } : 'arc' in p ? { arc: { radius: r(p.arc.radius), angle: round(p.arc.angle, 1e-9) } } : { corner: round(p.corner, 1e-9) }));
+    // Smooth: whatever is put on it brings its own friction, since a pair takes the larger of the two.
+    this.add({ id: this.uniqueId('track'), kind: 'static', shape: { track: { pieces, thickness: 0.12 * u } }, position: [r(track.position[0]), r(track.position[1])], angle: round(track.angle, 1e-9), friction: [0, 0] });
+  }
+
   /** A click with the polygon tool: one more corner, or the end of the shape. */
   private corner(at: Vec, reach: number): boolean {
     const near = (p: Vec | undefined) => p !== undefined && Math.hypot(p[0] - at[0], p[1] - at[1]) <= reach;
@@ -475,11 +511,12 @@ export class Editor {
     return this.addPolygon('shape', corners, false);
   }
 
-  /** Forgets a shape, incline or link being drawn. Returns true if there was one. */
+  /** Forgets a shape, incline, track or link being drawn. Returns true if there was one. */
   cancel(): boolean {
-    const busy = this.corners.length > 0 || this.stretch !== undefined || this.pending !== undefined;
+    const busy = this.corners.length > 0 || this.stretch !== undefined || this.drawing !== undefined || this.pending !== undefined;
     this.corners = [];
     this.stretch = undefined;
+    this.drawing = undefined;
     this.pending = undefined;
     return busy;
   }
@@ -515,6 +552,7 @@ export class Editor {
   }
 
   private add(body: BodySpec): boolean {
+    track('built');
     this.checkpoint('');
     this.scene.bodies.push(body);
     this.selected = this.scene.bodies.length - 1;
@@ -945,6 +983,7 @@ export class Editor {
       const { points } = this.linkPath(chosen as ConstraintSpec);
       for (const [x, y] of points) painter.knob(x, y, guide, true);
     }
+    if (this.drawing && this.drawing.length > 1) painter.dashed(this.drawing, guide);
     if (this.corners.length > 0) {
       // The corners so far, the edge that would follow the pointer, and the edge that would close the shape.
       const path = pointer ? [...this.corners, pointer] : this.corners;
