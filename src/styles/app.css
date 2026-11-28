@@ -469,6 +469,13 @@ input[type='range']::-moz-range-thumb {
   box-shadow: none;
 }
 
+.answer.problem {
+  max-width: min(34rem, calc(100vw - 2rem));
+  border-left: 3px solid var(--warning);
+  border-radius: 10px;
+  line-height: 1.45;
+}
+
 .answer .name {
   color: var(--muted);
 }
@@ -2100,4 +2107,156 @@ body.embed .banner {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
+}
+
+/* ---------- circuits on a narrow screen ---------- */
+
+/* The bar a readings sheet folds down to; on a wide screen the readings are always open beside the circuit. */
+.sheet-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .sheet-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.143rem 0;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .sheet-toggle svg {
+    transition: transform 0.2s;
+  }
+  .wave-readout.folded {
+    bottom: 5.429rem;
+    padding-block: 0.571rem;
+    overflow: hidden;
+  }
+  .wave-readout.folded > :not(.sheet-toggle) {
+    display: none;
+  }
+  .wave-readout.folded .sheet-toggle svg {
+    transform: rotate(180deg);
+  }
+  /* The hint beside the tools: across the stage, not squeezed into what the side panels leave. */
+  .hint-beside-rail {
+    left: 0.857rem;
+    right: 0.857rem;
+    max-width: none;
+    width: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  /* The tools in rows along the top instead of a tall column down the side. */
+  .rail.two {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    bottom: auto;
+    left: 0.571rem;
+    right: 0.571rem;
+    max-width: none;
+  }
+  .rail.two .rail-divider {
+    width: 1px;
+    height: 1.6rem;
+    margin: 0 0.214rem;
+  }
+  .hint-beside-rail {
+    top: 0.5rem;
+    font-size: 0.78rem;
+    padding: 0.286rem 0.714rem;
+    border-radius: 12px;
+  }
+}
+
+/* The circuit tools, each named beside its icon; on a phone, icons only, in rows. */
+.rail.named {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.rail.named .icon-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  width: auto;
+  height: 2.357rem;
+  gap: 0.571rem;
+  padding: 0 0.857rem 0 0.571rem;
+}
+
+.rail.named .tool-name {
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.rail-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.rail.named .rail-row .icon-button {
+  padding: 0;
+  width: 2.571rem;
+  justify-content: center;
+}
+
+@media (max-width: 700px) {
+  .rail.named {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    bottom: auto;
+    left: 0.571rem;
+    right: 0.571rem;
+    max-width: none;
+  }
+  .rail.named .tool-name {
+    display: none;
+  }
+  .rail.named .icon-button {
+    width: 2.571rem;
+    padding: 0;
+    justify-content: center;
+  }
+  .rail.named .rail-divider {
+    width: 1px;
+    height: 1.6rem;
+    margin: 0 0.214rem;
+  }
+}
+
+/* The circuits readings: only as tall as what is in them on a wide screen, not a tall empty card. */
+@media (min-width: 901px) {
+  .wave-readout.circuit-readout {
+    bottom: auto;
+    max-height: calc(100% - 7rem);
+  }
+}
+
+/* A coloured mark for each curve on a graph, and its name. */
+.curve-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.357rem;
+  margin-right: 0.857rem;
+}
+
+.curve-key i {
+  width: 0.857rem;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.about-dots {
+  border-top: 1px solid var(--border);
+  padding-top: 0.571rem;
 }

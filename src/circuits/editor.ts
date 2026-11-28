@@ -5,27 +5,28 @@ import { kindOf, type ElementSpec, type KindSpec, type Vec } from './types';
 
 export type PartTool = 'select' | 'wire' | 'resistor' | 'battery' | 'capacitor' | 'inductor' | 'source' | 'switch' | 'diode' | 'ammeter' | 'voltmeter' | 'erase';
 
-const TOOLS: [PartTool, IconName, string][] = [
-  ['select', 'cursor', 'Select a part, or drag a junction'],
-  ['wire', 'wire', 'Wire: drag from one dot to another'],
-  ['resistor', 'resistor', 'Resistor'],
-  ['battery', 'battery', 'Cell: its positive end is where the drag starts'],
-  ['switch', 'knife', 'Switch'],
-  ['capacitor', 'capacitor', 'Capacitor'],
-  ['inductor', 'inductor', 'Inductor'],
-  ['source', 'acsource', 'Alternating source'],
-  ['diode', 'diode', 'Diode: it conducts the way it is dragged'],
-  ['ammeter', 'ammeter', 'Ammeter: put it in the path of the current'],
-  ['voltmeter', 'voltmeter', 'Voltmeter: put it across a part'],
-  ['erase', 'erase', 'Erase a part'],
+/** Each tool: its icon, what it is called beside the icon, and the longer description on hover. */
+const TOOLS: [PartTool, IconName, string, string][] = [
+  ['select', 'cursor', 'Select', 'Select a part, or drag a junction'],
+  ['wire', 'wire', 'Wire', 'Wire: drag from one dot to another'],
+  ['resistor', 'resistor', 'Resistor', 'Resistor'],
+  ['battery', 'battery', 'Cell', 'Cell: its positive end is where the drag starts'],
+  ['switch', 'knife', 'Switch', 'Switch'],
+  ['capacitor', 'capacitor', 'Capacitor', 'Capacitor'],
+  ['inductor', 'inductor', 'Inductor', 'Inductor'],
+  ['source', 'acsource', 'AC source', 'Alternating source'],
+  ['diode', 'diode', 'Diode', 'Diode: it conducts the way it is dragged'],
+  ['ammeter', 'ammeter', 'Ammeter', 'Ammeter: put it in the path of the current'],
+  ['voltmeter', 'voltmeter', 'Voltmeter', 'Voltmeter: put it across a part'],
+  ['erase', 'erase', 'Erase', 'Erase a part'],
 ];
 
 const HINTS: Record<PartTool, string> = {
-  select: 'Click a part to set its value. Drag a junction to move it. Delete removes the part picked out.',
+  select: 'Click a part to set its value, or a switch to flip it. Drag a junction to move it. Delete removes the part picked out.',
   wire: 'Drag from one dot to another to join them with wire.',
   resistor: 'Drag from one dot to another to place a resistor.',
   battery: 'Drag to place a cell. Its positive end is where the drag starts.',
-  switch: 'Drag to place a switch. Select it to open or close it.',
+  switch: 'Drag to place a switch. Then click it, with the arrow, to open or close it.',
   capacitor: 'Drag to place a capacitor. The circuit is then followed in time as it charges.',
   inductor: 'Drag to place an inductor.',
   source: 'Drag to place an alternating source.',
@@ -83,9 +84,10 @@ const same = (a: Vec, b: Vec) => a[0] === b[0] && a[1] === b[1];
 
 /** The tools for building a circuit, and the circuit they build. Solving it is somebody else's business. */
 export class CircuitEditor {
-  readonly rail = el('div', { class: 'rail two glass overlay', role: 'toolbar', 'aria-label': 'Parts' });
+  readonly rail = el('div', { class: 'rail named glass overlay', role: 'toolbar', 'aria-label': 'Parts' });
   draft: Draft = starter();
-  board: [number, number] = [...BOARD];
+  /** The region framed when the view is fitted, `[left, bottom, right, top]`: the starting board and all that is built. */
+  board: [number, number, number, number] = [0, 0, ...BOARD];
   tool: PartTool = 'select';
   selected: number | undefined;
   /** A part being dragged out. */
@@ -99,13 +101,18 @@ export class CircuitEditor {
   private readonly buttons = new Map<PartTool, HTMLButtonElement>();
 
   constructor(private readonly changed: () => void, private readonly picked: () => void, private readonly hint: (text: string) => void) {
-    for (const [tool, name, label] of TOOLS) {
+    for (const [tool, name, short, label] of TOOLS) {
       const button = iconButton(name, label, () => this.setTool(tool));
+      // Named beside the icon, where there is room for it: no one should have to hover to find the resistor.
+      button.append(el('span', { class: 'tool-name', text: short }));
       this.buttons.set(tool, button);
       this.rail.append(button);
       if (tool === 'select' || tool === 'voltmeter') this.rail.append(el('div', { class: 'rail-divider' }));
     }
-    this.rail.append(el('div', { class: 'rail-divider' }), iconButton('undo', 'Undo (Ctrl+Z)', () => this.undo()), iconButton('redo', 'Redo (Ctrl+Shift+Z)', () => this.redo()), iconButton('close', 'Clear the board', () => this.clear()));
+    this.rail.append(
+      el('div', { class: 'rail-divider' }),
+      el('div', { class: 'rail-row' }, [iconButton('undo', 'Undo (Ctrl+Z)', () => this.undo()), iconButton('redo', 'Redo (Ctrl+Shift+Z)', () => this.redo()), iconButton('close', 'Clear the board', () => this.clear())]),
+    );
     this.setTool('select');
   }
 
@@ -130,10 +137,10 @@ export class CircuitEditor {
     };
     const [toX, toY] = [place(given.nodes.map((n) => n[0]), BOARD[0]), place(given.nodes.map((n) => n[1]), BOARD[1])];
     // One that was built here is already on the dots, and goes back where it was.
-    const onDots = given.nodes.every((n) => Number.isInteger(n[0]) && Number.isInteger(n[1]) && n[0] >= 0 && n[1] >= 0);
+    const onDots = given.nodes.every((n) => Number.isInteger(n[0]) && Number.isInteger(n[1]));
     const nodes = onDots ? given.nodes : given.nodes.map((n): Vec => [toX(n[0]), toY(n[1])]);
-    this.board = [Math.max(BOARD[0], ...nodes.map((n) => n[0])), Math.max(BOARD[1], ...nodes.map((n) => n[1]))];
     this.draft = { schema: 1, title: 'My circuit', nodes, elements: given.elements, analysis: given.analysis, watch: given.watch };
+    this.refit();
     this.selected = undefined;
     this.history = [];
     this.future = [];
@@ -184,8 +191,23 @@ export class CircuitEditor {
 
   // ---------------------------------------------------------------- the pointer
 
+  /** Grows the framed region to take in everything built, for when the view is fitted to it. */
+  refit(): void {
+    const nodes = this.draft.nodes;
+    this.board = [Math.min(0, ...nodes.map((n) => n[0])), Math.min(0, ...nodes.map((n) => n[1])), Math.max(BOARD[0], ...nodes.map((n) => n[0])), Math.max(BOARD[1], ...nodes.map((n) => n[1]))];
+  }
+
+  /** The dot nearest a point: anywhere on the page, since the dots cover all of it. */
   private snap(at: Vec): Vec {
-    return [Math.min(this.board[0], Math.max(0, Math.round(at[0]))), Math.min(this.board[1], Math.max(0, Math.round(at[1])))];
+    return [Math.round(at[0]), Math.round(at[1])];
+  }
+
+  /** Abandons a part being drawn or a junction being moved, as when a second finger arrives to zoom. */
+  abandon(): void {
+    this.preview = undefined;
+    if (this.moving !== undefined && this.moved) this.undo();
+    this.moving = undefined;
+    this.moved = false;
   }
 
   private partAt(at: Vec, reach: number): number | undefined {
@@ -216,6 +238,12 @@ export class CircuitEditor {
         return;
       }
       this.selected = this.partAt(at, reach);
+      // A switch is flipped by clicking it, as a real one is; it is picked out too, so its panel shows which way.
+      const part = this.selected === undefined ? undefined : this.draft.elements[this.selected];
+      if (part && typeof part.kind !== 'string' && 'switch' in part.kind) {
+        const flip = part.kind.switch;
+        this.edit(`flip ${performance.now()}`, () => (flip.closed = flip.closed === false));
+      }
       this.picked();
     } else if (this.tool === 'erase') {
       const part = this.partAt(at, reach);
@@ -256,12 +284,41 @@ export class CircuitEditor {
       return found >= 0 ? found : this.draft.nodes.push(at) - 1;
     };
     const [a, b] = [node(drawn[0]), node(drawn[1])];
-    let n = 1;
-    while (this.draft.elements.some((e) => e.name === `${prefix}${n}`)) n++;
-    this.draft.elements.push({ name: `${prefix}${n}`, a, b, kind: make() });
+    // An end dropped on the middle of a wire joins that wire there, as it would on a breadboard.
+    this.splitWiresAt(a);
+    this.splitWiresAt(b);
+    // A part laid along a stretch of wire goes into the wire, in place of that stretch, not beside it.
+    if (this.tool !== 'wire') {
+      this.draft.elements = this.draft.elements.filter((e) => !(e.kind === 'wire' && ((e.a === a && e.b === b) || (e.a === b && e.b === a))));
+    }
+    this.draft.elements.push({ name: this.freshName(prefix), a, b, kind: make() });
     this.selected = this.tool === 'wire' ? undefined : this.draft.elements.length - 1;
     this.picked();
     this.changed();
+  }
+
+  /** The first name with this prefix not yet taken: R1, R2, … */
+  private freshName(prefix: string): string {
+    let n = 1;
+    while (this.draft.elements.some((e) => e.name === `${prefix}${n}`)) n++;
+    return `${prefix}${n}`;
+  }
+
+  /** Cuts every wire that passes through junction `n` without ending there into two wires that meet at it. */
+  private splitWiresAt(n: number): void {
+    const p = this.draft.nodes[n]!;
+    const through = (e: ElementSpec) => {
+      if (e.kind !== 'wire' || e.a === n || e.b === n) return false;
+      const [a, b] = [this.draft.nodes[e.a]!, this.draft.nodes[e.b]!];
+      const cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+      const along = (p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1]);
+      return Math.abs(cross) < 1e-9 && along > 0 && along < (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2;
+    };
+    for (const wire of this.draft.elements.filter(through)) {
+      const end = wire.b;
+      wire.b = n;
+      this.draft.elements.push({ name: this.freshName('wire '), a: n, b: end, kind: 'wire' });
+    }
   }
 
   // ---------------------------------------------------------------- edits

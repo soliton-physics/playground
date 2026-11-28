@@ -14,6 +14,9 @@
   --accent: #0b6e8a;
   --accent-ink: #ffffff;
   --accent-soft: rgba(11, 110, 138, 0.14);
+  /* A part that stops a circuit being solved. */
+  --warning-soft: rgba(217, 119, 6, 0.28);
+  --warning: #b45309;
   --danger: #b91c1c;
   --good: #166534;
   --shadow: 0 8px 26px rgba(17, 24, 39, 0.16);
@@ -96,6 +99,8 @@
   --accent: #5cc8e6;
   --accent-ink: #06222b;
   --accent-soft: rgba(92, 200, 230, 0.18);
+  --warning-soft: rgba(251, 146, 60, 0.3);
+  --warning: #fdba74;
   --danger: #f87171;
   --good: #4ade80;
   --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
