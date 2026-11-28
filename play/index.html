@@ -18,15 +18,19 @@
     <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <script>
-      // One address per simulation for search engines: the canonical keeps only what picks the scene, and an
-      // embedded copy is kept out of the index altogether.
+      // One address per simulation for search engines. A textbook scene has a page of its own at /sim/<id>, written
+      // for search, so that is the one to show; anything else keeps only what picks the scene. An embedded copy is
+      // kept out of the index altogether.
       (() => {
         const query = new URLSearchParams(location.search);
         const kept = new URLSearchParams();
         for (const key of ['mode', 'scenario', 'preset']) if (query.has(key)) kept.set(key, query.get(key));
+        const scenario = query.get('scenario');
+        // Every scenario outside the wave lab has its page (scripts/sim-pages.mjs makes one per catalogue entry).
+        const page = scenario && /^[a-z0-9-]+$/.test(scenario) && query.get('mode') !== 'waves' ? `/sim/${scenario}` : undefined;
         const link = document.createElement('link');
         link.rel = 'canonical';
-        link.href = 'https://solitonplay.com/play' + (kept.size ? '?' + kept : '');
+        link.href = 'https://solitonplay.com' + (page ?? '/play' + (kept.size ? '?' + kept : ''));
         document.head.append(link);
         if (query.has('embed')) {
           const robots = document.createElement('meta');
